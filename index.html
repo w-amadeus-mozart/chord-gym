@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chord Sprint — MIDI Chord Trainer</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<!-- Status bar (always visible) -->
+<div id="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <div id="midi-activity" title="MIDI signal"></div>
+  <span id="midi-device-name">No MIDI device connected</span>
+  <button id="btn-connect-midi">Connect MIDI</button>
+  <button id="mute-btn" title="Toggle sound">🔊</button>
+</div>
+
+<!-- ══════════ MENU SCREEN ══════════ -->
+<div id="menu" class="screen active">
+  <div class="logo">Chord<span>Sprint</span></div>
+  <p class="tagline">Play the chord. Beat the clock. Train your ears.</p>
+
+  <div class="difficulty-grid" id="difficulty-grid"></div>
+
+  <div class="hs-panel">
+    <h3>High Scores</h3>
+    <div id="hs-list"></div>
+  </div>
+
+  <button id="btn-start">▶ START</button>
+</div>
+
+<!-- ══════════ GAME SCREEN ══════════ -->
+<div id="game" class="screen">
+  <div class="hud">
+    <div class="hud-item">
+      <div class="hud-label">Score</div>
+      <div class="hud-val score-val" id="hud-score">0</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Time</div>
+      <div class="hud-val timer-val" id="hud-timer">60</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Streak</div>
+      <div class="hud-val streak-val" id="hud-streak">0</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Multiplier</div>
+      <div class="hud-val mult-val" id="hud-mult">×1</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Chords</div>
+      <div class="hud-val" id="hud-chords">0</div>
+    </div>
+  </div>
+
+  <div class="timer-bar-wrap">
+    <div class="timer-bar" id="timer-bar"></div>
+  </div>
+
+  <div class="chord-arena" id="chord-arena">
+    <div class="streak-fire" id="streak-fire"></div>
+    <div id="chord-display">—</div>
+    <div class="note-indicators" id="note-indicators"></div>
+  </div>
+
+  <div class="keyboard-section">
+    <h4>On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
+    <div class="piano-wrap" id="piano"></div>
+  </div>
+</div>
+
+<!-- ══════════ RESULTS SCREEN ══════════ -->
+<div id="results" class="screen">
+  <div class="results-header">
+    <h1>Round Over</h1>
+    <div id="new-hs-badge" style="display:none" class="new-hs-badge">🏆 New High Score!</div>
+  </div>
+
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="weak-spot" id="weak-spot" style="display:none"></div>
+
+  <table class="per-chord-table">
+    <thead>
+      <tr>
+        <th>Chord</th>
+        <th>Response</th>
+        <th>Quality</th>
+        <th>Points</th>
+      </tr>
+    </thead>
+    <tbody id="per-chord-tbody"></tbody>
+  </table>
+
+  <div class="results-btns">
+    <button class="btn-primary" id="btn-play-again">Play Again</button>
+    <button class="btn-secondary" id="btn-change-level">Change Level</button>
+  </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

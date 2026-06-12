@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chord Sprint — MIDI Chord Trainer</title>
+<style>
+  :root {
+    --bg: #0d0d14;
+    --surface: #16161f;
+    --surface2: #1e1e2d;
+    --border: #2a2a3d;
+    --text: #e8e8f0;
+    --text-dim: #6b6b85;
+    --accent: #7c6fff;
+    --accent2: #ff6f91;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --cyan: #22d3ee;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; width: 100%; max-width: 900px; padding: 24px; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+  /* ── MIDI Status Bar ── */
+  #status-bar {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; z-index: 100;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-dim); flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.error { background: var(--red); }
+  /* MIDI activity flash */
+  #midi-activity {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: transparent; flex-shrink: 0;
+    transition: background 0.05s, box-shadow 0.05s;
+  }
+  #midi-activity.flash {
+    background: var(--cyan); box-shadow: 0 0 8px var(--cyan);
+  }
+  #midi-device-name { color: var(--text-dim); flex: 1; }
+  #btn-connect-midi {
+    padding: 4px 12px; border-radius: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; font-size: 12px;
+    transition: background 0.2s;
+  }
+  #btn-connect-midi:hover { background: var(--border); }
+  #mute-btn {
+    padding: 4px 10px; border-radius: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; font-size: 13px;
+  }
+
+  /* ── Menu Screen ── */
+  #menu { padding-top: 100px; gap: 32px; }
+  .logo { font-size: 48px; font-weight: 900; letter-spacing: -2px; text-align: center; }
+  .logo span { color: var(--accent); }
+  .tagline { color: var(--text-dim); text-align: center; font-size: 16px; }
+
+  .difficulty-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+    width: 100%; max-width: 520px;
+  }
+  .diff-btn {
+    padding: 16px; border-radius: 12px;
+    background: var(--surface); border: 2px solid var(--border);
+    color: var(--text); cursor: pointer; text-align: left;
+    transition: border-color 0.2s, transform 0.1s;
+  }
+  .diff-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .diff-btn.selected { border-color: var(--accent); background: #1a1a2e; }
+  .diff-btn .diff-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .diff-btn .diff-desc { font-size: 12px; color: var(--text-dim); }
+  .diff-btn .diff-num { font-size: 22px; font-weight: 900; color: var(--accent); float: right; margin-top: -2px; }
+
+  .hs-panel { width: 100%; max-width: 520px; background: var(--surface); border-radius: 12px; padding: 16px; }
+  .hs-panel h3 { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .hs-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+  .hs-val { color: var(--accent); font-weight: 700; }
+
+  #btn-start {
+    padding: 18px 60px; border-radius: 16px;
+    background: var(--accent); border: none;
+    color: white; font-size: 22px; font-weight: 800;
+    cursor: pointer; letter-spacing: 1px;
+    transition: transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(124,111,255,0.4);
+  }
+  #btn-start:hover { transform: scale(1.04); box-shadow: 0 6px 32px rgba(124,111,255,0.6); }
+
+  /* ── Game Screen ── */
+  #game { padding-top: 80px; gap: 16px; }
+
+  /* HUD */
+  .hud {
+    display: flex; gap: 20px; width: 100%;
+    background: var(--surface); border-radius: 14px;
+    padding: 14px 20px; border: 1px solid var(--border);
+  }
+  .hud-item { flex: 1; text-align: center; }
+  .hud-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+  .hud-val { font-size: 28px; font-weight: 900; line-height: 1.1; }
+  .hud-val.score-val { color: var(--accent); }
+  .hud-val.timer-val { color: var(--green); }
+  .hud-val.streak-val { color: var(--amber); }
+  .hud-val.mult-val { color: var(--cyan); }
+  .hud-val.timer-val.amber { color: var(--amber); }
+  .hud-val.timer-val.red { color: var(--red); }
+
+  /* Timer bar */
+  .timer-bar-wrap {
+    width: 100%; height: 6px; background: var(--surface2);
+    border-radius: 3px; overflow: hidden;
+  }
+  .timer-bar {
+    height: 100%; border-radius: 3px;
+    background: var(--green);
+    transition: width 0.25s linear, background 0.5s;
+  }
+  .timer-bar.amber { background: var(--amber); }
+  .timer-bar.red { background: var(--red); }
+
+  /* Chord Display */
+  .chord-arena {
+    width: 100%; background: var(--surface);
+    border-radius: 20px; border: 1px solid var(--border);
+    padding: 40px 30px; text-align: center; position: relative;
+    overflow: hidden; min-height: 220px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px;
+  }
+  #chord-display {
+    font-size: 96px; font-weight: 900; letter-spacing: -3px;
+    line-height: 1; user-select: none;
+    transition: color 0.1s;
+  }
+  #chord-display.match { animation: chordMatch 0.4s ease; }
+  @keyframes chordMatch {
+    0%   { transform: scale(1); color: var(--text); }
+    30%  { transform: scale(1.15); color: var(--green); }
+    100% { transform: scale(1); color: var(--text); }
+  }
+  #chord-display.dirty-note { animation: dirtyFlash 0.15s ease; }
+  @keyframes dirtyFlash {
+    0%   { color: var(--text); }
+    50%  { color: var(--red); }
+    100% { color: var(--text); }
+  }
+
+  /* Note indicator row */
+  .note-indicators {
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  }
+  .note-pip {
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 13px; font-weight: 700;
+    background: var(--surface2); border: 2px solid var(--border);
+    color: var(--text-dim); transition: all 0.1s;
+  }
+  .note-pip.held { background: var(--accent); border-color: var(--accent); color: white; }
+  .note-pip.releasing { background: var(--surface2); border-color: var(--text-dim); color: var(--text-dim); }
+  .note-pip.wrong { background: var(--red); border-color: var(--red); color: white; animation: wrongPip 0.3s; }
+  @keyframes wrongPip { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+
+  /* Score pop */
+  .score-pop {
+    position: absolute; right: 20px; top: 20px;
+    font-size: 28px; font-weight: 900; color: var(--green);
+    animation: popUp 0.7s ease forwards; pointer-events: none;
+  }
+  @keyframes popUp {
+    0%   { opacity: 1; transform: translateY(0) scale(0.8); }
+    30%  { opacity: 1; transform: translateY(-16px) scale(1.1); }
+    100% { opacity: 0; transform: translateY(-48px) scale(0.9); }
+  }
+
+  /* Streak fire */
+  .streak-fire {
+    font-size: 18px; min-height: 24px;
+    transition: opacity 0.3s;
+  }
+
+  /* On-screen keyboard */
+  .keyboard-section {
+    width: 100%; background: var(--surface);
+    border-radius: 14px; border: 1px solid var(--border);
+    padding: 16px; text-align: center;
+  }
+  .keyboard-section h4 { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .piano-wrap { display: inline-flex; position: relative; height: 90px; }
+  .white-key {
+    width: 32px; height: 90px; background: #e8e8f0;
+    border: 1px solid #aaa; border-radius: 0 0 5px 5px;
+    cursor: pointer; position: relative; margin: 0 1px;
+    transition: background 0.08s;
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
+    font-size: 8px; color: #555; user-select: none;
+  }
+  .white-key.active { background: var(--accent); }
+  .white-key.wrong-active { background: var(--red); }
+  .black-key {
+    width: 22px; height: 56px; background: #1a1a2a;
+    border-radius: 0 0 4px 4px; cursor: pointer;
+    position: absolute; top: 0; z-index: 2;
+    transition: background 0.08s;
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
+    font-size: 7px; color: #666; user-select: none;
+  }
+  .black-key.active { background: var(--accent); }
+  .black-key.wrong-active { background: var(--red); }
+  .white-key.releasing { background: #888; }
+  .black-key.releasing { background: #555; }
+
+  /* ── Results Screen ── */
+  #results { padding-top: 80px; gap: 20px; }
+  .results-header { text-align: center; }
+  .results-header h1 { font-size: 36px; font-weight: 900; }
+  .new-hs-badge {
+    display: inline-block; margin-top: 8px;
+    padding: 4px 14px; border-radius: 20px;
+    background: var(--amber); color: #1a1000;
+    font-size: 13px; font-weight: 800; text-transform: uppercase;
+  }
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    width: 100%;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px; text-align: center;
+  }
+  .stat-card .sc-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card .sc-val { font-size: 28px; font-weight: 900; color: var(--accent); }
+
+  .per-chord-table {
+    width: 100%; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; border-collapse: collapse;
+  }
+  .per-chord-table th {
+    background: var(--surface2); padding: 10px 14px;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-dim); text-align: left;
+  }
+  .per-chord-table td {
+    padding: 9px 14px; font-size: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .per-chord-table tr.slowest td { color: var(--amber); }
+  .clean-badge { color: var(--green); font-size: 12px; }
+  .dirty-badge { color: var(--text-dim); font-size: 12px; }
+
+  .weak-spot {
+    background: var(--surface2); border: 1px solid var(--amber);
+    border-radius: 10px; padding: 12px 18px;
+    font-size: 14px; width: 100%;
+  }
+  .weak-spot span { color: var(--amber); font-weight: 700; }
+
+  .results-btns { display: flex; gap: 14px; }
+  .btn-primary {
+    padding: 14px 36px; border-radius: 12px;
+    background: var(--accent); border: none;
+    color: white; font-size: 17px; font-weight: 700;
+    cursor: pointer; transition: transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 3px 16px rgba(124,111,255,0.4);
+  }
+  .btn-primary:hover { transform: scale(1.03); }
+  .btn-secondary {
+    padding: 14px 36px; border-radius: 12px;
+    background: var(--surface); border: 2px solid var(--border);
+    color: var(--text); font-size: 17px; font-weight: 700;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Status bar (always visible) -->
+<div id="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <div id="midi-activity" title="MIDI signal"></div>
+  <span id="midi-device-name">No MIDI device connected</span>
+  <button id="btn-connect-midi">Connect MIDI</button>
+  <button id="mute-btn" title="Toggle sound">🔊</button>
+</div>
+
+<!-- ══════════ MENU SCREEN ══════════ -->
+<div id="menu" class="screen active">
+  <div class="logo">Chord<span>Sprint</span></div>
+  <p class="tagline">Play the chord. Beat the clock. Train your ears.</p>
+
+  <div class="difficulty-grid" id="difficulty-grid"></div>
+
+  <div class="hs-panel">
+    <h3>High Scores</h3>
+    <div id="hs-list"></div>
+  </div>
+
+  <button id="btn-start">▶ START</button>
+</div>
+
+<!-- ══════════ GAME SCREEN ══════════ -->
+<div id="game" class="screen">
+  <div class="hud">
+    <div class="hud-item">
+      <div class="hud-label">Score</div>
+      <div class="hud-val score-val" id="hud-score">0</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Time</div>
+      <div class="hud-val timer-val" id="hud-timer">60</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Streak</div>
+      <div class="hud-val streak-val" id="hud-streak">0</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Multiplier</div>
+      <div class="hud-val mult-val" id="hud-mult">×1</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Chords</div>
+      <div class="hud-val" id="hud-chords">0</div>
+    </div>
+  </div>
+
+  <div class="timer-bar-wrap">
+    <div class="timer-bar" id="timer-bar"></div>
+  </div>
+
+  <div class="chord-arena" id="chord-arena">
+    <div class="streak-fire" id="streak-fire"></div>
+    <div id="chord-display">—</div>
+    <div class="note-indicators" id="note-indicators"></div>
+  </div>
+
+  <div class="keyboard-section">
+    <h4>On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
+    <div class="piano-wrap" id="piano"></div>
+  </div>
+</div>
+
+<!-- ══════════ RESULTS SCREEN ══════════ -->
+<div id="results" class="screen">
+  <div class="results-header">
+    <h1>Round Over</h1>
+    <div id="new-hs-badge" style="display:none" class="new-hs-badge">🏆 New High Score!</div>
+  </div>
+
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="weak-spot" id="weak-spot" style="display:none"></div>
+
+  <table class="per-chord-table">
+    <thead>
+      <tr>
+        <th>Chord</th>
+        <th>Response</th>
+        <th>Quality</th>
+        <th>Points</th>
+      </tr>
+    </thead>
+    <tbody id="per-chord-tbody"></tbody>
+  </table>
+
+  <div class="results-btns">
+    <button class="btn-primary" id="btn-play-again">Play Again</button>
+    <button class="btn-secondary" id="btn-change-level">Change Level</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CHORD ENGINE — registry, target generation, matching
+// ═══════════════════════════════════════════════════════
+const ChordEngine = (() => {
+  const ROOTS = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'];
+
+  // Data-driven chord type registry — add a new type by appending one entry
+  const CHORD_TYPES = [
+    { name: 'Major',           symbol: '',      intervals: [0,4,7]       },
+    { name: 'Minor',           symbol: 'm',     intervals: [0,3,7]       },
+    { name: 'Diminished',      symbol: 'dim',   intervals: [0,3,6]       },
+    { name: 'Augmented',       symbol: 'aug',   intervals: [0,4,8]       },
+    { name: 'Dominant 7th',    symbol: '7',     intervals: [0,4,7,10]    },
+    { name: 'Major 7th',       symbol: 'maj7',  intervals: [0,4,7,11]    },
+    { name: 'Minor 7th',       symbol: 'm7',    intervals: [0,3,7,10]    },
+    { name: 'Half-dim (m7b5)', symbol: 'm7b5',  intervals: [0,3,6,10]    },
+    { name: 'Diminished 7th',  symbol: 'dim7',  intervals: [0,3,6,9]     },
+    { name: 'Sus2',            symbol: 'sus2',  intervals: [0,2,7]       },
+    { name: 'Sus4',            symbol: 'sus4',  intervals: [0,5,7]       },
+  ];
+
+  // Difficulty pools (indices into CHORD_TYPES)
+  const DIFFICULTY_POOLS = [
+    { label: 'Level 1', desc: 'Major triads only',               typeIndices: [0]           },
+    { label: 'Level 2', desc: 'Minor triads only',               typeIndices: [1]           },
+    { label: 'Level 3', desc: 'Major + minor triads',            typeIndices: [0,1]         },
+    { label: 'Level 4', desc: '+ Diminished & augmented',        typeIndices: [0,1,2,3]     },
+    { label: 'Level 5', desc: '+ Dominant, major & minor 7ths',  typeIndices: [0,1,2,3,4,5,6] },
+    { label: 'Level 6', desc: 'Everything',                      typeIndices: [0,1,2,3,4,5,6,7,8,9,10] },
+  ];
+
+  // Build full chord list for a difficulty level
+  function buildPool(diffIndex) {
+    const types = DIFFICULTY_POOLS[diffIndex].typeIndices.map(i => CHORD_TYPES[i]);
+    const pool = [];
+    for (const root of ROOTS) {
+      for (const type of types) {
+        const pitchClasses = new Set(type.intervals.map(iv => (ROOTS.indexOf(root) + iv) % 12));
+        pool.push({ root, type, symbol: root + type.symbol, pitchClasses });
+      }
+    }
+    return pool;
+  }
+
+  // Pick a random chord that isn't the last one played
+  function pickChord(pool, lastSymbol) {
+    let candidates = pool.filter(c => c.symbol !== lastSymbol);
+    if (!candidates.length) candidates = pool;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // Match: held pitch-class set must exactly equal target pitch-class set
+  function isMatch(heldPitchClasses, targetPitchClasses) {
+    if (heldPitchClasses.size !== targetPitchClasses.size) return false;
+    for (const pc of heldPitchClasses) {
+      if (!targetPitchClasses.has(pc)) return false;
+    }
+    return true;
+  }
+
+  // Derive pitch classes from MIDI note set
+  function toPitchClasses(noteSet) {
+    const pcs = new Set();
+    for (const n of noteSet) pcs.add(n % 12);
+    return pcs;
+  }
+
+  return { CHORD_TYPES, DIFFICULTY_POOLS, buildPool, pickChord, isMatch, toPitchClasses, ROOTS };
+})();
+
+// ═══════════════════════════════════════════════════════
+// MIDI INPUT MODULE — device handling, held-notes Set
+// ═══════════════════════════════════════════════════════
+const MidiInput = (() => {
+  let midiAccess = null;
+  const heldNotes = new Set(); // raw MIDI note numbers
+  const listeners = [];
+
+  function emit(type) { listeners.forEach(l => l(type)); }
+  function on(fn) { listeners.push(fn); }
+
+  function handleMessage(evt) {
+    const [status, note, velocity] = evt.data;
+    const type = status & 0xf0;
+    const channel = status & 0x0f;
+
+    // Ignore sustain pedal (CC 64) — only physical key state
+    if (type === 0xb0 && note === 64) return;
+
+    if (type === 0x90 && velocity > 0) {
+      heldNotes.add(note);
+      emit('notesChanged');
+    } else if (type === 0x80 || (type === 0x90 && velocity === 0)) {
+      // note-off or note-on with velocity 0 (some keyboards use this)
+      heldNotes.delete(note);
+      emit('notesChanged');
+    }
+  }
+
+  function attachInput(input) {
+    input.onmidimessage = handleMessage;
+  }
+
+  async function connect() {
+    if (!navigator.requestMIDIAccess) return { ok: false, error: 'Web MIDI not supported. Use Chrome or Edge.' };
+    try {
+      midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+      for (const input of midiAccess.inputs.values()) attachInput(input);
+
+      midiAccess.onstatechange = (evt) => {
+        const port = evt.port;
+        if (port.type === 'input') {
+          if (port.state === 'connected') { attachInput(port); emit('deviceChange'); }
+          if (port.state === 'disconnected') emit('deviceChange');
+        }
+      };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || 'MIDI access denied.' };
+    }
+  }
+
+  function getDeviceNames() {
+    if (!midiAccess) return [];
+    return [...midiAccess.inputs.values()].filter(i => i.state === 'connected').map(i => i.name);
+  }
+
+  // Inject a note programmatically (for on-screen keyboard / computer keys)
+  function injectNoteOn(note) {
+    heldNotes.add(note);
+    emit('notesChanged');
+  }
+  function injectNoteOff(note) {
+    heldNotes.delete(note);
+    emit('notesChanged');
+  }
+
+  function getHeld() { return new Set(heldNotes); }
+  function allReleased() { return heldNotes.size === 0; }
+
+  return { connect, getDeviceNames, on, getHeld, allReleased, injectNoteOn, injectNoteOff };
+})();
+
+// ═══════════════════════════════════════════════════════
+// AUDIO — Web Audio API, no files
+// ═══════════════════════════════════════════════════════
+const Audio = (() => {
+  let ctx = null;
+  let muted = false;
+
+  function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return ctx;
+  }
+
+  function playSuccessChime(pitchClasses) {
+    if (muted) return;
+    const c = getCtx();
+    const freqs = [...pitchClasses].map(pc => 261.63 * Math.pow(2, pc / 12)); // C4-based
+    freqs.forEach((freq, i) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain); gain.connect(c.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const now = c.currentTime;
+      gain.gain.setValueAtTime(0, now + i * 0.03);
+      gain.gain.linearRampToValueAtTime(0.18, now + i * 0.03 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.03 + 0.5);
+      osc.start(now + i * 0.03);
+      osc.stop(now + i * 0.03 + 0.55);
+    });
+  }
+
+  function toggleMute() { muted = !muted; return muted; }
+
+  return { playSuccessChime, toggleMute, isMuted: () => muted };
+})();
+
+// ═══════════════════════════════════════════════════════
+// GAME STATE — single authoritative state object
+// ═══════════════════════════════════════════════════════
+const SPRINT_DURATION = 60; // seconds — change here for 30/90/120s variants
+
+const state = {
+  screen: 'menu',      // 'menu' | 'game' | 'results'
+  difficulty: 0,       // 0–5
+  // sprint runtime
+  score: 0,
+  timeLeft: SPRINT_DURATION,
+  streak: 0,
+  multiplier: 1,
+  chordsCompleted: 0,
+  currentChord: null,
+  pool: [],
+  waitingForRelease: false, // gate: must release all notes before next chord
+  attemptDirty: false,      // was any wrong pitch class pressed this attempt?
+  attemptStart: 0,          // timestamp of when current chord appeared
+  timerInterval: null,
+  timerStart: 0,
+  pausedAt: 0,
+  // per-round history
+  attempts: [],             // { symbol, responseMs, clean, points }
+};
+
+// ═══════════════════════════════════════════════════════
+// GAME MODE: SPRINT — implements start, onChordMatched, onTick, end
+// ═══════════════════════════════════════════════════════
+const SprintMode = {
+  start(difficultyIndex) {
+    state.screen = 'game';
+    state.difficulty = difficultyIndex;
+    state.score = 0;
+    state.timeLeft = SPRINT_DURATION;
+    state.streak = 0;
+    state.multiplier = 1;
+    state.chordsCompleted = 0;
+    state.waitingForRelease = false;
+    state.attemptDirty = false;
+    state.attempts = [];
+    state.pool = ChordEngine.buildPool(difficultyIndex);
+    state.currentChord = ChordEngine.pickChord(state.pool, null);
+    state.attemptStart = performance.now();
+
+    showScreen('game');
+    UI.renderChord();
+    UI.renderHUD();
+    UI.renderTimer();
+
+    state.timerStart = Date.now();
+    state.timerInterval = setInterval(SprintMode.onTick, 250);
+  },
+
+  onTick() {
+    if (document.hidden) return; // pause when tab is hidden
+    const elapsed = (Date.now() - state.timerStart) / 1000;
+    state.timeLeft = Math.max(0, SPRINT_DURATION - elapsed);
+    UI.renderTimer();
+    if (state.timeLeft <= 0) SprintMode.end();
+  },
+
+  // Called by chord-detection logic on every notesChanged event
+  onNotesChanged() {
+    if (state.screen !== 'game' || state.timeLeft <= 0) return;
+    const held = MidiInput.getHeld();
+    const heldPCs = ChordEngine.toPitchClasses(held);
+
+    // Release gate — render held keys in neutral grey so display stays honest
+    if (state.waitingForRelease) {
+      UI.renderNoteIndicatorsReleasing(heldPCs);
+      if (MidiInput.allReleased()) {
+        state.waitingForRelease = false;
+        state.attemptDirty = false;
+        // attemptStart was already set when the chord was displayed (in onChordMatched)
+        UI.renderNoteIndicators(new Set(), state.currentChord.pitchClasses);
+      }
+      return;
+    }
+
+    const target = state.currentChord.pitchClasses;
+
+    // Check for any wrong pitch class (dirty flag)
+    if (!state.attemptDirty) {
+      for (const pc of heldPCs) {
+        if (!target.has(pc)) { state.attemptDirty = true; break; }
+      }
+    }
+
+    UI.renderNoteIndicators(heldPCs, target, state.attemptDirty);
+
+    if (ChordEngine.isMatch(heldPCs, target)) {
+      SprintMode.onChordMatched();
+    }
+  },
+
+  onChordMatched() {
+    const responseMs = performance.now() - state.attemptStart;
+    const clean = !state.attemptDirty;
+
+    // Streak & multiplier
+    if (clean) {
+      state.streak++;
+      if (state.streak >= 20)      state.multiplier = 3;
+      else if (state.streak >= 10) state.multiplier = 2;
+      else if (state.streak >= 5)  state.multiplier = 1.5;
+      else                          state.multiplier = 1;
+    } else {
+      state.streak = 0;
+      state.multiplier = 1;
+    }
+
+    // Scoring: base 100, speed bonus up to +100 (full <1s, 0 at ≥5s)
+    const speedSec = responseMs / 1000;
+    const speedBonus = Math.max(0, Math.round(100 * Math.max(0, (5 - speedSec) / 4)));
+    const rawPoints = 100 + speedBonus;
+    const points = Math.round(rawPoints * state.multiplier);
+    state.score += points;
+    state.chordsCompleted++;
+
+    // Record attempt
+    state.attempts.push({
+      symbol: state.currentChord.symbol,
+      responseMs,
+      clean,
+      points,
+    });
+
+    // Visual feedback
+    UI.flashMatch(points, state.currentChord.pitchClasses);
+
+    // Next chord — set attemptStart NOW so reading time during release is counted
+    const prev = state.currentChord.symbol;
+    state.currentChord = ChordEngine.pickChord(state.pool, prev);
+    state.attemptStart = performance.now();
+    state.waitingForRelease = true;
+    state.attemptDirty = false;
+
+    UI.renderChord();
+    UI.renderHUD();
+  },
+
+  end() {
+    clearInterval(state.timerInterval);
+    state.timeLeft = 0;
+    state.screen = 'results';
+    UI.renderResults();
+    showScreen('results');
+  },
+};
+
+// ═══════════════════════════════════════════════════════
+// UI — rendering, animations, screen management
+// ═══════════════════════════════════════════════════════
+const UI = {
+  renderChord() {
+    document.getElementById('chord-display').textContent = state.currentChord?.symbol ?? '—';
+    UI.renderNoteIndicators(new Set(), state.currentChord?.pitchClasses ?? new Set());
+  },
+
+  renderHUD() {
+    document.getElementById('hud-score').textContent = state.score.toLocaleString();
+    document.getElementById('hud-streak').textContent = state.streak;
+    document.getElementById('hud-mult').textContent = '×' + (state.multiplier % 1 === 0 ? state.multiplier : state.multiplier.toFixed(1));
+    document.getElementById('hud-chords').textContent = state.chordsCompleted;
+    UI.renderStreakFire();
+  },
+
+  renderTimer() {
+    const t = state.timeLeft;
+    const el = document.getElementById('hud-timer');
+    const bar = document.getElementById('timer-bar');
+    el.textContent = Math.ceil(t);
+    const pct = (t / SPRINT_DURATION) * 100;
+    bar.style.width = pct + '%';
+    const cls = t > 20 ? 'green' : t > 8 ? 'amber' : 'red';
+    bar.className = 'timer-bar ' + (cls !== 'green' ? cls : '');
+    el.className = 'hud-val timer-val' + (cls !== 'green' ? ' ' + cls : '');
+  },
+
+  renderNoteIndicators(heldPCs, targetPCs, dirty = false) {
+    const container = document.getElementById('note-indicators');
+    container.innerHTML = '';
+    const NOTE_NAMES = ChordEngine.ROOTS;
+    for (const pc of targetPCs) {
+      const pip = document.createElement('div');
+      pip.className = 'note-pip';
+      pip.textContent = NOTE_NAMES[pc];
+      if (heldPCs.has(pc)) pip.classList.add('held');
+      container.appendChild(pip);
+    }
+    // Show wrong notes briefly
+    for (const pc of heldPCs) {
+      if (!targetPCs.has(pc)) {
+        const pip = document.createElement('div');
+        pip.className = 'note-pip wrong';
+        pip.textContent = NOTE_NAMES[pc] + '✗';
+        container.appendChild(pip);
+      }
+    }
+    // Update piano key colors
+    updatePianoColors(heldPCs, targetPCs);
+  },
+
+  // During release gate: show held keys in neutral grey, piano lit dimly — honest but non-distracting
+  renderNoteIndicatorsReleasing(heldPCs) {
+    const container = document.getElementById('note-indicators');
+    container.innerHTML = '';
+    for (const pc of heldPCs) {
+      const pip = document.createElement('div');
+      pip.className = 'note-pip releasing';
+      pip.textContent = ChordEngine.ROOTS[pc];
+      container.appendChild(pip);
+    }
+    // Show held keys on piano in neutral grey (no target context)
+    document.querySelectorAll('.white-key, .black-key').forEach(k => {
+      const pc = parseInt(k.dataset.note) % 12;
+      k.classList.toggle('releasing', heldPCs.has(pc));
+      k.classList.remove('active', 'wrong-active');
+    });
+  },
+
+  renderStreakFire() {
+    const el = document.getElementById('streak-fire');
+    if (state.streak >= 20)      el.textContent = '🔥🔥🔥 ×3 INFERNO!';
+    else if (state.streak >= 10) el.textContent = '🔥🔥 ×2 ON FIRE!';
+    else if (state.streak >= 5)  el.textContent = '🔥 ×1.5 Streak!';
+    else                          el.textContent = '';
+  },
+
+  flashMatch(points, pitchClasses) {
+    const disp = document.getElementById('chord-display');
+    disp.classList.remove('match');
+    void disp.offsetWidth; // reflow to restart animation
+    disp.classList.add('match');
+    setTimeout(() => disp.classList.remove('match'), 400);
+
+    // Score pop
+    const arena = document.getElementById('chord-arena');
+    const pop = document.createElement('div');
+    pop.className = 'score-pop';
+    pop.textContent = '+' + points;
+    arena.appendChild(pop);
+    setTimeout(() => pop.remove(), 700);
+
+    Audio.playSuccessChime(pitchClasses);
+  },
+
+  renderResults() {
+    const { score, chordsCompleted, attempts, streak: bestStreakFinal, difficulty } = state;
+
+    // Compute stats
+    const totalAttempts = attempts.length;
+    const cleanCount = attempts.filter(a => a.clean).length;
+    const accuracy = totalAttempts > 0 ? Math.round((cleanCount / totalAttempts) * 100) : 0;
+    const avgResponse = totalAttempts > 0
+      ? (attempts.reduce((s, a) => s + a.responseMs, 0) / totalAttempts / 1000).toFixed(2)
+      : '—';
+    let bestStreak = 0, run = 0;
+    for (const a of attempts) { run = a.clean ? run + 1 : 0; bestStreak = Math.max(bestStreak, run); }
+
+    // High score
+    const hsKey = 'chordSprint_hs_' + difficulty;
+    const prevHS = parseInt(localStorage.getItem(hsKey) || '0', 10);
+    const newHS = score > prevHS;
+    if (newHS) localStorage.setItem(hsKey, score);
+
+    document.getElementById('new-hs-badge').style.display = newHS ? 'inline-block' : 'none';
+
+    // Stats grid
+    const grid = document.getElementById('stats-grid');
+    grid.innerHTML = [
+      ['Final Score',   score.toLocaleString()],
+      ['Chords Hit',    chordsCompleted],
+      ['Accuracy',      accuracy + '%'],
+      ['Avg Response',  avgResponse + 's'],
+      ['Best Streak',   bestStreak],
+      ['High Score',    Math.max(score, prevHS).toLocaleString()],
+    ].map(([l, v]) => `<div class="stat-card"><div class="sc-label">${l}</div><div class="sc-val">${v}</div></div>`).join('');
+
+    // Weak spot
+    const slowest = [...attempts].sort((a, b) => b.responseMs - a.responseMs)[0];
+    const wsEl = document.getElementById('weak-spot');
+    if (slowest) {
+      wsEl.style.display = 'block';
+      wsEl.innerHTML = `Your weak spot: <span>${slowest.symbol}</span> — ${(slowest.responseMs / 1000).toFixed(1)}s response`;
+    } else {
+      wsEl.style.display = 'none';
+    }
+
+    // Per-chord table
+    const tbody = document.getElementById('per-chord-tbody');
+    tbody.innerHTML = attempts.map((a, i) => {
+      const isSlowest = a === slowest;
+      return `<tr${isSlowest ? ' class="slowest"' : ''}>
+        <td><strong>${a.symbol}</strong></td>
+        <td>${(a.responseMs / 1000).toFixed(2)}s</td>
+        <td>${a.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Corrected</span>'}</td>
+        <td>+${a.points}</td>
+      </tr>`;
+    }).join('');
+  },
+
+  renderMenu() {
+    // Difficulty buttons
+    const grid = document.getElementById('difficulty-grid');
+    grid.innerHTML = ChordEngine.DIFFICULTY_POOLS.map((d, i) =>
+      `<button class="diff-btn${state.difficulty === i ? ' selected' : ''}" data-diff="${i}">
+        <span class="diff-num">${i + 1}</span>
+        <div class="diff-name">${d.label}</div>
+        <div class="diff-desc">${d.desc}</div>
+      </button>`
+    ).join('');
+    grid.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.difficulty = parseInt(btn.dataset.diff);
+        grid.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('selected', b === btn));
+      });
+    });
+
+    // High scores
+    const hsList = document.getElementById('hs-list');
+    hsList.innerHTML = ChordEngine.DIFFICULTY_POOLS.map((d, i) => {
+      const hs = localStorage.getItem('chordSprint_hs_' + i) || '—';
+      return `<div class="hs-row"><span>${d.label}</span><span class="hs-val">${hs === '—' ? '—' : parseInt(hs).toLocaleString()}</span></div>`;
+    }).join('');
+  },
+};
+
+// ═══════════════════════════════════════════════════════
+// ON-SCREEN PIANO — 2 octaves starting at C3 (MIDI 48)
+// ═══════════════════════════════════════════════════════
+const PIANO_START = 48; // C3
+const PIANO_OCTAVES = 2;
+// White key layout per octave: C D E F G A B
+const WHITE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+const BLACK_OFFSETS = { 1: 22, 3: 54, 6: 86, 8: 118, 10: 150 }; // semitone within octave → px left offset
+
+// Computer key → MIDI note mapping (relative to first white key = A key)
+const KEY_MAP = {};
+const WHITE_KEYS_LETTERS = ['a','s','d','f','g','h','j','k'];
+const BLACK_KEYS_LETTERS = ['w','e','t','y','u'];
+const BLACK_SEMITONES_IN_ORDER = [1,3,6,8,10]; // within first octave
+
+function buildPiano() {
+  const wrap = document.getElementById('piano');
+  wrap.innerHTML = '';
+  const totalWhite = PIANO_OCTAVES * 7;
+  wrap.style.width = (totalWhite * 34) + 'px';
+
+  for (let oct = 0; oct < PIANO_OCTAVES; oct++) {
+    const baseNote = PIANO_START + oct * 12;
+    // White keys
+    WHITE_SEMITONES.forEach((semi, wi) => {
+      const note = baseNote + semi;
+      const key = document.createElement('div');
+      key.className = 'white-key';
+      key.dataset.note = note;
+      const letter = oct === 0 ? (WHITE_KEYS_LETTERS[wi] || '') : '';
+      key.textContent = letter.toUpperCase();
+      if (letter) KEY_MAP[letter] = note;
+      key.addEventListener('mousedown', e => { e.preventDefault(); MidiInput.injectNoteOn(note); });
+      key.addEventListener('mouseup',   e => { e.preventDefault(); MidiInput.injectNoteOff(note); });
+      key.addEventListener('mouseleave', () => MidiInput.injectNoteOff(note));
+      wrap.appendChild(key);
+    });
+    // Black keys
+    const leftBase = oct * (7 * 34);
+    [[1,22],[3,54],[6,86+2],[8,118+2],[10,150+2]].forEach(([semi, pxOff], bi) => {
+      const note = baseNote + semi;
+      const key = document.createElement('div');
+      key.className = 'black-key';
+      key.dataset.note = note;
+      key.style.left = (leftBase + pxOff) + 'px';
+      const letter = oct === 0 ? (BLACK_KEYS_LETTERS[bi] || '') : '';
+      key.textContent = letter.toUpperCase();
+      if (letter) KEY_MAP[letter] = note;
+      key.addEventListener('mousedown', e => { e.preventDefault(); MidiInput.injectNoteOn(note); });
+      key.addEventListener('mouseup',   e => { e.preventDefault(); MidiInput.injectNoteOff(note); });
+      key.addEventListener('mouseleave', () => MidiInput.injectNoteOff(note));
+      wrap.appendChild(key);
+    });
+  }
+}
+
+function updatePianoColors(heldPCs, targetPCs) {
+  document.querySelectorAll('.white-key, .black-key').forEach(k => {
+    const pc = parseInt(k.dataset.note) % 12;
+    const isHeld = heldPCs.has(pc);
+    const isTarget = targetPCs.has(pc);
+    k.classList.toggle('active', isHeld && isTarget);
+    k.classList.toggle('wrong-active', isHeld && !isTarget);
+    k.classList.remove('releasing');
+  });
+}
+
+// Keyboard input
+const pressedKeys = new Set();
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const key = e.key.toLowerCase();
+  if (KEY_MAP[key] !== undefined && !pressedKeys.has(key)) {
+    pressedKeys.add(key);
+    MidiInput.injectNoteOn(KEY_MAP[key]);
+  }
+});
+document.addEventListener('keyup', e => {
+  const key = e.key.toLowerCase();
+  if (KEY_MAP[key] !== undefined) {
+    pressedKeys.delete(key);
+    MidiInput.injectNoteOff(KEY_MAP[key]);
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// SCREEN MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+}
+
+// ═══════════════════════════════════════════════════════
+// MIDI STATUS UI
+// ═══════════════════════════════════════════════════════
+function updateMidiStatus() {
+  const dot = document.getElementById('status-dot');
+  const name = document.getElementById('midi-device-name');
+  const devices = MidiInput.getDeviceNames();
+  if (devices.length > 0) {
+    dot.className = 'status-dot connected';
+    name.textContent = devices.join(', ');
+  } else {
+    dot.className = 'status-dot';
+    name.textContent = 'No MIDI device — use on-screen keyboard or A–K / W E T Y U keys';
+  }
+}
+
+document.getElementById('btn-connect-midi').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-connect-midi');
+  btn.textContent = 'Connecting…';
+  const result = await MidiInput.connect();
+  if (!result.ok) {
+    const dot = document.getElementById('status-dot');
+    dot.className = 'status-dot error';
+    document.getElementById('midi-device-name').textContent = result.error + ' (Chrome/Edge required)';
+    btn.textContent = 'Retry';
+  } else {
+    btn.textContent = 'Connected';
+    updateMidiStatus();
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// MUTE TOGGLE
+// ═══════════════════════════════════════════════════════
+document.getElementById('mute-btn').addEventListener('click', () => {
+  const muted = Audio.toggleMute();
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+});
+
+// ═══════════════════════════════════════════════════════
+// MIDI ACTIVITY LIGHT
+// ═══════════════════════════════════════════════════════
+let activityTimer = null;
+function flashMidiActivity() {
+  const el = document.getElementById('midi-activity');
+  el.classList.add('flash');
+  clearTimeout(activityTimer);
+  activityTimer = setTimeout(() => el.classList.remove('flash'), 120);
+}
+
+// ═══════════════════════════════════════════════════════
+// WIRE MIDI EVENTS → GAME (single listener, checks type)
+// ═══════════════════════════════════════════════════════
+MidiInput.on((type) => {
+  if (type === 'notesChanged') {
+    flashMidiActivity();
+    if (state.screen === 'game') SprintMode.onNotesChanged();
+  }
+  if (type === 'deviceChange') updateMidiStatus();
+});
+
+// Page visibility — pause timer and response clock when tab hidden
+document.addEventListener('visibilitychange', () => {
+  if (state.screen !== 'game') return;
+  if (document.hidden) {
+    state.pausedAt = Date.now();
+  } else {
+    if (state.pausedAt) {
+      const delta = Date.now() - state.pausedAt;
+      state.timerStart += delta;
+      state.attemptStart += delta; // don't penalise response time for hidden time
+      state.pausedAt = 0;
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// BUTTON WIRING
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-start').addEventListener('click', () => {
+  SprintMode.start(state.difficulty);
+});
+
+document.getElementById('btn-play-again').addEventListener('click', () => {
+  SprintMode.start(state.difficulty);
+});
+
+document.getElementById('btn-change-level').addEventListener('click', () => {
+  state.screen = 'menu';
+  showScreen('menu');
+  UI.renderMenu();
+});
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+buildPiano();
+UI.renderMenu();
+updateMidiStatus();
+</script>
+</body>
+</html>
