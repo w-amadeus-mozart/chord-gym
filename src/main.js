@@ -34,7 +34,13 @@ function flashMidiActivity() {
   activityTimer = setTimeout(() => el.classList.remove('flash'), 120);
 }
 
-// ── Single MIDI event listener ───────────────────────────
+// ── Piano playback — always active regardless of screen ──
+MidiInput.on((type, data) => {
+  if (type === 'noteOn')  GameAudio.startPianoNote(data.note, data.velocity);
+  if (type === 'noteOff') GameAudio.stopPianoNote(data.note);
+});
+
+// ── Game logic + device status ───────────────────────────
 MidiInput.on((type) => {
   if (type === 'notesChanged') {
     flashMidiActivity();

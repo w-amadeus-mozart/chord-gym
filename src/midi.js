@@ -1,12 +1,13 @@
 // MIDI input module — device handling, held-notes Set, listener/emit bus.
 // No imports. Other modules subscribe via MidiInput.on(fn).
-// Emits: 'notesChanged', 'deviceChange'
+// Emits: 'noteOn' (data: {note,velocity}), 'noteOff' (data: {note}),
+//        'notesChanged', 'deviceChange'
 
 let midiAccess = null;
 const heldNotes = new Set(); // raw MIDI note numbers
 const listeners = [];
 
-function emit(type) { listeners.forEach(l => l(type)); }
+function emit(type, data = null) { listeners.forEach(l => l(type, data)); }
 
 export function on(fn) { listeners.push(fn); }
 
@@ -19,10 +20,12 @@ function handleMessage(evt) {
 
   if (type === 0x90 && velocity > 0) {
     heldNotes.add(note);
+    emit('noteOn', { note, velocity });
     emit('notesChanged');
   } else if (type === 0x80 || (type === 0x90 && velocity === 0)) {
     // note-off or note-on with velocity 0 (some keyboards use this instead of note-off)
     heldNotes.delete(note);
+    emit('noteOff', { note });
     emit('notesChanged');
   }
 }
@@ -60,11 +63,13 @@ export function getDeviceNames() {
 // Inject a note programmatically (for on-screen keyboard / computer keys)
 export function injectNoteOn(note) {
   heldNotes.add(note);
+  emit('noteOn', { note, velocity: 80 });
   emit('notesChanged');
 }
 
 export function injectNoteOff(note) {
   heldNotes.delete(note);
+  emit('noteOff', { note });
   emit('notesChanged');
 }
 
