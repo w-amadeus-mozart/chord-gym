@@ -213,6 +213,7 @@ export const UI = {
   // modeConfig = null → Sprint; { variant, chordsSurvived, tierIndex, unlockEvents, deathReason } → Survival
   renderResults(modeConfig = null) {
     document.getElementById('btn-results-home').style.display = 'none';
+    document.getElementById('btn-results-progress').style.display = 'none';
     document.getElementById('btn-play-again').textContent = 'Play Again';
     document.getElementById('btn-change-level').textContent = 'Change Level';
     document.getElementById('mastery-deltas').style.display = 'none';
@@ -417,6 +418,7 @@ export const UI = {
 
   renderFallingResults(chart) {
     document.getElementById('btn-results-home').style.display = 'none';
+    document.getElementById('btn-results-progress').style.display = 'none';
     document.getElementById('btn-play-again').textContent = 'Play Again';
     document.getElementById('btn-change-level').textContent = 'Change Level';
     document.getElementById('mastery-deltas').style.display = 'none';
@@ -517,8 +519,8 @@ export const UI = {
 
     // Quality checkboxes — shared by byQuality and rootFamily
     const qGrid = document.getElementById('quality-checkbox-grid');
-    qGrid.style.display = draft.what === 'weakSpots' ? 'none' : '';
-    if (draft.what !== 'weakSpots') {
+    qGrid.style.display = (draft.what === 'weakSpots' || draft.what === 'cells') ? 'none' : '';
+    if (draft.what !== 'weakSpots' && draft.what !== 'cells') {
       qGrid.innerHTML = ChordEngine.CHORD_TYPES.map(t =>
         `<label class="quality-checkbox">
           <input type="checkbox" data-quality="${t.name}"${draft.qualities.includes(t.name) ? ' checked' : ''}>
@@ -535,6 +537,19 @@ export const UI = {
         `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${r}</button>`
       ).join('');
       document.getElementById('root-family-shuffle').checked = draft.rootFamilyShuffle;
+    }
+
+    // Cells panel — deep-linked from Progress (single cell or an explicit recommendation list)
+    const cellsPanel = document.getElementById('cells-panel');
+    cellsPanel.style.display = draft.what === 'cells' ? '' : 'none';
+    if (draft.what === 'cells') {
+      const chips = (draft.cells || [])
+        .map(c => ChordEngine.chordForCell(c.rootPc, c.typeName)?.symbol)
+        .filter(Boolean);
+      document.getElementById('cells-panel-msg').textContent = draft.cellsLabel
+        || `Practicing ${chips.length} chord${chips.length !== 1 ? 's' : ''}, in rotation.`;
+      document.getElementById('cells-panel-chips').innerHTML =
+        chips.map(s => `<span class="cell-chip">${s}</span>`).join('');
     }
 
     // Weak-spots panel
@@ -577,9 +592,10 @@ export const UI = {
     }
 
     const startBtn = document.getElementById('btn-start-practice');
-    const noQualities = draft.what !== 'weakSpots' && draft.qualities.length === 0;
+    const noQualities = draft.what !== 'weakSpots' && draft.what !== 'cells' && draft.qualities.length === 0;
     const weakBlocked  = draft.what === 'weakSpots' && weakQualified.length < 8;
-    startBtn.disabled = noQualities || weakBlocked;
+    const cellsBlocked = draft.what === 'cells' && (!draft.cells || draft.cells.length === 0);
+    startBtn.disabled = noQualities || weakBlocked || cellsBlocked;
   },
 
   renderPracticeResults(summary) {
@@ -634,6 +650,8 @@ export const UI = {
     document.getElementById('btn-play-again').textContent = 'Again';
     document.getElementById('btn-change-level').textContent = 'Change setup';
     document.getElementById('btn-results-home').style.display = 'inline-block';
+    document.getElementById('btn-results-progress').style.display =
+      summary.origin === 'progress' ? 'inline-block' : 'none';
   },
 
   renderMenu() {

@@ -14,7 +14,8 @@ import { Mastery } from '../mastery.js';
 const AUTO_HINT_DELAY_MS = 5000;
 
 // Root groups (pitch-class indices into ChordEngine.ROOTS) — the "Where" step.
-const ROOT_GROUPS = {
+// Exported so Progress can deep-link into named groups (sharp/flat/all12/etc.)
+export const ROOT_GROUPS = {
   group1: [0, 5, 7],           // C, F, G — all white
   group2: [2, 9, 4],           // D, A, E — middle black
   group3: [1, 3, 8],           // Db, Eb, Ab — outer black
@@ -25,7 +26,7 @@ const ROOT_GROUPS = {
   all12:  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
 };
 
-const CIRCLE_FIFTHS  = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+export const CIRCLE_FIFTHS  = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 const CIRCLE_FOURTHS = [0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7];
 
 // Pedagogical quality order for root-family drills — distinct from CHORD_TYPES array order.
@@ -44,6 +45,9 @@ function _allCells() {
 
 function _describeConfig(config) {
   if (config.what === 'weakSpots') return 'Weak spots';
+  if (config.what === 'cells') {
+    return config.cellsLabel || `Custom · ${config.cells.length} chord${config.cells.length !== 1 ? 's' : ''}`;
+  }
   if (config.what === 'rootFamily') {
     return `Root family · ${ChordEngine.ROOTS[config.rootFamilyRoot]}` +
       (config.rootFamilyShuffle ? ' · Shuffle' : '');
@@ -54,6 +58,45 @@ function _describeConfig(config) {
   };
   const orderLabels = { random: 'Random', fifths: 'Circle of fifths', fourths: 'Circle of fourths' };
   return `By quality · ${whereLabels[config.where] || config.where} · ${orderLabels[config.order] || config.order}`;
+}
+
+// Match an explicit root-pc list back to one of the named "where" groups above,
+// so a Progress deep link (which thinks in root lists) renders as a normal,
+// adjustable setup-screen selection instead of a hidden custom mode.
+function _whereNameForRoots(roots) {
+  const sorted = [...roots].sort((a, b) => a - b).join(',');
+  for (const [name, list] of Object.entries(ROOT_GROUPS)) {
+    if ([...list].sort((a, b) => a - b).join(',') === sorted) return name;
+  }
+  return 'all12';
+}
+
+// Deep-link entry point — Progress (and anything else) hands us a plain
+// { pool: 'quality'|'rootFamily'|'cells', qualities?, roots?, cells?, order?, label? }
+// object and we translate it into the setup screen's draft shape. The setup
+// screen still opens for review — this only pre-selects, it doesn't start.
+export function applyPrefillToDraft(prefill) {
+  const draft = state.practice.setupDraft;
+  if (prefill.pool === 'rootFamily') {
+    draft.what = 'rootFamily';
+    draft.rootFamilyRoot = prefill.roots[0];
+    draft.rootFamilyShuffle = false;
+    draft.qualities = prefill.qualities && prefill.qualities.length
+      ? prefill.qualities
+      : ChordEngine.CHORD_TYPES.map(t => t.name);
+  } else if (prefill.pool === 'cells') {
+    draft.what = 'cells';
+    draft.cells = prefill.cells || [];
+    draft.cellsLabel = prefill.label || null;
+  } else {
+    draft.what = 'byQuality';
+    draft.qualities = prefill.qualities && prefill.qualities.length
+      ? prefill.qualities
+      : ChordEngine.CHORD_TYPES.map(t => t.name);
+    draft.where = _whereNameForRoots(prefill.roots || ROOT_GROUPS.all12);
+    draft.order = prefill.order || 'random';
+  }
+  draft.origin = 'progress';
 }
 
 // ── Module-private runtime ───────────────────────────────────────────────────
@@ -94,7 +137,7 @@ function _armAutoHint() {
 
 // Advance to the next chord per the resolved order strategy.
 function _pickNext(lastSymbol) {
-  if (_config.what === 'weakSpots') {
+  if (_config.what === 'weakSpots' || _config.what === 'cells') {
     return ChordEngine.pickChord(_pool, lastSymbol);
   }
   if (_config.what === 'rootFamily') {
@@ -159,7 +202,7 @@ export const PracticeMode = {
     _clearAutoHintTimer();
     state.mode = 'practice';
     state.screen = 'game';
-    _config = { ...config, qualities: [...config.qualities] };
+    _config = { ...config, qualities: config.qualities ? [...config.qualities] : [] };
     state.practice.config = _config;
 
     _pool = [];
@@ -172,6 +215,8 @@ export const PracticeMode = {
     if (_config.what === 'weakSpots') {
       const weak = Mastery.weakest(8, _allCells());
       _pool = weak.map(w => ChordEngine.chordForCell(w.rootPc, w.typeName));
+    } else if (_config.what === 'cells') {
+      _pool = (_config.cells || []).map(c => ChordEngine.chordForCell(c.rootPc, c.typeName)).filter(Boolean);
     } else if (_config.what === 'rootFamily') {
       const built = ChordEngine.buildCustomPool([_config.rootFamilyRoot], _config.qualities);
       _rootFamilyPool = PRACTICE_QUALITY_ORDER
@@ -303,6 +348,7 @@ export const PracticeMode = {
       reps, accuracy, avgResponseMs, bestStreak, slowest, deltas,
       sessionResults: results,
       configLabel: _describeConfig(_config),
+      origin: _config.origin,
     });
     showScreen('results');
   },

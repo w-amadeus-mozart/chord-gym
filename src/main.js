@@ -13,6 +13,7 @@ import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode } from './modes/practice.js';
+import { Progress } from './progress.js';
 
 // ── MIDI status bar ──────────────────────────────────────
 function updateMidiStatus() {
@@ -167,6 +168,7 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 
 // ── Home pillar navigation ────────────────────────────────
 document.getElementById('pillar-practice').addEventListener('click', () => {
+  state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
   state.screen = 'practice-setup';
   showScreen('practice-setup');
   UI.renderPracticeSetup();
@@ -178,12 +180,23 @@ document.getElementById('pillar-test').addEventListener('click', () => {
   UI.renderMenu();
 });
 
+document.getElementById('pillar-progress').addEventListener('click', () => {
+  state.screen = 'progress';
+  showScreen('progress');
+  Progress.render();
+});
+
 document.getElementById('btn-back-from-menu').addEventListener('click', () => {
   state.screen = 'home';
   showScreen('home');
 });
 
 document.getElementById('btn-back-from-practice-setup').addEventListener('click', () => {
+  state.screen = 'home';
+  showScreen('home');
+});
+
+document.getElementById('btn-back-from-progress').addEventListener('click', () => {
   state.screen = 'home';
   showScreen('home');
 });
@@ -316,6 +329,12 @@ document.getElementById('btn-results-home').addEventListener('click', () => {
   showScreen('home');
 });
 
+document.getElementById('btn-results-progress').addEventListener('click', () => {
+  state.screen = 'progress';
+  showScreen('progress');
+  Progress.render();
+});
+
 // ── Backing toggle ────────────────────────────────────────
 document.getElementById('backing-selector').addEventListener('click', e => {
   const btn = e.target.closest('[data-level]');
@@ -423,6 +442,7 @@ document.addEventListener('click', e => {
 
 // ── Init ─────────────────────────────────────────────────
 buildPiano();
+Progress.init();
 if (!state.practice.setupDraft.qualities.length) {
   state.practice.setupDraft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
 }

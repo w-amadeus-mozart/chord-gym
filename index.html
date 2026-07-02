@@ -68,10 +68,10 @@
       <div class="pillar-card-title">Test</div>
       <div class="pillar-card-desc">Sprint, Survival, Falling Chords</div>
     </button>
-    <button class="pillar-card disabled" id="pillar-progress" disabled>
+    <button class="pillar-card" id="pillar-progress">
       <div class="pillar-card-icon">📊</div>
       <div class="pillar-card-title">Progress</div>
-      <div class="pillar-card-desc">Mastery heatmap coming soon</div>
+      <div class="pillar-card-desc">Your mastery heatmap</div>
     </button>
   </div>
   <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
@@ -97,6 +97,10 @@
     </div>
     <div class="weak-spots-panel" id="weak-spots-panel" style="display:none">
       <p id="weak-spots-msg"></p>
+    </div>
+    <div class="cells-panel" id="cells-panel" style="display:none">
+      <p id="cells-panel-msg"></p>
+      <div class="cells-panel-chips" id="cells-panel-chips"></div>
     </div>
   </div>
 
@@ -298,6 +302,72 @@
     <button class="btn-primary" id="btn-play-again">Play Again</button>
     <button class="btn-secondary" id="btn-change-level">Change Level</button>
     <button class="btn-secondary" id="btn-results-home" style="display:none">Home</button>
+    <button class="btn-secondary" id="btn-results-progress" style="display:none">Back to Progress</button>
+  </div>
+</div>
+
+<!-- ══════════ PROGRESS SCREEN ══════════ -->
+<div id="progress" class="screen">
+  <button class="btn-secondary" id="btn-back-from-progress">← Back to Home</button>
+  <div class="song-select-header">
+    <h2 class="song-select-title">Progress</h2>
+    <p class="song-select-sub">Your mastery map — see what's solid and what's on the to-do list.</p>
+  </div>
+
+  <div class="progress-body" id="progress-body">
+    <div class="progress-content" id="progress-content">
+      <div class="progress-stats-strip" id="progress-stats-strip"></div>
+
+      <div class="progress-heatmap-section">
+        <div class="progress-heatmap-header">
+          <h3>Mastery Heatmap</h3>
+          <div class="order-toggle" id="heatmap-order-toggle">
+            <button class="order-toggle-btn selected" data-order="fifths">Fifths</button>
+            <button class="order-toggle-btn" data-order="chromatic">Chromatic</button>
+          </div>
+        </div>
+        <div class="heatmap-scroll">
+          <div class="heatmap-grid" id="heatmap-grid"></div>
+        </div>
+        <div class="heatmap-legend" id="heatmap-legend"></div>
+      </div>
+
+      <div class="drilldown-panel" id="drilldown-panel" style="display:none"></div>
+
+      <div class="recommendations-panel" id="recommendations-panel"></div>
+
+      <div class="danger-zone" id="danger-zone">
+        <button class="danger-btn" id="btn-reset-progress">Reset all progress</button>
+      </div>
+    </div>
+
+    <div class="progress-empty-overlay" id="progress-empty-overlay" style="display:none">
+      <div class="progress-empty-box">
+        <p>Play anything — Practice or the games — and your map starts filling in.</p>
+        <div class="progress-empty-btns">
+          <button class="btn-primary" id="progress-empty-practice">Go to Practice</button>
+          <button class="btn-secondary" id="progress-empty-test">Go to Test</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cell drill-in modal -->
+<div class="cell-modal-overlay" id="cell-modal-overlay" style="display:none">
+  <div class="cell-modal" id="cell-modal"></div>
+</div>
+
+<!-- Reset confirmation modal -->
+<div class="cell-modal-overlay" id="reset-modal-overlay" style="display:none">
+  <div class="cell-modal reset-modal">
+    <h3>Reset all progress?</h3>
+    <p>This clears your mastery map and activity history. High scores are kept. Type <strong>RESET</strong> to confirm.</p>
+    <input type="text" id="reset-confirm-input" class="reset-confirm-input" placeholder="Type RESET" autocomplete="off">
+    <div class="calib-actions">
+      <button class="btn-secondary" id="btn-cancel-reset">Cancel</button>
+      <button class="danger-btn" id="btn-confirm-reset" disabled>Reset</button>
+    </div>
   </div>
 </div>
 
