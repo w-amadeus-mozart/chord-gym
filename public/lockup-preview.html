@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChordGym — Logo Lockup Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#111318; --ink:#F2EFE8; --gold:#DFA33E; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family:'Space Grotesk',system-ui,sans-serif;
+         display:flex; flex-direction:column; align-items:center; gap:64px; padding:80px 24px; }
+  .lockup { display:flex; align-items:center; gap:22px; }
+  .lockup img { height:72px; width:auto; }
+  .word { font-size:56px; font-weight:700; letter-spacing:-0.5px; }
+  .word b { color:var(--gold); font-weight:700; }
+  .small .lockup img { height:34px; } .small .word { font-size:26px; }
+  .onlight { background:#F5F2EA; color:#111318; padding:48px 64px; border-radius:16px; }
+  .caption { opacity:.55; font-size:14px; margin-top:-44px; }
+</style>
+</head>
+<body>
+  <div class="lockup">
+    <img src="chordgym-mark.svg" alt="ChordGym mark">
+    <div class="word">Chord<b>Gym</b></div>
+  </div>
+  <div class="caption">Primary lockup — app header, dark surfaces</div>
+
+  <div class="small lockup">
+    <img src="chordgym-mark.svg" alt="">
+    <div class="word">Chord<b>Gym</b></div>
+  </div>
+  <div class="caption">Compact — nav bar size</div>
+
+  <div class="onlight">
+    <div class="lockup">
+      <img src="chordgym-mark.svg" alt="">
+      <div class="word">Chord<b>Gym</b></div>
+    </div>
+  </div>
+  <div class="caption">On light — the cutout notches inherit the light background automatically</div>
+</body>
+</html>

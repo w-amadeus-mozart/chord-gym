@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- ChordGym app icon: rounded-square charcoal tile, mark centered -->
+  <defs>
+    <clipPath id="tile"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="#111318"/>
+    <g transform="translate(0,-9)">
+      <path d="M104 306 L194 278 L194 420 L104 420 Z" fill="#F2EFE8"/>
+      <path d="M211 222 L301 194 L301 420 L211 420 Z" fill="#DFA33E"/>
+      <path d="M318 138 L408 110 L408 420 L318 420 Z" fill="#F2EFE8"/>
+      <rect x="184" y="252" width="36" height="136" rx="18" fill="#111318"/>
+      <rect x="292" y="252" width="36" height="136" rx="18" fill="#111318"/>
+    </g>
+  </g>
+</svg>

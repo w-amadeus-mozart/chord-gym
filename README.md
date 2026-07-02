@@ -1,6 +1,10 @@
-# Chord Sprint
+<img src="public/chordgym-mark.svg" alt="ChordGym" width="72">
 
-A browser-based MIDI chord recognition game. A chord symbol appears on screen — play those notes on your MIDI keyboard before the clock runs out. Supports 11 chord types across 6 difficulty levels, with streak multipliers, speed bonuses, and a per-round stats breakdown. Originally built as a single HTML file; this repo is the Vite-structured version.
+# ChordGym
+
+Train your chords. Practice, test, and track your piano chord mastery with your MIDI keyboard.
+
+A browser-based MIDI chord trainer. A chord symbol appears on screen — play those notes on your MIDI keyboard before the clock runs out (or, in Practice, at your own pace). Supports 11 chord types across 6 difficulty levels, with streak multipliers, speed bonuses, a mastery-tracking Progress dashboard, and a per-round stats breakdown. The **Sprint** game mode keeps its name — it's one mode among several (Sprint, Survival, Falling Chords) inside ChordGym. Originally built as a single HTML file; this repo is the Vite-structured version.
 
 ![screenshot placeholder](docs/screenshot.png)
 
