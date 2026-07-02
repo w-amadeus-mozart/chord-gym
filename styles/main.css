@@ -199,7 +199,7 @@ body {
 /* ── START Button ── */
 #btn-start {
   padding: 18px 64px; border-radius: 16px;
-  background: linear-gradient(135deg, #6d5ce7 0%, #a78bfa 50%, var(--accent2) 100%);
+  background: linear-gradient(135deg, #b8862e 0%, var(--gold) 50%, var(--accent2) 100%);
   border: none; color: white; font-size: 22px; font-weight: 800;
   cursor: pointer; letter-spacing: 2px;
   transition: transform 0.15s, box-shadow 0.2s;
@@ -634,7 +634,7 @@ body {
 .results-btns { display: flex; gap: 14px; }
 .btn-primary {
   padding: 14px 36px; border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
   border: none; color: white; font-size: 17px; font-weight: 700;
   cursor: pointer; transition: transform 0.15s, box-shadow 0.2s;
   box-shadow: 0 0 30px rgba(223,163,62,0.55), 0 4px 16px rgba(0,0,0,0.35);
