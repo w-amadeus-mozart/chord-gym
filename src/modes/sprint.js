@@ -7,9 +7,11 @@ import { ChordEngine } from '../chords.js';
 import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
+import { Mastery } from '../mastery.js';
 
 export const SprintMode = {
   start(difficultyIndex) {
+    state.mode = 'sprint';
     state.screen = 'game';
     state.difficulty = difficultyIndex;
     state.score = 0;
@@ -99,6 +101,7 @@ export const SprintMode = {
     state.chordsCompleted++;
 
     state.attempts.push({ symbol: state.currentChord.symbol, responseMs, clean, points });
+    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean);
 
     // Visual flash + audio chime
     UI.flashMatch(points);

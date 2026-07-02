@@ -1,22 +1,36 @@
 // MIDI input module — device handling, held-notes Set, listener/emit bus.
 // No imports. Other modules subscribe via MidiInput.on(fn).
 // Emits: 'noteOn' (data: {note,velocity}), 'noteOff' (data: {note}),
-//        'notesChanged', 'deviceChange'
+//        'notesChanged', 'deviceChange', 'sustainChanged' (data: {isDown})
 
 let midiAccess = null;
 const heldNotes = new Set(); // raw MIDI note numbers
 const listeners = [];
+const pedalByDevice = new Map(); // device id → last CC64 down state
+let sustainDown = false;
 
 function emit(type, data = null) { listeners.forEach(l => l(type, data)); }
 
 export function on(fn) { listeners.push(fn); }
 
-function handleMessage(evt) {
+function recomputeSustain() {
+  const down = [...pedalByDevice.values()].some(v => v);
+  if (down !== sustainDown) {
+    sustainDown = down;
+    emit('sustainChanged', { isDown: sustainDown });
+  }
+}
+
+function handleMessage(evt, deviceId) {
   const [status, note, velocity] = evt.data;
   const type = status & 0xf0;
 
-  // Ignore sustain pedal (CC 64) — only physical key state
-  if (type === 0xb0 && note === 64) return;
+  if (type === 0xb0 && note === 64) {
+    // Sustain affects audio only — never gameplay/matching.
+    pedalByDevice.set(deviceId, velocity >= 64);
+    recomputeSustain();
+    return;
+  }
 
   if (type === 0x90 && velocity > 0) {
     heldNotes.add(note);
@@ -31,7 +45,7 @@ function handleMessage(evt) {
 }
 
 function attachInput(input) {
-  input.onmidimessage = handleMessage;
+  input.onmidimessage = (evt) => handleMessage(evt, input.id);
 }
 
 export async function connect() {
@@ -46,7 +60,11 @@ export async function connect() {
       const port = evt.port;
       if (port.type === 'input') {
         if (port.state === 'connected') { attachInput(port); emit('deviceChange'); }
-        if (port.state === 'disconnected') emit('deviceChange');
+        if (port.state === 'disconnected') {
+          pedalByDevice.delete(port.id);
+          recomputeSustain();
+          emit('deviceChange');
+        }
       }
     };
     return { ok: true };
@@ -75,10 +93,11 @@ export function injectNoteOff(note) {
 
 export function getHeld() { return new Set(heldNotes); }
 export function allReleased() { return heldNotes.size === 0; }
+export function getSustain() { return sustainDown; }
 
 // Convenience object — keeps call sites identical to the original IIFE style
 export const MidiInput = {
   on, connect, getDeviceNames,
   injectNoteOn, injectNoteOff,
-  getHeld, allReleased,
+  getHeld, allReleased, getSustain,
 };

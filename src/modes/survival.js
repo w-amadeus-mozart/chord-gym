@@ -9,6 +9,7 @@ import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { UNLOCK_LADDER } from '../unlockLadder.js';
+import { Mastery } from '../mastery.js';
 
 export const WINDOW_START     = 8.0;  // seconds for the very first chord
 export const WINDOW_DECAY     = 0.10; // seconds shorter per chord (softened from 0.15)
@@ -89,7 +90,7 @@ function buildActivePool(tierIndex) {
     const root = ChordEngine.ROOTS[rootPc];
     for (const type of types) {
       const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
-      pool.push({ root, type, symbol: root + type.symbol, pitchClasses });
+      pool.push({ root, rootPc, type, symbol: root + type.symbol, pitchClasses });
     }
   }
   return pool;
@@ -299,6 +300,7 @@ export const SurvivalMode = {
       points,
       windowSec: state.survival.windowSec,
     });
+    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean);
 
     UI.flashMatch(points);
     GameAudio.playSuccessChime(state.currentChord.pitchClasses);
@@ -368,6 +370,7 @@ export const SurvivalMode = {
     clearInterval(state.timerInterval);
     _clearDeathTimers();
     state.survival.deathReason = deathReason;
+    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, null, false);
     state.screen = 'dying';
 
     const arena   = document.getElementById('chord-arena');

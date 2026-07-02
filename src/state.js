@@ -4,9 +4,10 @@
 export const SPRINT_DURATION = 60; // seconds — change here for 30/90/120s variants
 
 export const state = {
-  screen: 'menu',         // 'menu' | 'song-select' | 'game' | 'results' | 'dying'
+  screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'song-select' | 'game' | 'results' | 'dying'
+  calibrating: false,     // true while timing calibration is running
   difficulty: 0,          // 0–5
-  mode: 'sprint',         // 'sprint' | 'survival' | 'falling'
+  mode: 'sprint',         // 'sprint' | 'survival' | 'falling' | 'practice'
   selectedVariant: 'std', // 'std' | 'nm' — chosen on menu for survival
   // sprint/survival shared runtime
   score: 0,
@@ -47,5 +48,23 @@ export const state = {
     tierIndex: 0,           // index into UNLOCK_LADDER of the highest active tier
     nextUnlockHint: '',     // "Minor in 10" or "MAX" — shown in HUD
     unlockEvents: [],       // [{ attemptIndex, label }] — drives badges in the results table
+  },
+  // practice-pillar runtime summary (UI-facing) + setup draft — see src/modes/practice.js
+  // for the module-private pool/order/hint runtime this doesn't expose.
+  practice: {
+    config: null,          // resolved config the current/last session was started with
+    reps: 0,
+    cleanCount: 0,
+    totalResponseMs: 0,
+    streakUnhinted: 0,
+    sessionResults: [],    // { symbol, rootPc, typeName, responseMs, clean, hinted }
+    setupDraft: {
+      what: 'byQuality',           // 'byQuality' | 'rootFamily' | 'weakSpots'
+      qualities: [],                // chord type names selected — populated at init from CHORD_TYPES
+      rootFamilyRoot: 0,            // pitch class 0-11
+      rootFamilyShuffle: false,
+      where: 'group1',              // 'group1'..'group5' | 'sharp' | 'flat' | 'all12'
+      order: 'random',              // 'random' | 'fifths' | 'fourths'
+    },
   },
 };

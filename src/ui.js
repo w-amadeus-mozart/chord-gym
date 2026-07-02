@@ -8,6 +8,16 @@ import { ChordEngine } from './chords.js';
 import { updatePianoColors } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
 import { CHARTS } from './charts.js';
+import { Mastery } from './mastery.js';
+
+// All 132 root×quality cells — used by the weak-spots setup panel.
+function _allCells() {
+  const cells = [];
+  for (let rootPc = 0; rootPc < ChordEngine.ROOTS.length; rootPc++) {
+    for (const t of ChordEngine.CHORD_TYPES) cells.push({ rootPc, typeName: t.name });
+  }
+  return cells;
+}
 
 export function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
@@ -43,6 +53,23 @@ export const UI = {
     // 5th slot: next unlock countdown ("Minor in 3") or "MAX"
     document.getElementById('hud-chords').textContent = sv.nextUnlockHint;
     UI.renderStreakFire();
+  },
+
+  renderPracticeHUD() {
+    document.getElementById('hud-label-score').textContent = 'Reps';
+    document.getElementById('hud-label-timer').textContent = 'Accuracy';
+    document.getElementById('hud-label-chords').textContent = 'Avg';
+    document.getElementById('nightmare-badge').style.display = 'none';
+
+    const p = state.practice;
+    const acc = p.reps > 0 ? Math.round((p.cleanCount / p.reps) * 100) : 0;
+    const avg = p.reps > 0 ? (p.totalResponseMs / p.reps / 1000).toFixed(2) + 's' : '—';
+
+    document.getElementById('hud-score').textContent = p.reps;
+    document.getElementById('hud-timer').textContent = acc + '%';
+    document.getElementById('hud-timer').className = 'hud-val timer-val';
+    document.getElementById('hud-streak').textContent = p.streakUnhinted;
+    document.getElementById('hud-chords').textContent = avg;
   },
 
   renderTimer() {
@@ -118,6 +145,29 @@ export const UI = {
     updatePianoColors(heldPCs, targetPCs);
   },
 
+  // Practice-only: note letters stay hidden until hintLevel >= 1; keyboard highlights at hintLevel 2.
+  renderPracticeNoteIndicators(heldPCs, targetPCs, hintLevel) {
+    const container = document.getElementById('note-indicators');
+    container.innerHTML = '';
+    const revealed = hintLevel >= 1;
+    for (const pc of targetPCs) {
+      const pip = document.createElement('div');
+      pip.className = 'note-pip' + (revealed ? '' : ' hint-hidden');
+      pip.textContent = revealed ? ChordEngine.ROOTS[pc] : '•';
+      if (heldPCs.has(pc)) pip.classList.add('held');
+      container.appendChild(pip);
+    }
+    for (const pc of heldPCs) {
+      if (!targetPCs.has(pc)) {
+        const pip = document.createElement('div');
+        pip.className = 'note-pip wrong';
+        pip.textContent = ChordEngine.ROOTS[pc] + '✗';
+        container.appendChild(pip);
+      }
+    }
+    updatePianoColors(heldPCs, targetPCs, hintLevel >= 2 ? targetPCs : null);
+  },
+
   // During release gate: show held keys in neutral grey — honest but non-distracting
   renderNoteIndicatorsReleasing(heldPCs) {
     const container = document.getElementById('note-indicators');
@@ -143,6 +193,7 @@ export const UI = {
     else                          el.textContent = '';
   },
 
+  // points omitted (e.g. Practice mode) → flash only, no score popup
   flashMatch(points) {
     const disp = document.getElementById('chord-display');
     disp.classList.remove('match');
@@ -150,6 +201,7 @@ export const UI = {
     disp.classList.add('match');
     setTimeout(() => disp.classList.remove('match'), 400);
 
+    if (points == null) return;
     const arena = document.getElementById('chord-arena');
     const pop = document.createElement('div');
     pop.className = 'score-pop';
@@ -160,6 +212,11 @@ export const UI = {
 
   // modeConfig = null → Sprint; { variant, chordsSurvived, tierIndex, unlockEvents, deathReason } → Survival
   renderResults(modeConfig = null) {
+    document.getElementById('btn-results-home').style.display = 'none';
+    document.getElementById('btn-play-again').textContent = 'Play Again';
+    document.getElementById('btn-change-level').textContent = 'Change Level';
+    document.getElementById('mastery-deltas').style.display = 'none';
+
     const { attempts, difficulty } = state;
 
     // Shared stats computation
@@ -320,10 +377,15 @@ export const UI = {
   // ── Falling Chords ────────────────────────────────────────────────────────
 
   renderSongSelect() {
-    const grid = document.getElementById('song-grid');
+    const grid  = document.getElementById('song-grid');
     const STARS = ['', '★', '★★', '★★★', '★★★★'];
     grid.innerHTML = CHARTS.map(chart => {
-      const hs = localStorage.getItem('falling_hs_' + chart.id);
+      const hs   = localStorage.getItem('falling_hs_'   + chart.id);
+      const rank = localStorage.getItem('falling_rank_' + chart.id);
+      const RANK_COLORS = { S: '#4ade80', A: '#22d3ee', B: '#7c6fff', C: '#fbbf24', D: '#94a3b8', F: '#f87171' };
+      const rankBadge = rank
+        ? `<span class="song-rank" style="color:${RANK_COLORS[rank] || '#94a3b8'}">${rank}</span>`
+        : '';
       return `<button class="song-card" data-chart="${chart.id}">
         <div class="song-card-top">
           <span class="song-title">${chart.title}</span>
@@ -333,7 +395,8 @@ export const UI = {
         <div class="song-meta">
           <span class="song-bpm">${chart.bpm} BPM</span>
           <span class="song-chords">${chart.events.length} chords</span>
-          ${hs ? `<span class="song-hs">Best: ${parseInt(hs).toLocaleString()}</span>` : ''}
+          ${hs   ? `<span class="song-hs">Best: ${parseInt(hs).toLocaleString()}</span>` : ''}
+          ${rankBadge}
         </div>
       </button>`;
     }).join('');
@@ -353,21 +416,54 @@ export const UI = {
   },
 
   renderFallingResults(chart) {
+    document.getElementById('btn-results-home').style.display = 'none';
+    document.getElementById('btn-play-again').textContent = 'Play Again';
+    document.getElementById('btn-change-level').textContent = 'Change Level';
+    document.getElementById('mastery-deltas').style.display = 'none';
+
     const f      = state.falling;
     const total  = f.results.length;
     const hits   = f.perfects + f.goods + f.oks;
     const acc    = total > 0 ? Math.round((hits / total) * 100) : 0;
 
-    document.getElementById('results-headline').textContent  = `${chart.title} — Complete!`;
+    // ── Letter rank ──────────────────────────────────────────────────────
+    let rank = 'D';
+    if (f.failed) {
+      rank = 'F';
+    } else if (total > 0) {
+      const weighted = (f.perfects * 1 + f.goods * 0.6 + f.oks * 0.3) / total;
+      if      (weighted >= 0.95) rank = 'S';
+      else if (weighted >= 0.85) rank = 'A';
+      else if (weighted >= 0.70) rank = 'B';
+      else if (weighted >= 0.50) rank = 'C';
+      else                        rank = 'D';
+    }
+
+    // Persist best rank (S > A > B > C > D > F)
+    const RANK_ORDER = ['F', 'D', 'C', 'B', 'A', 'S'];
+    const rankKey    = 'falling_rank_' + chart.id;
+    const prevRank   = localStorage.getItem(rankKey);
+    const prevRankIdx = prevRank ? RANK_ORDER.indexOf(prevRank) : -1;
+    const newRankIdx  = RANK_ORDER.indexOf(rank);
+    if (newRankIdx > prevRankIdx) localStorage.setItem(rankKey, rank);
+
+    const RANK_COLORS = { S: '#4ade80', A: '#22d3ee', B: '#7c6fff', C: '#fbbf24', D: '#94a3b8', F: '#f87171' };
+    const rankColor   = RANK_COLORS[rank] || '#94a3b8';
+
+    const headline = f.failed
+      ? `${chart.title} — Failed at ${Math.round(f.failedPct)}%`
+      : `${chart.title} — Complete!`;
+    document.getElementById('results-headline').textContent  = headline;
     document.getElementById('results-subheader').style.display = 'block';
     document.getElementById('results-subheader').innerHTML  =
       `<span class="mode-tag">Falling Chords</span>` +
-      `<div class="tier-reached" style="color:var(--cyan)">${chart.bpm} BPM · ${chart.events.length} chords</div>`;
+      `<div class="tier-reached" style="color:var(--cyan)">${chart.bpm} BPM · ${chart.events.length} chords</div>` +
+      `<div class="falling-rank-display" style="color:${rankColor}; font-size:72px; font-weight:900; line-height:1; margin-top:8px; text-shadow:0 0 40px ${rankColor}88">${rank}</div>`;
 
     // High score per chart
     const hsKey  = 'falling_hs_' + chart.id;
     const prevHS = parseInt(localStorage.getItem(hsKey) || '0', 10);
-    const newHS  = state.score > prevHS;
+    const newHS  = !f.failed && state.score > prevHS;
     if (newHS) localStorage.setItem(hsKey, state.score);
     document.getElementById('new-hs-badge').style.display = newHS ? 'inline-block' : 'none';
 
@@ -375,7 +471,7 @@ export const UI = {
 
     // Stats grid
     document.getElementById('stats-grid').innerHTML = [
-      ['Score',      state.score.toLocaleString()],
+      ['Score',      f.failed ? '—' : state.score.toLocaleString()],
       ['Accuracy',   acc + '%'],
       ['Perfects',   f.perfects],
       ['Goods',      f.goods],
@@ -389,17 +485,155 @@ export const UI = {
     document.querySelector('.per-chord-table thead tr').innerHTML =
       '<th>Chord</th><th>Rating</th><th>Points</th>';
     document.getElementById('per-chord-tbody').innerHTML = f.results.map(r => {
-      const cls  = r.result === 'miss' ? 'falling-miss' : 'falling-' + r.result;
+      const cls   = r.result === 'miss' ? 'falling-miss' : 'falling-' + r.result;
       const label = r.result === 'perfect' ? '✦ Perfect'
                   : r.result === 'good'    ? '◆ Good'
                   : r.result === 'ok'      ? '◇ OK'
                   :                          '✗ Miss';
+      const holdTag  = r.hold   ? ' <span class="hold-badge">HOLD</span>' : '';
+      const sloppyTag= r.sloppy ? ' <span class="sloppy-tag">~</span>'    : '';
       return `<tr>
-        <td><strong>${r.symbol}</strong></td>
-        <td><span class="${cls}">${label}</span></td>
+        <td><strong>${r.symbol}</strong>${holdTag}</td>
+        <td><span class="${cls}">${label}</span>${sloppyTag}</td>
         <td>${r.points > 0 ? '+' + r.points : '—'}</td>
       </tr>`;
     }).join('');
+  },
+
+  // ── Practice ─────────────────────────────────────────────────────────────
+
+  renderPracticeSetup() {
+    const draft = state.practice.setupDraft;
+    if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
+
+    const WHAT_OPTIONS = [
+      ['byQuality', 'By quality'],
+      ['rootFamily', 'By root family'],
+      ['weakSpots', 'Weak spots'],
+    ];
+    document.getElementById('practice-what-grid').innerHTML = WHAT_OPTIONS.map(([val, label]) =>
+      `<button class="practice-choice-btn${draft.what === val ? ' selected' : ''}" data-what="${val}">${label}</button>`
+    ).join('');
+
+    // Quality checkboxes — shared by byQuality and rootFamily
+    const qGrid = document.getElementById('quality-checkbox-grid');
+    qGrid.style.display = draft.what === 'weakSpots' ? 'none' : '';
+    if (draft.what !== 'weakSpots') {
+      qGrid.innerHTML = ChordEngine.CHORD_TYPES.map(t =>
+        `<label class="quality-checkbox">
+          <input type="checkbox" data-quality="${t.name}"${draft.qualities.includes(t.name) ? ' checked' : ''}>
+          ${t.name}
+        </label>`
+      ).join('');
+    }
+
+    // Root-family panel
+    const rfPanel = document.getElementById('root-family-panel');
+    rfPanel.style.display = draft.what === 'rootFamily' ? '' : 'none';
+    if (draft.what === 'rootFamily') {
+      document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((r, i) =>
+        `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${r}</button>`
+      ).join('');
+      document.getElementById('root-family-shuffle').checked = draft.rootFamilyShuffle;
+    }
+
+    // Weak-spots panel
+    const wsPanel = document.getElementById('weak-spots-panel');
+    wsPanel.style.display = draft.what === 'weakSpots' ? '' : 'none';
+    const weakQualified = draft.what === 'weakSpots' ? Mastery.weakest(8, _allCells()) : null;
+    if (draft.what === 'weakSpots') {
+      document.getElementById('weak-spots-msg').textContent = weakQualified.length < 8
+        ? `Practice more first — need at least 3 attempts on 8+ chords (found ${weakQualified.length} qualifying so far).`
+        : `Ready — this session drills your 8 weakest chords.`;
+    }
+
+    // Where / Order — byQuality only
+    const isByQuality = draft.what === 'byQuality';
+    document.getElementById('practice-where-section').style.display = isByQuality ? '' : 'none';
+    document.getElementById('practice-order-section').style.display = isByQuality ? '' : 'none';
+    if (isByQuality) {
+      const WHERE_OPTIONS = [
+        ['group1', 'Group 1 · All white'],
+        ['group2', 'Group 2 · Middle black'],
+        ['group3', 'Group 3 · Outer black'],
+        ['group4', 'Group 4 · Oddballs'],
+        ['group5', 'Group 5 · On the blacks'],
+        ['sharp', 'Sharp keys'],
+        ['flat', 'Flat keys'],
+        ['all12', 'All 12 roots'],
+      ];
+      document.getElementById('practice-where-grid').innerHTML = WHERE_OPTIONS.map(([val, label]) =>
+        `<button class="practice-choice-btn${draft.where === val ? ' selected' : ''}" data-where="${val}">${label}</button>`
+      ).join('');
+
+      const ORDER_OPTIONS = [
+        ['random', 'Random'],
+        ['fifths', 'Circle of fifths'],
+        ['fourths', 'Circle of fourths'],
+      ];
+      document.getElementById('practice-order-grid').innerHTML = ORDER_OPTIONS.map(([val, label]) =>
+        `<button class="practice-choice-btn${draft.order === val ? ' selected' : ''}" data-order="${val}">${label}</button>`
+      ).join('');
+    }
+
+    const startBtn = document.getElementById('btn-start-practice');
+    const noQualities = draft.what !== 'weakSpots' && draft.qualities.length === 0;
+    const weakBlocked  = draft.what === 'weakSpots' && weakQualified.length < 8;
+    startBtn.disabled = noQualities || weakBlocked;
+  },
+
+  renderPracticeResults(summary) {
+    document.getElementById('results-headline').textContent = 'Practice session complete';
+    document.getElementById('new-hs-badge').style.display = 'none';
+
+    const subEl = document.getElementById('results-subheader');
+    subEl.style.display = 'block';
+    subEl.innerHTML = `<span class="mode-tag">Practice</span>` +
+      (summary.configLabel ? `<div class="tier-reached">${summary.configLabel}</div>` : '');
+
+    document.getElementById('stats-grid').innerHTML = [
+      ['Reps',         summary.reps],
+      ['Accuracy',     summary.accuracy + '%'],
+      ['Avg Response', summary.avgResponseMs != null ? (summary.avgResponseMs / 1000).toFixed(2) + 's' : '—'],
+      ['Best Streak',  summary.bestStreak],
+    ].map(([l, v]) =>
+      `<div class="stat-card"><div class="sc-label">${l}</div><div class="sc-val">${v}</div></div>`
+    ).join('');
+
+    const wsEl = document.getElementById('weak-spot');
+    if (summary.slowest.length) {
+      wsEl.style.display = 'block';
+      wsEl.innerHTML = 'Slowest this session: ' + summary.slowest
+        .map(s => `<span>${s.symbol}</span> (${(s.responseMs / 1000).toFixed(1)}s)`)
+        .join(', ');
+    } else {
+      wsEl.style.display = 'none';
+    }
+
+    const deltaEl = document.getElementById('mastery-deltas');
+    if (summary.deltas.length) {
+      deltaEl.style.display = 'block';
+      deltaEl.innerHTML = '<h3>Mastery changes</h3>' + summary.deltas.map(d =>
+        `<div class="mastery-delta-row${d.after >= d.before ? ' mastery-delta-up' : ' mastery-delta-down'}">
+          <span>${d.symbol}</span><span>${d.before} → ${d.after}</span>
+        </div>`
+      ).join('');
+    } else {
+      deltaEl.style.display = 'none';
+    }
+
+    document.querySelector('.per-chord-table thead tr').innerHTML =
+      '<th>Chord</th><th>Response</th><th>Hinted</th><th>Quality</th>';
+    document.getElementById('per-chord-tbody').innerHTML = summary.sessionResults.map(r => `<tr>
+      <td><strong>${r.symbol}</strong></td>
+      <td>${(r.responseMs / 1000).toFixed(2)}s</td>
+      <td>${r.hinted ? 'Yes' : '—'}</td>
+      <td>${r.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Assisted</span>'}</td>
+    </tr>`).join('');
+
+    document.getElementById('btn-play-again').textContent = 'Again';
+    document.getElementById('btn-change-level').textContent = 'Change setup';
+    document.getElementById('btn-results-home').style.display = 'inline-block';
   },
 
   renderMenu() {

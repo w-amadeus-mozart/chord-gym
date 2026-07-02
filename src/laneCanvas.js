@@ -1,13 +1,15 @@
 // Canvas renderer for Falling Chords mode.
 // Driven by requestAnimationFrame from fallingChords.js.
 
-const APPROACH_MS = 2200;       // ms for a tile to travel from canvas top to hit zone
-const HIT_ZONE_BOTTOM = 70;     // px from canvas bottom to hit-zone line center
-const TILE_H = 54;
-const TILE_PAD_X = 14;          // horizontal padding inside canvas edges
+const APPROACH_MS   = 2200;   // ms for a tile to travel from canvas top to hit zone
+const HIT_ZONE_BOTTOM = 70;   // px from canvas bottom to hit-zone line center
+const TILE_H        = 54;
 const FLASH_DURATION_MS = 380;
 
-// Per-type accent colors (match CSS design palette)
+// Reduce motion: skip pulse/scale/burst animations
+const _reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Per-type accent colors
 const TYPE_COLORS = {
   'Major':            '#7c6fff',
   'Minor':            '#ff6f91',
@@ -32,17 +34,22 @@ const RATING_COLORS = {
 let _canvas = null;
 let _ctx    = null;
 let _dpr    = 1;
-let _w      = 0; // logical width
-let _h      = 0; // logical height
-let _flashes = [];  // { centerY, color, label, startMs }
-let _missFlashes = []; // { startMs }
+let _w      = 0;
+let _h      = 0;
+let _flashes     = [];  // { centerX, centerY, color, label, startMs }
+let _missFlashes = [];  // { startMs }
+let _comboBursts = [];  // { x, y, startMs } — ring burst on combo milestones
+let _beatMs      = 750; // stored from current chart (set via setBeatMs)
+let _failedPct   = null; // null = not failed; 0–100 = failed at this progress %
 
 export const LaneCanvas = {
   init(canvasEl) {
-    _canvas  = canvasEl;
-    _ctx     = canvasEl.getContext('2d');
-    _flashes = [];
+    _canvas      = canvasEl;
+    _ctx         = canvasEl.getContext('2d');
+    _flashes     = [];
     _missFlashes = [];
+    _comboBursts = [];
+    _failedPct   = null;
     LaneCanvas.resize();
   },
 
@@ -58,11 +65,16 @@ export const LaneCanvas = {
     _ctx.scale(_dpr, _dpr);
   },
 
-  flashHit(centerY, typeName, result) {
+  setBeatMs(ms) {
+    _beatMs = ms;
+  },
+
+  flashHit(centerX, centerY, typeName, result, label) {
     _flashes.push({
+      centerX: centerX ?? _w / 2,
       centerY,
       color: RATING_COLORS[result] || RATING_COLORS.perfect,
-      label: result.toUpperCase(),
+      label: label || result.toUpperCase(),
       startMs: performance.now(),
     });
   },
@@ -71,25 +83,37 @@ export const LaneCanvas = {
     _missFlashes.push({ startMs: performance.now() });
   },
 
-  // tiles: array of tile objects from fallingChords.js
-  // songElapsedMs: performance.now() − songStartTime  (negative during count-in)
+  notifyCombo(combo) {
+    if (_reducedMotion) return;
+    if (combo > 0 && combo % 10 === 0) {
+      const hitZoneY = _h - HIT_ZONE_BOTTOM;
+      _comboBursts.push({ x: _w / 2, y: hitZoneY, startMs: performance.now() });
+    }
+  },
+
+  setFailed(progressPct) {
+    _failedPct = progressPct;
+  },
+
+  // tiles:         array of tile objects from fallingChords.js
+  // songElapsedMs: (audioCtx.currentTime − songStartAudioTime) × 1000; negative during count-in
   render(tiles, songElapsedMs) {
     if (!_canvas || !_ctx) return;
-    const w = _w;
-    const h = _h;
+    const w        = _w;
+    const h        = _h;
     const hitZoneY = h - HIT_ZONE_BOTTOM;
-    const now = performance.now();
+    const now      = performance.now();
+    const colW     = w / 12; // one column per root pitch class
 
     // ── Background ──────────────────────────────────────────────────────────
     _ctx.clearRect(0, 0, w, h);
     _ctx.fillStyle = '#16161f';
     _ctx.fillRect(0, 0, w, h);
 
-    // Subtle horizontal beat-grid lines
-    _ctx.strokeStyle = 'rgba(42,42,61,0.8)';
+    // Subtle moving beat-grid lines
+    _ctx.strokeStyle = 'rgba(42,42,61,0.7)';
     _ctx.lineWidth = 1;
-    const gridStep = 64;
-    // Shift grid with song time so lines move downward (visual rhythm cue)
+    const gridStep   = 64;
     const gridOffset = ((songElapsedMs / APPROACH_MS) * hitZoneY) % gridStep;
     for (let y = ((hitZoneY % gridStep) + gridStep - gridOffset) % gridStep; y < h; y += gridStep) {
       _ctx.beginPath();
@@ -98,137 +122,217 @@ export const LaneCanvas = {
       _ctx.stroke();
     }
 
+    // ── Column guides: C (0), E (4), G# (8) ─────────────────────────────
+    _ctx.lineWidth = 1;
+    for (const pc of [0, 4, 8]) {
+      const x = (pc + 0.5) * colW;
+      _ctx.strokeStyle = 'rgba(124,111,255,0.10)';
+      _ctx.beginPath();
+      _ctx.moveTo(x, 0);
+      _ctx.lineTo(x, h);
+      _ctx.stroke();
+    }
+
     // ── Tiles ────────────────────────────────────────────────────────────────
     for (const tile of tiles) {
       const msUntilTarget = tile.targetMs - songElapsedMs;
-      const progress = 1 - msUntilTarget / APPROACH_MS; // 0=top, 1=hitzone
+      const progress      = 1 - msUntilTarget / APPROACH_MS; // 0=top, 1=hitzone
+      const centerY       = progress * hitZoneY;
 
-      const centerY = progress * hitZoneY;
-      const tileTop = centerY - TILE_H / 2;
-
-      // Cache center for flash positioning (even if not drawn this frame)
       tile._lastCenterY = centerY;
 
-      // Only draw tiles that are on-screen (with generous buffer)
-      if (tileTop > h + 4 || tileTop + TILE_H < -4) continue;
+      // Tile horizontal position by rootPc (12-column layout)
+      const tileCenterX = (tile.rootPc + 0.5) * colW;
+      const tileW       = Math.min(colW * 2.5, w - 4);
+      const tileLeft    = Math.max(2, Math.min(w - tileW - 2, tileCenterX - tileW / 2));
+      tile._lastCenterX = tileCenterX;
 
-      // Skip already-hit tiles (just the flash remains)
-      if (tile.hit) continue;
+      const tileTop = centerY - TILE_H / 2;
+
+      // Only draw tiles near the screen
+      if (tileTop > h + TILE_H && !(tile.holding)) continue;
+      if (tileTop + TILE_H < -4 && !tile.holding) continue;
 
       const color = TYPE_COLORS[tile.typeName] || '#7c6fff';
-      const x     = TILE_PAD_X;
-      const tw    = w - TILE_PAD_X * 2;
+
+      // ── Hold tail (drawn before head so head renders on top) ─────────
+      // Only draw while approaching or actively held — not after completion
+      if (tile.durationBeats && !tile.missed && !tile.hit) {
+        _drawHoldTail(tile, tileLeft, tileW, tileCenterX, hitZoneY, songElapsedMs, color);
+      }
+
+      // Skip head drawing for completed tiles (only the flash remains)
+      if (tile.hit && !tile.holding) continue;
+      // For holding tiles: keep drawing the head glowing at the hit zone
+      if (tile.holding) {
+        _drawHoldHead(tile, tileLeft, tileW, centerY, color);
+        continue;
+      }
 
       _ctx.save();
 
       if (tile.missed) {
-        // Missed tile: red tint, fading as it falls further
-        const fallExtra = Math.max(0, -msUntilTarget - 0); // ms past hit zone
+        const fallExtra = Math.max(0, -msUntilTarget);
         _ctx.globalAlpha = Math.max(0, 0.45 - fallExtra / 600);
-        _roundRect(_ctx, x, tileTop, tw, TILE_H, 10);
-        _ctx.fillStyle = 'rgba(248,113,113,0.18)';
+        _roundRect(_ctx, tileLeft, tileTop, tileW, TILE_H, 10);
+        _ctx.fillStyle   = 'rgba(248,113,113,0.18)';
         _ctx.fill();
         _ctx.strokeStyle = '#f87171';
-        _ctx.lineWidth = 1.5;
+        _ctx.lineWidth   = 1.5;
         _ctx.stroke();
-        _ctx.fillStyle = '#f87171';
+        _ctx.fillStyle   = '#f87171';
       } else {
-        // Normal tile — fade in at the very top
+        // Approach scale: tiles grow slightly from 0.92 → 1.0 in last 400ms
+        let scaleX = 1, offsetX = 0;
+        if (!_reducedMotion && msUntilTarget >= 0 && msUntilTarget < 400) {
+          const t  = 1 - msUntilTarget / 400;
+          const sc = 0.92 + 0.08 * t;
+          scaleX  = sc;
+          offsetX = (tileW - tileW * sc) / 2;
+        }
+
         const fadeIn = Math.min(1, (APPROACH_MS - msUntilTarget) / 200);
         _ctx.globalAlpha = Math.max(0, fadeIn);
 
-        _roundRect(_ctx, x, tileTop, tw, TILE_H, 10);
-        _ctx.fillStyle = color + '1a'; // ~10% alpha fill
+        const drawW = tileW * scaleX;
+        const drawX = tileLeft + offsetX;
+
+        _roundRect(_ctx, drawX, tileTop, drawW, TILE_H, 10);
+        _ctx.fillStyle   = color + '1a';
         _ctx.fill();
         _ctx.strokeStyle = color;
-        _ctx.lineWidth = 2;
+        _ctx.lineWidth   = msUntilTarget < 400 && !_reducedMotion ? 2.5 : 2;
         _ctx.stroke();
-        _ctx.fillStyle = '#e8e8f0';
+        _ctx.fillStyle   = '#e8e8f0';
       }
 
-      // Chord label
-      _ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
-      _ctx.textAlign = 'center';
-      _ctx.textBaseline = 'middle';
-      _ctx.fillText(tile.symbol, x + tw / 2, tileTop + TILE_H / 2);
-
+      _ctx.font          = 'bold 18px "Segoe UI", system-ui, sans-serif';
+      _ctx.textAlign     = 'center';
+      _ctx.textBaseline  = 'middle';
+      _ctx.fillText(tile.symbol, tileLeft + tileW / 2, tileTop + TILE_H / 2);
       _ctx.restore();
     }
 
-    // ── Hit zone line ────────────────────────────────────────────────────────
+    // ── Hit zone line (with beat-synced pulse) ───────────────────────────
     _ctx.save();
+    let hitLineShadow = 16;
+    if (!_reducedMotion && _beatMs > 0) {
+      const beatPhase = ((songElapsedMs % _beatMs) + _beatMs) % _beatMs;
+      if (beatPhase < 120) {
+        hitLineShadow = 16 + 14 * (1 - beatPhase / 120);
+      }
+    }
     const grad = _ctx.createLinearGradient(0, 0, w, 0);
     grad.addColorStop(0,    'transparent');
-    grad.addColorStop(0.1,  '#7c6fff');
-    grad.addColorStop(0.9,  '#7c6fff');
+    grad.addColorStop(0.08, '#7c6fff');
+    grad.addColorStop(0.92, '#7c6fff');
     grad.addColorStop(1,    'transparent');
-    _ctx.strokeStyle   = grad;
-    _ctx.lineWidth     = 3;
-    _ctx.shadowColor   = '#7c6fff';
-    _ctx.shadowBlur    = 16;
+    _ctx.strokeStyle = grad;
+    _ctx.lineWidth   = 3;
+    _ctx.shadowColor = '#7c6fff';
+    _ctx.shadowBlur  = hitLineShadow;
     _ctx.beginPath();
     _ctx.moveTo(0, hitZoneY);
     _ctx.lineTo(w, hitZoneY);
     _ctx.stroke();
     _ctx.restore();
 
-    // ── Count-in overlay ─────────────────────────────────────────────────────
+    // ── Count-in overlay ─────────────────────────────────────────────────
     if (songElapsedMs < 0) {
-      const secsLeft = -songElapsedMs / 1000;
-      const num      = Math.ceil(secsLeft);
+      const num = Math.ceil(-songElapsedMs / _beatMs);
       if (num >= 1) {
-        // Pulse: scale 1.2→1 each second
-        const frac  = secsLeft - Math.floor(secsLeft); // 1 at start, 0 at next tick
-        const scale = 1 + frac * 0.25;
-        const alpha = Math.min(1, secsLeft < 0.4 ? secsLeft / 0.4 : 0.92);
+        const beatPhase = ((-songElapsedMs) % _beatMs) / _beatMs; // 0→1 within beat
+        const scale     = _reducedMotion ? 1 : 1 + (1 - beatPhase) * 0.25;
+        const secsLeft  = -songElapsedMs / 1000;
+        const alpha     = Math.min(1, secsLeft < 0.4 ? secsLeft / 0.4 : 0.92);
 
         _ctx.save();
-        _ctx.globalAlpha = alpha;
-        _ctx.translate(w / 2, hitZoneY - 32);
+        _ctx.globalAlpha  = alpha;
+        _ctx.translate(w / 2, hitZoneY - 36);
         _ctx.scale(scale, scale);
-        _ctx.fillStyle     = '#7c6fff';
-        _ctx.font          = 'bold 56px "Segoe UI", system-ui, sans-serif';
-        _ctx.textAlign     = 'center';
-        _ctx.textBaseline  = 'middle';
-        _ctx.shadowColor   = '#7c6fff';
-        _ctx.shadowBlur    = 20;
+        _ctx.fillStyle    = '#7c6fff';
+        _ctx.font         = 'bold 56px "Segoe UI", system-ui, sans-serif';
+        _ctx.textAlign    = 'center';
+        _ctx.textBaseline = 'middle';
+        _ctx.shadowColor  = '#7c6fff';
+        _ctx.shadowBlur   = 22;
         _ctx.fillText(String(num), 0, 0);
         _ctx.restore();
       }
     }
 
-    // ── Hit flashes (rating text rises from hit zone) ─────────────────────
+    // ── Hit flashes ──────────────────────────────────────────────────────
     _flashes = _flashes.filter(f => now - f.startMs < FLASH_DURATION_MS);
     for (const f of _flashes) {
-      const t     = (now - f.startMs) / FLASH_DURATION_MS; // 0→1
+      const t     = (now - f.startMs) / FLASH_DURATION_MS;
       const alpha = 1 - t;
-      const y     = f.centerY - t * 44; // rises upward
+      const y     = f.centerY - t * 44;
       _ctx.save();
-      _ctx.globalAlpha   = alpha;
-      _ctx.fillStyle     = f.color;
-      _ctx.font          = `bold ${Math.round(22 - t * 4)}px "Segoe UI", system-ui, sans-serif`;
-      _ctx.textAlign     = 'center';
-      _ctx.textBaseline  = 'middle';
-      _ctx.shadowColor   = f.color;
-      _ctx.shadowBlur    = 8;
-      _ctx.fillText(f.label, w / 2, y);
+      _ctx.globalAlpha  = alpha;
+      _ctx.fillStyle    = f.color;
+      _ctx.font         = `bold ${Math.round(22 - t * 4)}px "Segoe UI", system-ui, sans-serif`;
+      _ctx.textAlign    = 'center';
+      _ctx.textBaseline = 'middle';
+      _ctx.shadowColor  = f.color;
+      _ctx.shadowBlur   = 8;
+      _ctx.fillText(f.label, f.centerX, y);
       _ctx.restore();
     }
 
-    // ── Miss flash (red "MISS" near hit zone) ────────────────────────────
+    // ── Miss flashes ─────────────────────────────────────────────────────
     _missFlashes = _missFlashes.filter(f => now - f.startMs < FLASH_DURATION_MS);
     for (const f of _missFlashes) {
       const t     = (now - f.startMs) / FLASH_DURATION_MS;
       const alpha = 1 - t;
       _ctx.save();
-      _ctx.globalAlpha   = alpha;
-      _ctx.fillStyle     = '#f87171';
-      _ctx.font          = 'bold 22px "Segoe UI", system-ui, sans-serif';
-      _ctx.textAlign     = 'center';
-      _ctx.textBaseline  = 'middle';
-      _ctx.shadowColor   = '#f87171';
-      _ctx.shadowBlur    = 8;
+      _ctx.globalAlpha  = alpha;
+      _ctx.fillStyle    = '#f87171';
+      _ctx.font         = 'bold 22px "Segoe UI", system-ui, sans-serif';
+      _ctx.textAlign    = 'center';
+      _ctx.textBaseline = 'middle';
+      _ctx.shadowColor  = '#f87171';
+      _ctx.shadowBlur   = 8;
       _ctx.fillText('MISS', w / 2, hitZoneY - t * 44);
+      _ctx.restore();
+    }
+
+    // ── Combo burst rings ────────────────────────────────────────────────
+    const BURST_MS = 320;
+    _comboBursts = _comboBursts.filter(b => now - b.startMs < BURST_MS);
+    for (const b of _comboBursts) {
+      const t     = (now - b.startMs) / BURST_MS;
+      const r     = t * 55;
+      const alpha = (1 - t) * 0.7;
+      _ctx.save();
+      _ctx.globalAlpha = alpha;
+      _ctx.strokeStyle = '#7c6fff';
+      _ctx.lineWidth   = 2.5;
+      _ctx.shadowColor = '#7c6fff';
+      _ctx.shadowBlur  = 10;
+      _ctx.beginPath();
+      _ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      _ctx.stroke();
+      _ctx.restore();
+    }
+
+    // ── Fail overlay ─────────────────────────────────────────────────────
+    if (_failedPct !== null) {
+      _ctx.save();
+      _ctx.globalAlpha = 0.55;
+      _ctx.fillStyle   = '#07070f';
+      _ctx.fillRect(0, 0, w, h);
+      _ctx.globalAlpha = 1;
+      _ctx.fillStyle   = '#f87171';
+      _ctx.font        = 'bold 32px "Segoe UI", system-ui, sans-serif';
+      _ctx.textAlign   = 'center';
+      _ctx.textBaseline = 'middle';
+      _ctx.shadowColor = '#f87171';
+      _ctx.shadowBlur  = 28;
+      _ctx.fillText(`SONG FAILED at ${Math.round(_failedPct)}%`, w / 2, h / 2 - 18);
+      _ctx.font        = '16px "Segoe UI", system-ui, sans-serif';
+      _ctx.shadowBlur  = 0;
+      _ctx.fillStyle   = 'rgba(232,232,240,0.55)';
+      _ctx.fillText('Press any key or tap to see results', w / 2, h / 2 + 20);
       _ctx.restore();
     }
   },
@@ -238,8 +342,78 @@ export const LaneCanvas = {
     _ctx         = null;
     _flashes     = [];
     _missFlashes = [];
+    _comboBursts = [];
+    _failedPct   = null;
   },
 };
+
+// ── Hold tile rendering ──────────────────────────────────────────────────────
+function _drawHoldTail(tile, tileLeft, tileW, tileCenterX, hitZoneY, songElapsedMs, color) {
+  const msUntilTarget  = tile.targetMs - songElapsedMs;
+  const progress       = 1 - msUntilTarget / APPROACH_MS;
+  const headY          = progress * hitZoneY;
+  const tailLengthPx   = (tile.durationBeats * _beatMs / APPROACH_MS) * hitZoneY;
+
+  _ctx.save();
+
+  if (tile.holding) {
+    // Head is at hit zone; tail shortens upward as hold is consumed
+    const elapsed        = songElapsedMs; // approximate — actual elapsed
+    const holdElapsed    = elapsed - tile.targetMs;
+    const remainPx       = Math.max(0, tailLengthPx - (holdElapsed / APPROACH_MS) * hitZoneY);
+    const tailTop        = hitZoneY - remainPx;
+
+    if (tile.holdBroken) {
+      // Grey out broken tail
+      _ctx.globalAlpha = 0.35;
+      _ctx.fillStyle   = '#64748b';
+      _ctx.fillRect(tileLeft + tileW * 0.15, tailTop, tileW * 0.7, remainPx);
+    } else {
+      const grad = _ctx.createLinearGradient(0, tailTop, 0, hitZoneY);
+      grad.addColorStop(0, color + '22');
+      grad.addColorStop(1, color + '66');
+      _ctx.fillStyle   = grad;
+      _ctx.fillRect(tileLeft + tileW * 0.15, tailTop, tileW * 0.7, remainPx);
+      // Glow border
+      _ctx.strokeStyle = color + '88';
+      _ctx.lineWidth   = 1.5;
+      _ctx.strokeRect(tileLeft + tileW * 0.15, tailTop, tileW * 0.7, remainPx);
+    }
+  } else {
+    // Tile hasn't reached hit zone yet — draw full tail above the head
+    const tailTop = headY - TILE_H / 2 - tailLengthPx;
+    const grad    = _ctx.createLinearGradient(0, tailTop, 0, headY);
+    grad.addColorStop(0, color + '11');
+    grad.addColorStop(1, color + '44');
+    _ctx.globalAlpha = Math.min(1, (APPROACH_MS - (tile.targetMs - songElapsedMs)) / 200);
+    _ctx.fillStyle   = grad;
+    _ctx.fillRect(tileLeft + tileW * 0.15, tailTop, tileW * 0.7, tailLengthPx);
+    _ctx.strokeStyle = color + '55';
+    _ctx.lineWidth   = 1;
+    _ctx.strokeRect(tileLeft + tileW * 0.15, tailTop, tileW * 0.7, tailLengthPx);
+  }
+
+  _ctx.restore();
+}
+
+function _drawHoldHead(tile, tileLeft, tileW, centerY, color) {
+  const tileTop = Math.min(tile._lastCenterY, _h - HIT_ZONE_BOTTOM) - TILE_H / 2;
+  _ctx.save();
+  _roundRect(_ctx, tileLeft, tileTop, tileW, TILE_H, 10);
+  _ctx.fillStyle   = color + '33';
+  _ctx.fill();
+  _ctx.strokeStyle = color;
+  _ctx.lineWidth   = 2.5;
+  _ctx.shadowColor = color;
+  _ctx.shadowBlur  = tile.holdBroken ? 0 : 14;
+  _ctx.stroke();
+  _ctx.fillStyle   = '#e8e8f0';
+  _ctx.font        = 'bold 18px "Segoe UI", system-ui, sans-serif';
+  _ctx.textAlign   = 'center';
+  _ctx.textBaseline = 'middle';
+  _ctx.fillText(tile.symbol, tileLeft + tileW / 2, tileTop + TILE_H / 2);
+  _ctx.restore();
+}
 
 function _roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();

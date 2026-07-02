@@ -56,13 +56,14 @@ export function buildPiano() {
   }
 }
 
-export function updatePianoColors(heldPCs, targetPCs) {
+export function updatePianoColors(heldPCs, targetPCs, hintPCs = null) {
   document.querySelectorAll('.white-key, .black-key').forEach(k => {
     const pc = parseInt(k.dataset.note) % 12;
     const isHeld = heldPCs.has(pc);
     const isTarget = targetPCs.has(pc);
     k.classList.toggle('active', isHeld && isTarget);
     k.classList.toggle('wrong-active', isHeld && !isTarget);
+    k.classList.toggle('hint', !isHeld && !!hintPCs && hintPCs.has(pc));
     k.classList.remove('releasing');
   });
 }

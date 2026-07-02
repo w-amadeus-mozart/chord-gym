@@ -526,11 +526,101 @@ body {
   box-shadow: 0 8px 40px rgba(0,0,0,0.5);
 }
 
+/* ── Health bar ── */
+.health-bar-wrap {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+}
+.health-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--green); min-width: 22px; text-align: right;
+  text-shadow: 0 0 8px rgba(74,222,128,0.7);
+}
+.health-track {
+  flex: 1; height: 5px; background: rgba(42,42,61,0.5); border-radius: 3px; overflow: hidden;
+}
+.health-bar {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--green), #86efac);
+  box-shadow: 0 0 10px rgba(74,222,128,0.7);
+  transition: width 0.2s linear, background 0.4s;
+}
+.health-bar.amber { background: linear-gradient(90deg, var(--amber), #fde68a); box-shadow: 0 0 10px rgba(251,191,36,0.7); }
+.health-bar.red   { background: linear-gradient(90deg, var(--red),   #fca5a5); box-shadow: 0 0 10px rgba(248,113,113,0.7); }
+
+/* ── Song-select options row ── */
+.song-options {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  width: 100%; max-width: 680px;
+  padding: 14px 18px; border-radius: 12px;
+  background: var(--glass); backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+}
+.song-option-group { display: flex; align-items: center; gap: 8px; }
+.song-option-label { font-size: 12px; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+.song-option-btns  { display: flex; gap: 4px; }
+.song-opt-btn {
+  padding: 4px 12px; border-radius: 7px; font-size: 12px; font-weight: 700;
+  background: rgba(30,30,45,0.8); border: 1px solid var(--glass-border);
+  color: var(--text-dim); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.song-opt-btn.selected {
+  border-color: var(--accent); background: rgba(124,111,255,0.15); color: var(--accent);
+}
+.song-opt-btn:hover:not(.selected) { border-color: rgba(124,111,255,0.35); color: var(--text); }
+.health-toggle-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text-dim); cursor: pointer;
+}
+.health-toggle-label input { accent-color: var(--accent); cursor: pointer; }
+.song-opt-secondary {
+  padding: 5px 14px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  background: rgba(30,30,45,0.8); border: 1px solid var(--glass-border);
+  color: var(--text-dim); cursor: pointer; white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.song-opt-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.song-rank {
+  font-size: 16px; font-weight: 900; margin-left: auto;
+  text-shadow: 0 0 12px currentColor;
+}
+
+/* ── Calibration overlay ── */
+.calibration-overlay {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(7,7,15,0.82); backdrop-filter: blur(20px);
+  border-radius: 14px;
+}
+.calibration-box {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 16px; padding: 32px 40px; text-align: center; max-width: 400px;
+}
+.calibration-box h3 { font-size: 22px; font-weight: 900; color: var(--accent); margin-bottom: 10px; }
+.calibration-box p  { font-size: 14px; color: var(--text-dim); margin-bottom: 20px; }
+.calib-dots { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+.calib-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(42,42,61,0.8); border: 2px solid var(--border);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.calib-dot.done {
+  background: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(124,111,255,0.7);
+}
+.calib-result {
+  font-size: 15px; color: var(--text); margin-bottom: 18px; font-weight: 600;
+}
+.calib-result strong { color: var(--accent); }
+.calib-actions { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+
 /* ── Falling Chords result badges ── */
 .falling-perfect { color: var(--green);  font-weight: 700; text-shadow: 0 0 8px rgba(74,222,128,0.5); }
 .falling-good    { color: var(--amber);  font-weight: 700; text-shadow: 0 0 8px rgba(251,191,36,0.5); }
 .falling-ok      { color: #fb923c;       font-weight: 700; }
 .falling-miss    { color: var(--red);    font-weight: 700; }
+.hold-badge      { font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: rgba(124,111,255,0.18); color: var(--accent); border: 1px solid var(--accent); margin-left: 4px; vertical-align: middle; }
+.sloppy-tag      { color: var(--text-dim); font-size: 13px; margin-left: 4px; }
 
 /* ── Buttons ── */
 .results-btns { display: flex; gap: 14px; }
@@ -550,3 +640,151 @@ body {
   cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s;
 }
 .btn-secondary:hover { border-color: rgba(124,111,255,0.5); box-shadow: 0 0 18px rgba(124,111,255,0.2); }
+
+/* ── Mixer button (status bar) ── */
+#mixer-btn {
+  padding: 4px 10px; border-radius: 6px;
+  background: rgba(30,30,45,0.8); border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text); cursor: pointer; font-size: 13px;
+  transition: background 0.2s, border-color 0.2s;
+}
+#mixer-btn:hover { background: var(--border); border-color: var(--accent); }
+#mixer-btn.open  { border-color: var(--accent); color: var(--accent); background: rgba(124,111,255,0.12); }
+
+/* ── Mixer popover ── */
+.mixer-popover {
+  position: fixed; top: 48px; right: 12px; z-index: 200;
+  background: var(--glass); backdrop-filter: blur(22px);
+  border: 1px solid var(--glass-border); border-radius: 14px;
+  padding: 16px 20px 14px; min-width: 260px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(124,111,255,0.12);
+}
+.mixer-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+}
+.mixer-row:last-child { margin-bottom: 0; }
+.mixer-row-toggle { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.mixer-label {
+  font-size: 12px; color: var(--text-dim); width: 72px; flex-shrink: 0;
+}
+.mixer-toggle-label {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 12px; color: var(--text); width: auto;
+}
+.mixer-slider {
+  flex: 1; accent-color: var(--accent); cursor: pointer; height: 4px;
+}
+.mixer-val {
+  font-size: 11px; color: var(--text-dim); width: 32px; text-align: right; flex-shrink: 0;
+}
+.mixer-status {
+  font-size: 11px; color: var(--text-dim); margin-top: 8px;
+  text-align: center; min-height: 16px;
+}
+
+/* ── Menu attribution footer ── */
+.menu-attribution {
+  font-size: 11px; color: var(--text-dim); text-align: center; margin-top: -12px;
+}
+.menu-attribution a { color: var(--text-dim); text-decoration: underline; }
+
+/* ══════════ Home screen — pillar cards ══════════ */
+#home { padding-top: 100px; gap: 32px; }
+.pillar-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+  width: 100%; max-width: 640px;
+}
+.pillar-card {
+  padding: 22px 18px; border-radius: 16px;
+  background: var(--glass); backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  color: var(--text); cursor: pointer; text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, background 0.2s;
+}
+.pillar-card:hover:not(.disabled) {
+  border-color: rgba(124,111,255,0.5);
+  box-shadow: 0 0 28px rgba(124,111,255,0.2), inset 0 1px 0 rgba(255,255,255,0.07);
+  transform: translateY(-2px);
+}
+.pillar-card.disabled { cursor: default; opacity: 0.45; }
+.pillar-card-icon { font-size: 28px; margin-bottom: 9px; line-height: 1; }
+.pillar-card-title { font-size: 18px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
+.pillar-card-desc { font-size: 12px; color: var(--text-dim); }
+
+/* ══════════ Practice setup screen ══════════ */
+#practice-setup { padding-top: 80px; gap: 22px; }
+.practice-setup-section { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 10px; }
+.practice-setup-label {
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px;
+}
+.practice-choice-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.practice-choice-btn {
+  padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  background: rgba(30,30,45,0.8); border: 1px solid var(--glass-border);
+  color: var(--text-dim); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.practice-choice-btn.selected {
+  border-color: var(--accent); background: rgba(124,111,255,0.15); color: var(--accent);
+}
+.practice-choice-btn:hover:not(.selected) { border-color: rgba(124,111,255,0.35); color: var(--text); }
+
+.quality-checkbox-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--glass); backdrop-filter: blur(12px); border: 1px solid var(--glass-border);
+}
+.quality-checkbox {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.quality-checkbox input { accent-color: var(--accent); cursor: pointer; }
+
+.root-family-panel { display: flex; flex-direction: column; gap: 12px; }
+.root-picker-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+.shuffle-toggle-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer;
+}
+.shuffle-toggle-label input { accent-color: var(--accent); cursor: pointer; }
+
+.weak-spots-panel {
+  padding: 12px 16px; border-radius: 10px; font-size: 13px;
+  background: rgba(124,111,255,0.08); border: 1px solid rgba(124,111,255,0.25);
+  color: var(--text-dim);
+}
+
+#btn-start-practice:disabled { opacity: 0.4; cursor: not-allowed; animation: none; transform: none; }
+
+/* ══════════ Practice session controls ══════════ */
+.practice-controls {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center;
+  width: 100%; max-width: 680px;
+}
+.auto-hint-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text-dim); cursor: pointer;
+}
+.auto-hint-label input { accent-color: var(--accent); cursor: pointer; }
+.hint-notice { font-size: 12px; color: var(--amber); font-weight: 600; }
+
+.note-pip.hint-hidden { color: var(--text-dim); opacity: 0.6; letter-spacing: 2px; }
+.white-key.hint { box-shadow: 0 0 0 3px var(--amber) inset, 0 0 16px rgba(251,191,36,0.6); }
+.black-key.hint { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 14px rgba(251,191,36,0.6); }
+
+/* ══════════ Mastery deltas (practice results) ══════════ */
+.mastery-deltas {
+  width: 100%; padding: 14px 18px; border-radius: 12px;
+  background: var(--glass); backdrop-filter: blur(12px); border: 1px solid var(--glass-border);
+}
+.mastery-deltas h3 {
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px;
+}
+.mastery-delta-row {
+  display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px;
+}
+.mastery-delta-row span:last-child { font-weight: 700; }
+.mastery-delta-up span:last-child { color: var(--green); }
+.mastery-delta-down span:last-child { color: var(--red); }
+.menu-attribution a:hover { color: var(--accent); }

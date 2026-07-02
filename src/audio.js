@@ -1,32 +1,124 @@
-// Web Audio synthesis — no imports, no side effects on load.
+// Web Audio synthesis — no imports besides Sampler.
 // Exported as GameAudio to avoid shadowing the browser's window.Audio constructor.
 
-let ctx = null;
+import { Sampler } from './sampler.js';
+
+let ctx  = null;
 let muted = false;
+
+// ── Graph nodes (lazy-inited on first AudioContext creation) ─────────────────
+let _pianoGain   = null;  // oscillator piano + sampler → here → destination
+let _backingGain = null;  // metronome + bass → here → destination
+let _uiGain      = null;  // chimes / death / expiry / wrong → here → destination
+let _comp        = null;  // DynamicsCompressor for oscillator piano polyphony
+
+function _loadVol(key, def) {
+  try { const v = localStorage.getItem(key); return v !== null ? Number(v) : def; } catch (_) { return def; }
+}
+
+function _initGraph(c) {
+  if (_pianoGain) return;
+
+  _pianoGain   = c.createGain();
+  _backingGain = c.createGain();
+  _uiGain      = c.createGain();
+
+  _pianoGain.gain.value   = _loadVol('vol_piano',   80) / 100;
+  _backingGain.gain.value = _loadVol('vol_backing', 100) / 100;
+  _uiGain.gain.value      = _loadVol('vol_ui',       70) / 100;
+
+  _pianoGain.connect(c.destination);
+  _backingGain.connect(c.destination);
+  _uiGain.connect(c.destination);
+
+  _comp = c.createDynamicsCompressor();
+  _comp.threshold.value = -18;
+  _comp.knee.value      = 14;
+  _comp.ratio.value     = 5;
+  _comp.attack.value    = 0.002;
+  _comp.release.value   = 0.15;
+  _comp.connect(_pianoGain);
+}
 
 function getCtx() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  // Resume if browser suspended the context (requires a prior user gesture)
   if (ctx.state === 'suspended') ctx.resume();
+  _initGraph(ctx);
   return ctx;
+}
+
+// ── Sampler loading ──────────────────────────────────────────────────────────
+let _samplerLoading = false;
+
+async function loadSampler(progressCb) {
+  if (_samplerLoading || Sampler.isLoaded()) return Sampler.isLoaded();
+  _samplerLoading = true;
+  const c = getCtx();
+  const ok = await Sampler.load(c, _pianoGain, progressCb);
+  _samplerLoading = false;
+  return ok;
+}
+
+// ── Live audition toggle ─────────────────────────────────────────────────────
+// When ON: every MIDI noteOn/Off is routed through the sampler.
+let _liveAudition = false;
+try { _liveAudition = localStorage.getItem('live_audition') === 'true'; } catch (_) {}
+
+function getLiveAudition() { return _liveAudition; }
+function setLiveAudition(v) {
+  _liveAudition = v;
+  try { localStorage.setItem('live_audition', v ? 'true' : 'false'); } catch (_) {}
+}
+
+// ── Volume mixer ─────────────────────────────────────────────────────────────
+function setPianoVolume(pct) {
+  if (_pianoGain) _pianoGain.gain.value = pct / 100;
+  try { localStorage.setItem('vol_piano', pct); } catch (_) {}
+}
+function setBackingVolume(pct) {
+  if (_backingGain) _backingGain.gain.value = pct / 100;
+  try { localStorage.setItem('vol_backing', pct); } catch (_) {}
+}
+function setUiVolume(pct) {
+  if (_uiGain) _uiGain.gain.value = pct / 100;
+  try { localStorage.setItem('vol_ui', pct); } catch (_) {}
+}
+function getPianoVolume()   { return _loadVol('vol_piano',   80); }
+function getBackingVolume() { return _loadVol('vol_backing', 100); }
+function getUiVolume()      { return _loadVol('vol_ui',       70); }
+
+// ── UI sound helpers ─────────────────────────────────────────────────────────
+function _uiOsc(c, freq, type, startT, peakVol, peakT, decayT) {
+  const osc  = c.createOscillator();
+  const gain = c.createGain();
+  osc.connect(gain); gain.connect(_uiGain);
+  osc.type = type; osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, startT);
+  gain.gain.linearRampToValueAtTime(peakVol, startT + peakT);
+  gain.gain.exponentialRampToValueAtTime(0.001, startT + decayT);
+  osc.start(startT); osc.stop(startT + decayT + 0.005);
 }
 
 function playSuccessChime(pitchClasses) {
   if (muted) return;
   const c = getCtx();
-  const freqs = [...pitchClasses].map(pc => 261.63 * Math.pow(2, pc / 12)); // C4-based
-  freqs.forEach((freq, i) => {
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.connect(gain); gain.connect(c.destination);
-    osc.type = 'sine';
-    osc.frequency.value = freq;
+  if (Sampler.isLoaded()) {
+    // Play actual chord notes (octave 4) through sampler, briefly held
+    const pcs = [...pitchClasses];
     const now = c.currentTime;
-    gain.gain.setValueAtTime(0, now + i * 0.03);
-    gain.gain.linearRampToValueAtTime(0.18, now + i * 0.03 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.03 + 0.5);
-    osc.start(now + i * 0.03);
-    osc.stop(now + i * 0.03 + 0.55);
+    pcs.forEach((pc, i) => {
+      const midi = 60 + pc;
+      Sampler.noteOn(midi, 0.65, now + i * 0.03);
+    });
+    setTimeout(() => {
+      pcs.forEach(pc => Sampler.noteOff(60 + pc));
+    }, 600);
+    return;
+  }
+  const freqs = [...pitchClasses].map(pc => 261.63 * Math.pow(2, pc / 12));
+  const now = c.currentTime;
+  freqs.forEach((freq, i) => {
+    _uiOsc(c, freq, 'sine', now + i * 0.03, 0.12, 0.02, 0.5);
   });
 }
 
@@ -34,19 +126,8 @@ function playUnlockChime() {
   if (muted) return;
   const c = getCtx();
   const now = c.currentTime;
-  // Two ascending tones — G4 then E5 — bright "level up" feel
   [392, 659.3].forEach((freq, i) => {
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.connect(gain); gain.connect(c.destination);
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-    const t = now + i * 0.1;
-    gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.14, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-    osc.start(t);
-    osc.stop(t + 0.45);
+    _uiOsc(c, freq, 'sine', now + i * 0.1, 0.14, 0.02, 0.4);
   });
 }
 
@@ -54,96 +135,71 @@ function playDeathSound() {
   if (muted) return;
   const c = getCtx();
   const now = c.currentTime;
-  // Short descending tone — A3, F3, D3
   [220, 174.6, 146.8].forEach((freq, i) => {
-    const osc = c.createOscillator();
+    const osc  = c.createOscillator();
     const gain = c.createGain();
-    osc.connect(gain); gain.connect(c.destination);
-    osc.type = 'sine';
-    osc.frequency.value = freq;
+    osc.connect(gain); gain.connect(_uiGain);
+    osc.type = 'sine'; osc.frequency.value = freq;
     const t = now + i * 0.12;
     gain.gain.setValueAtTime(0.15, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-    osc.start(t);
-    osc.stop(t + 0.3);
+    osc.start(t); osc.stop(t + 0.3);
   });
 }
 
-// Descending two-note wah — window expired before you could play the chord
 function playExpiryWah() {
   if (muted) return;
   const c = getCtx();
   const now = c.currentTime;
   [329.6, 246.9].forEach((freq, i) => {
-    const osc = c.createOscillator();
+    const osc  = c.createOscillator();
     const gain = c.createGain();
-    osc.connect(gain); gain.connect(c.destination);
-    osc.type = 'triangle';
+    osc.connect(gain); gain.connect(_uiGain);
+    osc.type = 'triangle'; osc.frequency.value = freq;
     const t = now + i * 0.22;
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(0.18, t + 0.03);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.52);
-    osc.start(t);
-    osc.stop(t + 0.57);
+    osc.start(t); osc.stop(t + 0.57);
   });
 }
 
-// Minor-2nd cluster — maximum harmonic dissonance for a wrong-note kill
 function playWrongNoteHit() {
   if (muted) return;
   const c = getCtx();
   const now = c.currentTime;
-  [220, 233.1].forEach((freq) => {
-    const osc = c.createOscillator();
+  [220, 233.1].forEach(freq => {
+    const osc  = c.createOscillator();
     const gain = c.createGain();
-    osc.connect(gain); gain.connect(c.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.value = freq;
+    osc.connect(gain); gain.connect(_uiGain);
+    osc.type = 'sawtooth'; osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.13, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-    osc.start(now);
-    osc.stop(now + 0.37);
+    osc.start(now); osc.stop(now + 0.37);
   });
 }
 
 // ── Piano playback ───────────────────────────────────────────────────────────
-// Always-on synthesis: plays whenever a MIDI key is pressed, regardless of screen.
-// Uses a shared compressor to handle polyphony without clipping.
-
-let _comp = null;
-function _getComp() {
-  const c = getCtx();
-  if (!_comp) {
-    _comp = c.createDynamicsCompressor();
-    _comp.threshold.value = -18;
-    _comp.knee.value     = 14;
-    _comp.ratio.value    = 5;
-    _comp.attack.value   = 0.002;
-    _comp.release.value  = 0.15;
-    _comp.connect(c.destination);
-  }
-  return _comp;
-}
-
 const _activeNotes = new Map(); // midiNote → { oscs, gain, c }
 
 function startPianoNote(midiNote, velocity) {
   if (muted) return;
-  stopPianoNote(midiNote); // retrigger: kill any previous instance first
-  const c   = getCtx();
-  const now = c.currentTime;
+  const c = getCtx();
+
+  if (_liveAudition && Sampler.isLoaded()) {
+    Sampler.noteOn(midiNote, Math.max(0.15, velocity / 127));
+    return;
+  }
+
+  stopPianoNote(midiNote);
+  const now  = c.currentTime;
   const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
   const vel  = Math.max(0.15, velocity / 127);
-
-  // Lower notes ring longer — roughly 2.5s at A2, 0.6s at C7
   const decaySec = Math.max(0.55, 2.5 - (midiNote - 45) * 0.019);
 
-  const comp       = _getComp();
   const masterGain = c.createGain();
-  masterGain.connect(comp);
+  masterGain.connect(_comp);
 
-  // Harmonic stack: triangle fundamental (warm) + octave sine + slightly sharp 5th
-  // The 3.01 mult gives a touch of inharmonicity the way real piano strings have
   const harmonics = [
     { type: 'triangle', mult: 1,    amp: 0.55 },
     { type: 'sine',     mult: 2,    amp: 0.18 },
@@ -152,17 +208,13 @@ function startPianoNote(midiNote, velocity) {
   const oscs = harmonics.map(({ type, mult, amp }) => {
     const osc = c.createOscillator();
     const g   = c.createGain();
-    osc.type = type;
-    osc.frequency.value = freq * mult;
+    osc.type = type; osc.frequency.value = freq * mult;
     g.gain.value = amp;
-    osc.connect(g);
-    g.connect(masterGain);
-    osc.start(now);
-    osc.stop(now + decaySec + 0.06);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(now); osc.stop(now + decaySec + 0.06);
     return osc;
   });
 
-  // Very short noise burst — hammer striking the string
   const nLen    = Math.ceil(c.sampleRate * 0.018);
   const noiseBuf = c.createBuffer(1, nLen, c.sampleRate);
   const nd       = noiseBuf.getChannelData(0);
@@ -172,11 +224,9 @@ function startPianoNote(midiNote, velocity) {
   const noiseGain = c.createGain();
   noiseGain.gain.setValueAtTime(0.03 * vel, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.018);
-  noise.connect(noiseGain);
-  noiseGain.connect(comp);
+  noise.connect(noiseGain); noiseGain.connect(_comp);
   noise.start(now);
 
-  // Envelope: 3ms attack → brief hammer-transient decay → long string ring
   const peak = 0.22 * vel;
   masterGain.gain.setValueAtTime(0, now);
   masterGain.gain.linearRampToValueAtTime(peak, now + 0.003);
@@ -187,6 +237,10 @@ function startPianoNote(midiNote, velocity) {
 }
 
 function stopPianoNote(midiNote) {
+  if (_liveAudition && Sampler.isLoaded()) {
+    Sampler.noteOff(midiNote);
+    return;
+  }
   const entry = _activeNotes.get(midiNote);
   if (!entry) return;
   _activeNotes.delete(midiNote);
@@ -195,20 +249,89 @@ function stopPianoNote(midiNote) {
   const cur = Math.max(0.0001, gain.gain.value);
   gain.gain.cancelScheduledValues(now);
   gain.gain.setValueAtTime(cur, now);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07); // quick key-up release
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
   oscs.forEach(osc => { try { osc.stop(now + 0.1); } catch (_) {} });
+}
+
+// Always forwarded to the sampler regardless of the live-audition toggle so
+// the flag is correct if the toggle gets flipped on mid-session.
+function setSustain(isDown) {
+  Sampler.setSustain(isDown);
 }
 
 function toggleMute() {
   muted = !muted;
   if (muted) {
-    // Release all held piano notes immediately when muting
     for (const key of _activeNotes.keys()) stopPianoNote(key);
+    Sampler.stopAll();
   }
   return muted;
 }
 
+// ── Falling Chords backing controls ─────────────────────────────────────────
+let _backingLevel = 'full';
+try { _backingLevel = localStorage.getItem('falling_backing') || 'full'; } catch (_) {}
+
+function setBackingLevel(level) {
+  _backingLevel = level;
+  try { localStorage.setItem('falling_backing', level); } catch (_) {}
+}
+function getBackingLevel() { return _backingLevel; }
+
+function getCtxTime() {
+  return ctx ? ctx.currentTime : performance.now() / 1000;
+}
+
+function suspendAudio() { if (ctx) ctx.suspend().catch(() => {}); }
+function resumeAudio()  { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); }
+
+function scheduleClick(audioTime, isAccent) {
+  if (muted || _backingLevel === 'off') return;
+  const c = getCtx();
+  const osc  = c.createOscillator();
+  const gain = c.createGain();
+  osc.connect(gain); gain.connect(_backingGain);
+  osc.type = 'sine';
+  osc.frequency.value = isAccent ? 1600 : 1100;
+  const vol = isAccent ? 0.22 : 0.14;
+  gain.gain.setValueAtTime(0, audioTime);
+  gain.gain.linearRampToValueAtTime(vol, audioTime + 0.002);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioTime + 0.03);
+  osc.start(audioTime); osc.stop(audioTime + 0.035);
+}
+
+// beatS: beat duration in seconds (used for sampler noteOff at 80% of beat)
+function scheduleBassNote(audioTime, rootPc, beatS = 0.5) {
+  if (muted || _backingLevel !== 'full') return;
+  if (Sampler.isLoaded()) {
+    const midiNote = 36 + rootPc; // octave 2: C2 = 36
+    Sampler.noteOn(midiNote, 0.65, audioTime);
+    Sampler.noteOff(midiNote, audioTime + beatS * 0.8);
+    return;
+  }
+  const c    = getCtx();
+  const freq = 65.41 * Math.pow(2, rootPc / 12);
+  const osc  = c.createOscillator();
+  const gain = c.createGain();
+  osc.connect(gain); gain.connect(_backingGain);
+  osc.type = 'triangle'; osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, audioTime);
+  gain.gain.linearRampToValueAtTime(0.28, audioTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioTime + 0.4);
+  osc.start(audioTime); osc.stop(audioTime + 0.45);
+}
+
 export const GameAudio = {
+  loadSampler,
+  isSamplerLoaded: () => Sampler.isLoaded(),
+  getLiveAudition,
+  setLiveAudition,
+  setPianoVolume,
+  setBackingVolume,
+  setUiVolume,
+  getPianoVolume,
+  getBackingVolume,
+  getUiVolume,
   playSuccessChime,
   playUnlockChime,
   playDeathSound,
@@ -216,6 +339,14 @@ export const GameAudio = {
   playWrongNoteHit,
   startPianoNote,
   stopPianoNote,
+  setSustain,
   toggleMute,
-  isMuted: () => muted,
+  isMuted:         () => muted,
+  getCtxTime,
+  suspendAudio,
+  resumeAudio,
+  scheduleClick,
+  scheduleBassNote,
+  setBackingLevel,
+  getBackingLevel,
 };

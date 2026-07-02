@@ -35,10 +35,35 @@ export function buildPool(diffIndex) {
     for (const type of types) {
       const rootPc = ROOTS.indexOf(root);
       const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
-      pool.push({ root, type, symbol: root + type.symbol, pitchClasses });
+      pool.push({ root, rootPc, type, symbol: root + type.symbol, pitchClasses });
     }
   }
   return pool;
+}
+
+// Build a chord list for an arbitrary subset of roots × qualities (cross product).
+// rootPcs: [0-11], typeNames: chord type `name` strings — used by Practice mode.
+export function buildCustomPool(rootPcs, typeNames) {
+  const types = CHORD_TYPES.filter(t => typeNames.includes(t.name));
+  const pool = [];
+  for (const rootPc of rootPcs) {
+    const root = ROOTS[rootPc];
+    for (const type of types) {
+      const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
+      pool.push({ root, rootPc, type, symbol: root + type.symbol, pitchClasses });
+    }
+  }
+  return pool;
+}
+
+// Build a single chord for an arbitrary (rootPc, typeName) pair — used to turn
+// Mastery.weakest() results back into playable chords.
+export function chordForCell(rootPc, typeName) {
+  const type = CHORD_TYPES.find(t => t.name === typeName);
+  if (!type) return null;
+  const root = ROOTS[rootPc];
+  const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
+  return { root, rootPc, type, symbol: root + type.symbol, pitchClasses };
 }
 
 // Pick a random chord that isn't the last one played
@@ -67,5 +92,5 @@ export function toPitchClasses(noteSet) {
 // Convenience object — keeps call sites identical to the original IIFE style
 export const ChordEngine = {
   ROOTS, CHORD_TYPES, DIFFICULTY_POOLS,
-  buildPool, pickChord, isMatch, toPitchClasses,
+  buildPool, buildCustomPool, chordForCell, pickChord, isMatch, toPitchClasses,
 };

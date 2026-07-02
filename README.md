@@ -57,6 +57,49 @@ Scores are stored in `localStorage` per origin. Scores from the original local H
 | `src/main.js` | Entry point. Imports everything, wires events, runs init. |
 | `styles/main.css` | All styles. Imported by `main.js`; Vite handles CSS. |
 
+---
+
+## Credits
+
+### Piano samples
+**Salamander Grand Piano V3** by Alexander Holm
+- Yamaha C5 grand piano recorded at 44.1 kHz / 16-bit
+- License: [Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/)
+- Source: https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html
+
+Samples are self-hosted in `public/samples/piano/` as OGG (primary) and MP3 (Safari fallback).
+See [`public/samples/piano/SOURCES.md`](public/samples/piano/SOURCES.md) for the file list and [download instructions below](#obtaining-the-samples).
+
+### Obtaining the samples
+
+`ffmpeg` is required. Run these commands from the project root:
+
+```bash
+# 1. Download and extract the original FLAC files
+curl -L "https://freepats.zenvoid.org/Piano/SalamanderGrandPianoV3.tar.xz" -o /tmp/salamander.tar.xz
+tar -xf /tmp/salamander.tar.xz -C /tmp/
+
+# 2. The archive extracts to a directory — find it
+FLAC_DIR=$(find /tmp -name "A0v8.flac" -print -quit | xargs dirname)
+echo "Found samples at: $FLAC_DIR"
+
+# 3. Convert every needed note to OGG 96kbps + MP3 128kbps
+DEST="public/samples/piano"
+mkdir -p "$DEST"
+for NOTE in A0 C1 Ds1 Fs1 A1 C2 Ds2 Fs2 A2 C3 Ds3 Fs3 A3 C4 Ds4 Fs4 A4 C5 Ds5 Fs5 A5 C6 Ds6 Fs6 A6 C7 Ds7 Fs7 A7 C8; do
+  SRC="$FLAC_DIR/${NOTE}v8.flac"
+  [ -f "$SRC" ] || { echo "Missing: $SRC"; continue; }
+  ffmpeg -y -i "$SRC" -c:a libvorbis -q:a 4        "$DEST/${NOTE}v8.ogg" -loglevel warning
+  ffmpeg -y -i "$SRC" -c:a libmp3lame -b:a 128k    "$DEST/${NOTE}v8.mp3" -loglevel warning
+  echo "  Converted ${NOTE}v8"
+done
+echo "Done — $(ls "$DEST"/*.ogg | wc -l) OGG files in $DEST"
+```
+
+Total size is approximately 5–7 MB. After conversion, reload the dev server and open the mixer (⚙ in the top bar) to verify "Piano samples ready" appears.
+
+---
+
 ### Adding a new game mode
 
 1. Create `src/modes/your-mode.js` and export an object with these five methods:

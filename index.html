@@ -8,6 +8,9 @@
 </head>
 <body>
 
+<!-- Animated aurora background (CSS-driven, behind all screens) -->
+<div class="bg-aurora" aria-hidden="true"></div>
+
 <!-- Status bar (always visible) -->
 <div id="status-bar">
   <div class="status-dot" id="status-dot"></div>
@@ -15,24 +18,122 @@
   <span id="midi-device-name">No MIDI device connected</span>
   <button id="btn-connect-midi">Connect MIDI</button>
   <button id="mute-btn" title="Toggle sound">🔊</button>
+  <button id="mixer-btn" title="Audio mixer">⚙</button>
 </div>
 
-<!-- ══════════ MENU SCREEN ══════════ -->
-<div id="menu" class="screen active">
+<!-- Mixer popover — positioned via JS, toggled open/closed -->
+<div id="mixer-popover" class="mixer-popover" style="display:none" role="dialog" aria-label="Audio mixer">
+  <div class="mixer-row">
+    <label class="mixer-label" for="vol-piano">Piano</label>
+    <input class="mixer-slider" id="vol-piano" type="range" min="0" max="100" step="1">
+    <span class="mixer-val" id="val-piano"></span>
+  </div>
+  <div class="mixer-row">
+    <label class="mixer-label" for="vol-backing">Backing</label>
+    <input class="mixer-slider" id="vol-backing" type="range" min="0" max="100" step="1">
+    <span class="mixer-val" id="val-backing"></span>
+  </div>
+  <div class="mixer-row">
+    <label class="mixer-label" for="vol-ui">UI sounds</label>
+    <input class="mixer-slider" id="vol-ui" type="range" min="0" max="100" step="1">
+    <span class="mixer-val" id="val-ui"></span>
+  </div>
+  <div class="mixer-row mixer-row-toggle">
+    <label class="mixer-label mixer-toggle-label" for="live-audition">
+      <input type="checkbox" id="live-audition">
+      Live piano samples
+    </label>
+  </div>
+  <div class="mixer-status" id="sampler-status"></div>
+</div>
+
+<!-- ══════════ HOME SCREEN ══════════ -->
+<div id="home" class="screen active">
+  <div class="logo">Chord<span>Sprint</span></div>
+  <p class="tagline">Sharpen your chords. Find your weak spots. Prove your speed.</p>
+
+  <div class="pillar-grid" id="pillar-grid">
+    <button class="pillar-card disabled" id="pillar-learn" disabled>
+      <div class="pillar-card-icon">📖</div>
+      <div class="pillar-card-title">Learn</div>
+      <div class="pillar-card-desc">Guided lessons coming soon</div>
+    </button>
+    <button class="pillar-card" id="pillar-practice">
+      <div class="pillar-card-icon">🎯</div>
+      <div class="pillar-card-title">Practice</div>
+      <div class="pillar-card-desc">Untimed drills, your pace</div>
+    </button>
+    <button class="pillar-card" id="pillar-test">
+      <div class="pillar-card-icon">⚡</div>
+      <div class="pillar-card-title">Test</div>
+      <div class="pillar-card-desc">Sprint, Survival, Falling Chords</div>
+    </button>
+    <button class="pillar-card disabled" id="pillar-progress" disabled>
+      <div class="pillar-card-icon">📊</div>
+      <div class="pillar-card-title">Progress</div>
+      <div class="pillar-card-desc">Mastery heatmap coming soon</div>
+    </button>
+  </div>
+  <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
+</div>
+
+<!-- ══════════ PRACTICE SETUP SCREEN ══════════ -->
+<div id="practice-setup" class="screen">
+  <div class="song-select-header">
+    <h2 class="song-select-title">Practice</h2>
+    <p class="song-select-sub">Untimed drills — work at your own pace, use hints freely.</p>
+  </div>
+
+  <div class="practice-setup-section" id="practice-what-section">
+    <h4 class="practice-setup-label">What</h4>
+    <div class="practice-choice-grid" id="practice-what-grid"></div>
+    <div class="quality-checkbox-grid" id="quality-checkbox-grid"></div>
+    <div class="root-family-panel" id="root-family-panel" style="display:none">
+      <div class="root-picker-grid" id="root-picker-grid"></div>
+      <label class="shuffle-toggle-label">
+        <input type="checkbox" id="root-family-shuffle">
+        Shuffle order
+      </label>
+    </div>
+    <div class="weak-spots-panel" id="weak-spots-panel" style="display:none">
+      <p id="weak-spots-msg"></p>
+    </div>
+  </div>
+
+  <div class="practice-setup-section" id="practice-where-section">
+    <h4 class="practice-setup-label">Where</h4>
+    <div class="practice-choice-grid" id="practice-where-grid"></div>
+  </div>
+
+  <div class="practice-setup-section" id="practice-order-section">
+    <h4 class="practice-setup-label">Order</h4>
+    <div class="practice-choice-grid" id="practice-order-grid"></div>
+  </div>
+
+  <button id="btn-start-practice" class="btn-primary">▶ START PRACTICE</button>
+  <button class="btn-secondary" id="btn-back-from-practice-setup">← Back to Home</button>
+</div>
+
+<!-- ══════════ MENU SCREEN (Test pillar) ══════════ -->
+<div id="menu" class="screen">
+  <button class="btn-secondary" id="btn-back-from-menu">← Back to Home</button>
   <div class="logo">Chord<span>Sprint</span></div>
   <p class="tagline">Play the chord. Beat the clock. Train your ears.</p>
 
   <!-- Mode selector — appears above the difficulty grid -->
   <div class="mode-selector" id="mode-selector">
     <button class="mode-btn selected" data-mode="sprint">
+      <div class="mode-btn-icon">⚡</div>
       <div class="mode-btn-title">Sprint</div>
       <div class="mode-btn-desc">How many in 60s?</div>
     </button>
     <button class="mode-btn" data-mode="survival">
+      <div class="mode-btn-icon">💀</div>
       <div class="mode-btn-title">Survival</div>
       <div class="mode-btn-desc">How long can you last?</div>
     </button>
     <button class="mode-btn" data-mode="falling">
+      <div class="mode-btn-icon">🎵</div>
       <div class="mode-btn-title">Falling</div>
       <div class="mode-btn-desc">Hit chords on the beat</div>
     </button>
@@ -55,6 +156,7 @@
   </div>
 
   <button id="btn-start">▶ START</button>
+  <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
 </div>
 
 <!-- ══════════ SONG SELECT SCREEN ══════════ -->
@@ -64,6 +166,40 @@
     <p class="song-select-sub">Hit each chord as it crosses the line. Timing earns Perfect / Good / OK.</p>
   </div>
   <div class="song-grid" id="song-grid"></div>
+
+  <!-- Pre-game options -->
+  <div class="song-options">
+    <div class="song-option-group">
+      <span class="song-option-label">Backing</span>
+      <div class="song-option-btns" id="backing-selector">
+        <button class="song-opt-btn selected" data-level="full">Full</button>
+        <button class="song-opt-btn" data-level="click">Click only</button>
+        <button class="song-opt-btn" data-level="off">Off</button>
+      </div>
+    </div>
+    <div class="song-option-group">
+      <label class="health-toggle-label">
+        <input type="checkbox" id="health-toggle" checked>
+        Health bar
+      </label>
+    </div>
+    <button class="song-opt-secondary" id="btn-calibrate">⏱ Calibrate timing</button>
+  </div>
+
+  <!-- Calibration overlay -->
+  <div class="calibration-overlay" id="calibration-overlay" style="display:none">
+    <div class="calibration-box">
+      <h3>Timing Calibration</h3>
+      <p>Press any key on each click (8 total)</p>
+      <div class="calib-dots" id="calib-dots"></div>
+      <div class="calib-result" id="calib-result" style="display:none"></div>
+      <div class="calib-actions">
+        <button class="song-opt-secondary" id="btn-calib-reset">Reset offset</button>
+        <button class="btn-secondary" id="btn-cancel-calib">Close</button>
+      </div>
+    </div>
+  </div>
+
   <button class="btn-secondary" id="btn-back-from-songs">← Back to Menu</button>
 </div>
 
@@ -82,7 +218,7 @@
       <div class="hud-label">Streak</div>
       <div class="hud-val streak-val" id="hud-streak">0</div>
     </div>
-    <div class="hud-item">
+    <div class="hud-item" id="hud-item-mult">
       <div class="hud-label">Multiplier</div>
       <div class="hud-val mult-val" id="hud-mult">×1</div>
     </div>
@@ -96,6 +232,24 @@
 
   <div class="timer-bar-wrap" id="timer-bar-wrap">
     <div class="timer-bar" id="timer-bar"></div>
+  </div>
+  <!-- Health bar — falling mode only, hidden during sprint/survival -->
+  <div class="health-bar-wrap" id="health-bar-wrap" style="display:none">
+    <span class="health-label">HP</span>
+    <div class="health-track">
+      <div class="health-bar" id="health-bar"></div>
+    </div>
+  </div>
+
+  <!-- Practice controls — hidden unless mode === 'practice' -->
+  <div class="practice-controls" id="practice-controls" style="display:none">
+    <button class="song-opt-secondary" id="btn-hint">💡 Hint</button>
+    <label class="auto-hint-label">
+      <input type="checkbox" id="auto-hint-toggle">
+      Auto-hint after 5s
+    </label>
+    <span class="hint-notice" id="hint-notice" style="display:none">Hinted reps don't count toward mastery</span>
+    <button class="btn-secondary" id="btn-end-practice">End Session</button>
   </div>
 
   <!-- Falling Chords lane — hidden unless mode === 'falling' -->
@@ -126,6 +280,7 @@
 
   <div class="stats-grid" id="stats-grid"></div>
   <div class="weak-spot" id="weak-spot" style="display:none"></div>
+  <div class="mastery-deltas" id="mastery-deltas" style="display:none"></div>
 
   <table class="per-chord-table">
     <thead>
@@ -142,6 +297,7 @@
   <div class="results-btns">
     <button class="btn-primary" id="btn-play-again">Play Again</button>
     <button class="btn-secondary" id="btn-change-level">Change Level</button>
+    <button class="btn-secondary" id="btn-results-home" style="display:none">Home</button>
   </div>
 </div>
 
