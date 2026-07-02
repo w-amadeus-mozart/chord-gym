@@ -14,6 +14,7 @@ import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode } from './modes/practice.js';
 import { Progress } from './progress.js';
+import { LearnEngine } from './learn/engine.js';
 
 // ── MIDI status bar ──────────────────────────────────────
 function updateMidiStatus() {
@@ -69,6 +70,8 @@ MidiInput.on((type) => {
         FallingChordsMode.onNotesChanged();
       } else if (state.mode === 'practice') {
         PracticeMode.onNotesChanged();
+      } else if (state.mode === 'learn') {
+        LearnEngine.onNotesChanged();
       } else {
         SprintMode.onNotesChanged();
       }
@@ -167,6 +170,18 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 });
 
 // ── Home pillar navigation ────────────────────────────────
+function goHome() {
+  state.screen = 'home';
+  showScreen('home');
+  LearnEngine.updateLearnPillarCard();
+}
+
+document.getElementById('pillar-learn').addEventListener('click', () => {
+  state.screen = 'learn-home';
+  showScreen('learn-home');
+  LearnEngine.renderHome();
+});
+
 document.getElementById('pillar-practice').addEventListener('click', () => {
   state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
   state.screen = 'practice-setup';
@@ -186,20 +201,10 @@ document.getElementById('pillar-progress').addEventListener('click', () => {
   Progress.render();
 });
 
-document.getElementById('btn-back-from-menu').addEventListener('click', () => {
-  state.screen = 'home';
-  showScreen('home');
-});
-
-document.getElementById('btn-back-from-practice-setup').addEventListener('click', () => {
-  state.screen = 'home';
-  showScreen('home');
-});
-
-document.getElementById('btn-back-from-progress').addEventListener('click', () => {
-  state.screen = 'home';
-  showScreen('home');
-});
+document.getElementById('btn-back-from-menu').addEventListener('click', goHome);
+document.getElementById('btn-back-from-practice-setup').addEventListener('click', goHome);
+document.getElementById('btn-back-from-progress').addEventListener('click', goHome);
+document.getElementById('btn-back-from-learn-home').addEventListener('click', goHome);
 
 // ── Practice setup screen — wired once, re-renders on every change ────────
 document.getElementById('practice-setup').addEventListener('click', e => {
@@ -324,10 +329,7 @@ document.getElementById('btn-change-level').addEventListener('click', () => {
   }
 });
 
-document.getElementById('btn-results-home').addEventListener('click', () => {
-  state.screen = 'home';
-  showScreen('home');
-});
+document.getElementById('btn-results-home').addEventListener('click', goHome);
 
 document.getElementById('btn-results-progress').addEventListener('click', () => {
   state.screen = 'progress';
@@ -443,8 +445,11 @@ document.addEventListener('click', e => {
 // ── Init ─────────────────────────────────────────────────
 buildPiano();
 Progress.init();
+LearnEngine.init();
+LearnEngine.updateLearnPillarCard();
 if (!state.practice.setupDraft.qualities.length) {
   state.practice.setupDraft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
 }
 UI.renderMenu();
 updateMidiStatus();
+LearnEngine.maybeShowWelcome();

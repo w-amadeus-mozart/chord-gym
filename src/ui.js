@@ -168,6 +168,23 @@ export const UI = {
     updatePianoColors(heldPCs, targetPCs, hintLevel >= 2 ? targetPCs : null);
   },
 
+  // Learn-only: labeled scale-degree pips (e.g. "1","3","5") instead of note names,
+  // plus an amber keyboard highlight — reuses the Practice hint-glow mechanism.
+  // entries: [{ pc, label }]; pass [] to clear.
+  renderLearnHighlight(entries) {
+    const container = document.getElementById('note-indicators');
+    container.innerHTML = '';
+    const pcs = new Set();
+    for (const { pc, label } of entries) {
+      pcs.add(pc);
+      const pip = document.createElement('div');
+      pip.className = 'note-pip learn-label-pip';
+      pip.textContent = label;
+      container.appendChild(pip);
+    }
+    updatePianoColors(new Set(), pcs, pcs);
+  },
+
   // During release gate: show held keys in neutral grey — honest but non-distracting
   renderNoteIndicatorsReleasing(heldPCs) {
     const container = document.getElementById('note-indicators');
