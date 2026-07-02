@@ -25,17 +25,17 @@ A browser-based MIDI chord trainer. A chord symbol appears on screen — play th
 npm install
 npm run dev        # Vite dev server at http://localhost:5173
 npm run build      # Production build → dist/
-npm run preview    # Serve the dist/ build locally (tests the /chord-sprint/ base path)
+npm run preview    # Serve the dist/ build locally (tests the /chord-gym/ base path)
 ```
 
 ---
 
 ## GitHub Pages deploy (one-time setup)
 
-1. Create a GitHub repo named **`chord-sprint`** and push this directory to `main`.
+1. Create a GitHub repo named **`chord-gym`** and push this directory to `main`.
 2. Go to **Settings → Pages → Source** and select **GitHub Actions**.
 3. Push any commit to `main` — the `deploy.yml` workflow builds and deploys automatically.
-4. Your game will be live at `https://<your-username>.github.io/chord-sprint/`
+4. Your game will be live at `https://<your-username>.github.io/chord-gym/`
 
 > **If you use a different repo name**, update `base` in [`vite.config.js`](vite.config.js) to match:
 > ```js
@@ -43,7 +43,7 @@ npm run preview    # Serve the dist/ build locally (tests the /chord-sprint/ bas
 > ```
 
 ### High scores
-Scores are stored in `localStorage` per origin. Scores from the original local HTML file (`chord-sprint.html`) won't carry over to the deployed site — that's expected.
+Scores and mastery data are stored in `localStorage` per origin. Moving the deploy to a new origin or base path (e.g. the `chord-sprint` → `chord-gym` rename) resets this data — that's expected; export/import is a future nicety.
 
 ---
 
