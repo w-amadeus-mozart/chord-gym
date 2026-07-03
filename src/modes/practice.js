@@ -12,6 +12,7 @@ import { UI, showScreen } from '../ui.js';
 import { Mastery } from '../mastery.js';
 
 const AUTO_HINT_DELAY_MS = 5000;
+const LAST_SESSION_KEY = 'ct_practice_last_v1';
 
 // Root groups (pitch-class indices into ChordEngine.ROOTS) — the "Where" step.
 // Exported so Progress can deep-link into named groups (sharp/flat/all12/etc.)
@@ -35,6 +36,19 @@ export const PRACTICE_QUALITY_ORDER = [
   'Dominant 7th', 'Major 7th', 'Minor 7th', 'Half-dim (m7b5)', 'Diminished 7th',
 ];
 
+// One-tap presets shown on the Practice landing screen — always all 12 roots;
+// key-scope narrowing is a Custom concern. "My weak spots" isn't listed here
+// since it needs qualifying-data gating, handled separately by the UI layer.
+export const PRESETS = [
+  { id: 'major',        label: 'Major',         qualities: ['Major'] },
+  { id: 'minor',        label: 'Minor',         qualities: ['Minor'] },
+  { id: 'diminished',   label: 'Diminished',    qualities: ['Diminished'] },
+  { id: 'augmented',    label: 'Augmented',     qualities: ['Augmented'] },
+  { id: 'sus',          label: 'Sus',           qualities: ['Sus2', 'Sus4'] },
+  { id: 'sevenths',     label: 'Sevenths',      qualities: ['Dominant 7th', 'Major 7th', 'Minor 7th'] },
+  { id: 'advanced7ths', label: 'Advanced 7ths', qualities: ['Half-dim (m7b5)', 'Diminished 7th'] },
+];
+
 function _allCells() {
   const cells = [];
   for (let rootPc = 0; rootPc < ChordEngine.ROOTS.length; rootPc++) {
@@ -43,7 +57,11 @@ function _allCells() {
   return cells;
 }
 
-function _describeConfig(config) {
+const ORDER_LABELS = { random: 'Random', chromatic: 'Chromatic', fifths: 'Circle of fifths', fourths: 'Circle of fourths' };
+
+// Human-readable summary of a resolved config — used for the results-screen
+// breadcrumb and the "Last session" caption on the Practice landing screen.
+export function describeConfig(config) {
   if (config.what === 'weakSpots') return 'Weak spots';
   if (config.what === 'cells') {
     return config.cellsLabel || `Custom · ${config.cells.length} chord${config.cells.length !== 1 ? 's' : ''}`;
@@ -52,12 +70,15 @@ function _describeConfig(config) {
     return `Root family · ${ChordEngine.ROOTS[config.rootFamilyRoot]}` +
       (config.rootFamilyShuffle ? ' · Shuffle' : '');
   }
+  const orderLabel = ORDER_LABELS[config.order] || config.order;
+  const preset = PRESETS.find(p => p.id === config.presetId);
+  if (preset) return `${preset.label} · ${orderLabel}`;
   const whereLabels = {
     group1: 'Group 1', group2: 'Group 2', group3: 'Group 3', group4: 'Group 4', group5: 'Group 5',
     sharp: 'Sharp keys', flat: 'Flat keys', all12: 'All 12 roots',
   };
-  const orderLabels = { random: 'Random', fifths: 'Circle of fifths', fourths: 'Circle of fourths' };
-  return `By quality · ${whereLabels[config.where] || config.where} · ${orderLabels[config.order] || config.order}`;
+  const n = config.qualities.length;
+  return `Custom · ${n} ${n === 1 ? 'quality' : 'qualities'} · ${whereLabels[config.where] || config.where} · ${orderLabel}`;
 }
 
 // Match an explicit root-pc list back to one of the named "where" groups above,
@@ -73,8 +94,8 @@ function _whereNameForRoots(roots) {
 
 // Deep-link entry point — Progress (and anything else) hands us a plain
 // { pool: 'quality'|'rootFamily'|'cells', qualities?, roots?, cells?, order?, label? }
-// object and we translate it into the setup screen's draft shape. The setup
-// screen still opens for review — this only pre-selects, it doesn't start.
+// object and we translate it into the Custom screen's draft shape. Deep links
+// are inherently custom configurations, so they always land on Custom, prefilled.
 export function applyPrefillToDraft(prefill) {
   const draft = state.practice.setupDraft;
   if (prefill.pool === 'rootFamily') {
@@ -97,6 +118,25 @@ export function applyPrefillToDraft(prefill) {
     draft.order = prefill.order || 'random';
   }
   draft.origin = 'progress';
+  draft.presetId = 'custom';
+}
+
+// Reads the last-completed session's resolved config from localStorage and
+// merges it into the setup draft. Returns true if a prior session was found
+// and restored (used by the UI to decide whether to show the "Last session"
+// caption), false for a true fresh profile.
+export function loadLastSessionIntoDraft() {
+  try {
+    const raw = localStorage.getItem(LAST_SESSION_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    Object.assign(state.practice.setupDraft, saved, { origin: null });
+    return true;
+  } catch (_) { return false; }
+}
+
+function _persistLastSession(config) {
+  try { localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(config)); } catch (_) {}
 }
 
 // ── Module-private runtime ───────────────────────────────────────────────────
@@ -106,6 +146,8 @@ let _rootFamilyPool    = [];
 let _rootFamilyIdx     = 0;
 let _circle             = [];
 let _circleIdx          = -1;
+let _chromaticSequence  = [];
+let _chromaticIdx       = -1;
 let _currentChord       = null;
 let _attemptStart       = 0;
 let _waitingForRelease  = false;
@@ -124,7 +166,7 @@ function _revealHint(level) {
   _hintLevel = Math.max(_hintLevel, level);
   document.getElementById('hint-notice').style.display = 'inline';
   const held = MidiInput.getHeld();
-  UI.renderPracticeNoteIndicators(ChordEngine.toPitchClasses(held), _currentChord.pitchClasses, _hintLevel);
+  UI.renderPracticeNoteIndicators(held, _currentChord, _hintLevel);
 }
 
 function _armAutoHint() {
@@ -147,6 +189,10 @@ function _pickNext(lastSymbol) {
     return chord;
   }
   // byQuality
+  if (_config.order === 'chromatic' && _chromaticSequence.length) {
+    _chromaticIdx = (_chromaticIdx + 1) % _chromaticSequence.length;
+    return _chromaticSequence[_chromaticIdx];
+  }
   if (_circle.length) {
     _circleIdx = (_circleIdx + 1) % _circle.length;
     const rootPc = _circle[_circleIdx];
@@ -204,12 +250,15 @@ export const PracticeMode = {
     state.screen = 'game';
     _config = { ...config, qualities: config.qualities ? [...config.qualities] : [] };
     state.practice.config = _config;
+    _persistLastSession(_config);
 
     _pool = [];
     _rootFamilyPool = [];
     _rootFamilyIdx = 0;
     _circle = [];
     _circleIdx = -1;
+    _chromaticSequence = [];
+    _chromaticIdx = -1;
     _touchedCells = new Set();
 
     if (_config.what === 'weakSpots') {
@@ -230,6 +279,9 @@ export const PracticeMode = {
       if (_config.order === 'fifths' || _config.order === 'fourths') {
         const fullCircle = _config.order === 'fifths' ? CIRCLE_FIFTHS : CIRCLE_FOURTHS;
         _circle = fullCircle.filter(pc => roots.includes(pc));
+      } else if (_config.order === 'chromatic') {
+        // Root-ascending regardless of the group's declared/thematic order, wrapping at B → C.
+        _chromaticSequence = ChordEngine.buildCustomPool([...roots].sort((a, b) => a - b), _config.qualities);
       }
     }
 
@@ -266,7 +318,7 @@ export const PracticeMode = {
     document.getElementById('nightmare-badge').style.display = 'none';
 
     showScreen('game');
-    UI.renderPracticeNoteIndicators(new Set(), _currentChord.pitchClasses, _hintLevel);
+    UI.renderPracticeNoteIndicators(new Set(), _currentChord, _hintLevel);
     _showNextChord();
   },
 
@@ -276,11 +328,11 @@ export const PracticeMode = {
     const heldPCs = ChordEngine.toPitchClasses(held);
 
     if (_waitingForRelease) {
-      UI.renderNoteIndicatorsReleasing(heldPCs);
+      UI.renderNoteIndicatorsReleasing(held);
       if (MidiInput.allReleased()) {
         _waitingForRelease = false;
         _attemptDirty = false;
-        UI.renderPracticeNoteIndicators(new Set(), _currentChord.pitchClasses, _hintLevel);
+        UI.renderPracticeNoteIndicators(new Set(), _currentChord, _hintLevel);
       }
       return;
     }
@@ -292,7 +344,7 @@ export const PracticeMode = {
       }
     }
 
-    UI.renderPracticeNoteIndicators(heldPCs, target, _hintLevel);
+    UI.renderPracticeNoteIndicators(held, _currentChord, _hintLevel);
 
     if (ChordEngine.isMatch(heldPCs, target)) _onMatch();
   },
@@ -347,7 +399,7 @@ export const PracticeMode = {
     UI.renderPracticeResults({
       reps, accuracy, avgResponseMs, bestStreak, slowest, deltas,
       sessionResults: results,
-      configLabel: _describeConfig(_config),
+      configLabel: describeConfig(_config),
       origin: _config.origin,
     });
     showScreen('results');

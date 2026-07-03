@@ -4,7 +4,7 @@
 export const SPRINT_DURATION = 60; // seconds — change here for 30/90/120s variants
 
 export const state = {
-  screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'song-select' | 'game' | 'results' | 'dying'
+  screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'practice-custom' | 'song-select' | 'game' | 'results' | 'dying'
   calibrating: false,     // true while timing calibration is running
   difficulty: 0,          // 0–5
   mode: 'sprint',         // 'sprint' | 'survival' | 'falling' | 'practice'
@@ -59,12 +59,13 @@ export const state = {
     streakUnhinted: 0,
     sessionResults: [],    // { symbol, rootPc, typeName, responseMs, clean, hinted }
     setupDraft: {
-      what: 'byQuality',           // 'byQuality' | 'rootFamily' | 'weakSpots'
+      what: 'byQuality',           // 'byQuality' | 'rootFamily' | 'weakSpots' | 'cells'
       qualities: [],                // chord type names selected — populated at init from CHORD_TYPES
       rootFamilyRoot: 0,            // pitch class 0-11
       rootFamilyShuffle: false,
       where: 'group1',              // 'group1'..'group5' | 'sharp' | 'flat' | 'all12'
-      order: 'random',              // 'random' | 'fifths' | 'fourths'
+      order: 'random',              // 'random' | 'chromatic' | 'fifths' | 'fourths'
+      presetId: null,               // preset card id ('major'|...|'weakSpots'|'custom') or null if never configured
     },
   },
 };

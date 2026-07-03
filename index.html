@@ -102,17 +102,46 @@
   </div>
 </div>
 
-<!-- ══════════ PRACTICE SETUP SCREEN ══════════ -->
+<!-- ══════════ PRACTICE SCREEN (preset landing) ══════════ -->
 <div id="practice-setup" class="screen">
   <div class="song-select-header">
     <h2 class="song-select-title">Practice</h2>
     <p class="song-select-sub">Untimed drills — work at your own pace, use hints freely.</p>
   </div>
 
-  <div class="practice-setup-section" id="practice-what-section">
-    <h4 class="practice-setup-label">What</h4>
-    <div class="practice-choice-grid" id="practice-what-grid"></div>
+  <div class="practice-setup-section">
+    <h4 class="practice-setup-label">What are we training today?</h4>
+    <div class="preset-grid" id="preset-grid"></div>
+  </div>
+
+  <div class="practice-setup-section">
+    <h4 class="practice-setup-label">In what order?</h4>
+    <div class="practice-choice-grid" id="preset-order-grid"></div>
+  </div>
+
+  <div class="practice-start-block">
+    <p class="practice-last-session" id="practice-last-session" style="display:none"></p>
+    <p class="practice-start-nudge" id="practice-start-nudge" style="display:none">Pick a chord type to get started</p>
+    <button id="btn-start-practice" class="btn-primary">▶ START PRACTICE</button>
+  </div>
+  <button class="btn-secondary" id="btn-back-from-practice-setup">← Back to Home</button>
+</div>
+
+<!-- ══════════ CUSTOM PRACTICE SCREEN ══════════ -->
+<div id="practice-custom" class="screen">
+  <div class="song-select-header">
+    <h2 class="song-select-title">Custom Practice</h2>
+    <p class="song-select-sub">Full control — pick exactly what you want to drill.</p>
+  </div>
+
+  <div class="practice-setup-section" id="practice-quality-section">
+    <h4 class="practice-setup-label">Quality</h4>
     <div class="quality-checkbox-grid" id="quality-checkbox-grid"></div>
+  </div>
+
+  <div class="practice-setup-section" id="practice-scope-section">
+    <h4 class="practice-setup-label">Root scope</h4>
+    <div class="practice-choice-grid" id="practice-scope-grid"></div>
     <div class="root-family-panel" id="root-family-panel" style="display:none">
       <div class="root-picker-grid" id="root-picker-grid"></div>
       <label class="shuffle-toggle-label">
@@ -120,18 +149,11 @@
         Shuffle order
       </label>
     </div>
-    <div class="weak-spots-panel" id="weak-spots-panel" style="display:none">
-      <p id="weak-spots-msg"></p>
-    </div>
-    <div class="cells-panel" id="cells-panel" style="display:none">
-      <p id="cells-panel-msg"></p>
-      <div class="cells-panel-chips" id="cells-panel-chips"></div>
-    </div>
   </div>
 
-  <div class="practice-setup-section" id="practice-where-section">
-    <h4 class="practice-setup-label">Where</h4>
-    <div class="practice-choice-grid" id="practice-where-grid"></div>
+  <div class="cells-panel" id="cells-panel" style="display:none">
+    <p id="cells-panel-msg"></p>
+    <div class="cells-panel-chips" id="cells-panel-chips"></div>
   </div>
 
   <div class="practice-setup-section" id="practice-order-section">
@@ -139,8 +161,8 @@
     <div class="practice-choice-grid" id="practice-order-grid"></div>
   </div>
 
-  <button id="btn-start-practice" class="btn-primary">▶ START PRACTICE</button>
-  <button class="btn-secondary" id="btn-back-from-practice-setup">← Back to Home</button>
+  <button id="btn-start-practice-custom" class="btn-primary">▶ START PRACTICE</button>
+  <button class="btn-secondary" id="btn-back-from-practice-custom">← Back</button>
 </div>
 
 <!-- ══════════ MENU SCREEN (Test pillar) ══════════ -->
@@ -295,8 +317,19 @@
   </div>
 
   <div class="keyboard-section">
-    <h4>On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
-    <div class="piano-wrap" id="piano"></div>
+    <div class="keyboard-section-header">
+      <h4 id="keyboard-caption">On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
+      <div class="kb-size-control" id="kb-size-control" style="display:none">
+        <button class="kb-size-btn" data-kb-size="61">61</button>
+        <button class="kb-size-btn" data-kb-size="73">73</button>
+        <button class="kb-size-btn" data-kb-size="88">88</button>
+      </div>
+    </div>
+    <div class="piano-frame">
+      <span class="kb-edge-arrow kb-edge-arrow-left" id="kb-arrow-left" style="display:none">◀</span>
+      <div class="piano-scroll"><div class="piano-wrap" id="piano"></div></div>
+      <span class="kb-edge-arrow kb-edge-arrow-right" id="kb-arrow-right" style="display:none">▶</span>
+    </div>
   </div>
 
 </div>

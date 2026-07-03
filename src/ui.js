@@ -5,12 +5,13 @@
 
 import { state, SPRINT_DURATION } from './state.js';
 import { ChordEngine } from './chords.js';
-import { updatePianoColors, setKeyLabelMode } from './piano.js';
+import { updatePianoColors, setKeyLabelMode, updateEdgeArrows, getVisibleRange } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
 import { CHARTS } from './charts.js';
 import { Mastery } from './mastery.js';
+import { PRESETS, describeConfig } from './modes/practice.js';
 
-// All 132 root×quality cells — used by the weak-spots setup panel.
+// All 132 root×quality cells — used by the weak-spots preset card.
 function _allCells() {
   const cells = [];
   for (let rootPc = 0; rootPc < ChordEngine.ROOTS.length; rootPc++) {
@@ -18,6 +19,19 @@ function _allCells() {
   }
   return cells;
 }
+
+// Order chips — shared by the Practice landing screen and the Custom screen.
+const ORDER_OPTIONS = [
+  ['random', 'Random'],
+  ['chromatic', 'Chromatic'],
+  ['fifths', 'Circle of fifths'],
+  ['fourths', 'Circle of fourths'],
+];
+
+// True only immediately after a fresh navigation into the Practice landing
+// screen with a restored (not yet touched) draft — gates the "Last session"
+// caption so it disappears the moment the user makes their own choice.
+let _showLastSessionCaption = false;
 
 export function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
@@ -124,9 +138,10 @@ export const UI = {
     setTimeout(() => banner.remove(), 1600);
   },
 
-  renderNoteIndicators(heldPCs, targetPCs) {
+  renderNoteIndicators(heldNotes, targetPCs) {
     const container = document.getElementById('note-indicators');
     container.innerHTML = '';
+    const heldPCs = ChordEngine.toPitchClasses(heldNotes);
     for (const pc of targetPCs) {
       const pip = document.createElement('div');
       pip.className = 'note-pip';
@@ -142,14 +157,17 @@ export const UI = {
         container.appendChild(pip);
       }
     }
-    updatePianoColors(heldPCs, targetPCs);
+    updatePianoColors(heldNotes, targetPCs);
   },
 
   // Practice-only: note letters stay hidden until hintLevel >= 1; keyboard highlights
-  // and swaps to note-name labels at hintLevel 2.
-  renderPracticeNoteIndicators(heldPCs, targetPCs, hintLevel) {
+  // and swaps to note-name labels at hintLevel 2. `chord` is the full chord object (needs
+  // rootPc/type.intervals to voice the hintLevel-2 keyboard highlight).
+  renderPracticeNoteIndicators(heldNotes, chord, hintLevel) {
     const container = document.getElementById('note-indicators');
     container.innerHTML = '';
+    const heldPCs = ChordEngine.toPitchClasses(heldNotes);
+    const targetPCs = chord.pitchClasses;
     const revealed = hintLevel >= 1;
     for (const pc of targetPCs) {
       const pip = document.createElement('div');
@@ -167,13 +185,19 @@ export const UI = {
       }
     }
     setKeyLabelMode(hintLevel >= 2 ? 'notes' : 'letters');
-    updatePianoColors(heldPCs, targetPCs, hintLevel >= 2 ? targetPCs : null);
+    let hintNotes = null;
+    if (hintLevel >= 2) {
+      const { start, end } = getVisibleRange();
+      hintNotes = new Set(ChordEngine.voiceNearMiddleC(chord.rootPc, chord.type.intervals, start, end));
+    }
+    updatePianoColors(heldNotes, targetPCs, hintNotes);
   },
 
   // During release gate: show held keys in neutral grey — honest but non-distracting
-  renderNoteIndicatorsReleasing(heldPCs) {
+  renderNoteIndicatorsReleasing(heldNotes) {
     const container = document.getElementById('note-indicators');
     container.innerHTML = '';
+    const heldPCs = ChordEngine.toPitchClasses(heldNotes);
     for (const pc of heldPCs) {
       const pip = document.createElement('div');
       pip.className = 'note-pip releasing';
@@ -181,10 +205,11 @@ export const UI = {
       container.appendChild(pip);
     }
     document.querySelectorAll('.white-key, .black-key').forEach(k => {
-      const pc = parseInt(k.dataset.note) % 12;
-      k.classList.toggle('releasing', heldPCs.has(pc));
+      const note = parseInt(k.dataset.note, 10);
+      k.classList.toggle('releasing', heldNotes.has(note));
       k.classList.remove('active', 'wrong-active');
     });
+    updateEdgeArrows(heldNotes);
   },
 
   renderStreakFire() {
@@ -506,24 +531,68 @@ export const UI = {
 
   // ── Practice ─────────────────────────────────────────────────────────────
 
-  renderPracticeSetup() {
+  // Practice landing screen — one-tap presets. `freshEntry` is true only when
+  // called from a navigation handler (not an internal re-render after a tap);
+  // it gates whether the "Last session" caption is (re-)shown.
+  renderPracticeSetup(freshEntry = false) {
     const draft = state.practice.setupDraft;
-    if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
+    _showLastSessionCaption = freshEntry && !!draft.presetId;
 
-    const WHAT_OPTIONS = [
-      ['byQuality', 'By quality'],
-      ['rootFamily', 'By root family'],
-      ['weakSpots', 'Weak spots'],
-    ];
-    document.getElementById('practice-what-grid').innerHTML = WHAT_OPTIONS.map(([val, label]) =>
-      `<button class="practice-choice-btn${draft.what === val ? ' selected' : ''}" data-what="${val}">${label}</button>`
+    const weakQualified = Mastery.weakest(8, _allCells());
+    const weakReady = weakQualified.length >= 8;
+
+    const presetCards = PRESETS.map(p => {
+      const n = p.qualities.length * ChordEngine.ROOTS.length;
+      return `<button class="preset-card${draft.presetId === p.id ? ' selected' : ''}" data-preset="${p.id}">
+        <div class="preset-card-title">${p.label}</div>
+        <div class="preset-card-sub">${n} chords</div>
+      </button>`;
+    }).join('');
+
+    const weakCard = `<button class="preset-card preset-card-gold${draft.presetId === 'weakSpots' ? ' selected' : ''}" data-preset="weakSpots"${weakReady ? '' : ' disabled'}>
+      <div class="preset-card-title">My weak spots</div>
+      <div class="preset-card-sub">${weakReady ? '8 weakest chords' : `Keep playing — found ${weakQualified.length}/8`}</div>
+    </button>`;
+
+    const customCard = `<button class="preset-card preset-card-custom" data-preset="custom">
+      <div class="preset-card-title">Custom…</div>
+      <div class="preset-card-sub">Full control</div>
+    </button>`;
+
+    document.getElementById('preset-grid').innerHTML = presetCards + weakCard + customCard;
+
+    document.getElementById('preset-order-grid').innerHTML = ORDER_OPTIONS.map(([val, label]) =>
+      `<button class="practice-choice-btn${draft.order === val ? ' selected' : ''}" data-order="${val}">${label}</button>`
     ).join('');
 
+    const canStart = draft.presetId != null && (draft.presetId !== 'weakSpots' || weakReady);
+    document.getElementById('btn-start-practice').disabled = !canStart;
+
+    const captionEl = document.getElementById('practice-last-session');
+    const nudgeEl = document.getElementById('practice-start-nudge');
+    if (_showLastSessionCaption && draft.presetId) {
+      captionEl.style.display = '';
+      captionEl.textContent = `Last session: ${describeConfig(draft)}`;
+      nudgeEl.style.display = 'none';
+    } else if (!draft.presetId) {
+      captionEl.style.display = 'none';
+      nudgeEl.style.display = '';
+    } else {
+      captionEl.style.display = 'none';
+      nudgeEl.style.display = 'none';
+    }
+  },
+
+  // Custom screen — full control, one level deeper than the preset landing screen.
+  renderPracticeCustom() {
+    const draft = state.practice.setupDraft;
+    if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
+    const isCells = draft.what === 'cells';
+
     // Quality checkboxes — shared by byQuality and rootFamily
-    const qGrid = document.getElementById('quality-checkbox-grid');
-    qGrid.style.display = (draft.what === 'weakSpots' || draft.what === 'cells') ? 'none' : '';
-    if (draft.what !== 'weakSpots' && draft.what !== 'cells') {
-      qGrid.innerHTML = ChordEngine.CHORD_TYPES.map(t =>
+    document.getElementById('practice-quality-section').style.display = isCells ? 'none' : '';
+    if (!isCells) {
+      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t =>
         `<label class="quality-checkbox">
           <input type="checkbox" data-quality="${t.name}"${draft.qualities.includes(t.name) ? ' checked' : ''}>
           ${t.name}
@@ -531,20 +600,40 @@ export const UI = {
       ).join('');
     }
 
-    // Root-family panel
-    const rfPanel = document.getElementById('root-family-panel');
-    rfPanel.style.display = draft.what === 'rootFamily' ? '' : 'none';
-    if (draft.what === 'rootFamily') {
-      document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((r, i) =>
-        `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${r}</button>`
-      ).join('');
-      document.getElementById('root-family-shuffle').checked = draft.rootFamilyShuffle;
+    // Root scope — shape groups / sharp / flat / all12 / single-root family
+    document.getElementById('practice-scope-section').style.display = isCells ? 'none' : '';
+    if (!isCells) {
+      const SCOPE_OPTIONS = [
+        ['group1', 'Group 1 · All white'],
+        ['group2', 'Group 2 · Middle black'],
+        ['group3', 'Group 3 · Outer black'],
+        ['group4', 'Group 4 · Oddballs'],
+        ['group5', 'Group 5 · On the blacks'],
+        ['sharp', 'Sharp keys'],
+        ['flat', 'Flat keys'],
+        ['all12', 'All 12 roots'],
+        ['singleRoot', 'Single root family'],
+      ];
+      const isSingleRoot = draft.what === 'rootFamily';
+      document.getElementById('practice-scope-grid').innerHTML = SCOPE_OPTIONS.map(([val, label]) => {
+        const selected = val === 'singleRoot' ? isSingleRoot : (!isSingleRoot && draft.where === val);
+        return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-scope="${val}">${label}</button>`;
+      }).join('');
+
+      const rfPanel = document.getElementById('root-family-panel');
+      rfPanel.style.display = isSingleRoot ? '' : 'none';
+      if (isSingleRoot) {
+        document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((r, i) =>
+          `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${r}</button>`
+        ).join('');
+        document.getElementById('root-family-shuffle').checked = draft.rootFamilyShuffle;
+      }
     }
 
     // Cells panel — deep-linked from Progress (single cell or an explicit recommendation list)
     const cellsPanel = document.getElementById('cells-panel');
-    cellsPanel.style.display = draft.what === 'cells' ? '' : 'none';
-    if (draft.what === 'cells') {
+    cellsPanel.style.display = isCells ? '' : 'none';
+    if (isCells) {
       const chips = (draft.cells || [])
         .map(c => ChordEngine.chordForCell(c.rootPc, c.typeName)?.symbol)
         .filter(Boolean);
@@ -554,50 +643,19 @@ export const UI = {
         chips.map(s => `<span class="cell-chip">${s}</span>`).join('');
     }
 
-    // Weak-spots panel
-    const wsPanel = document.getElementById('weak-spots-panel');
-    wsPanel.style.display = draft.what === 'weakSpots' ? '' : 'none';
-    const weakQualified = draft.what === 'weakSpots' ? Mastery.weakest(8, _allCells()) : null;
-    if (draft.what === 'weakSpots') {
-      document.getElementById('weak-spots-msg').textContent = weakQualified.length < 8
-        ? `Practice more first — need at least 3 attempts on 8+ chords (found ${weakQualified.length} qualifying so far).`
-        : `Ready — this session drills your 8 weakest chords.`;
-    }
-
-    // Where / Order — byQuality only
-    const isByQuality = draft.what === 'byQuality';
-    document.getElementById('practice-where-section').style.display = isByQuality ? '' : 'none';
-    document.getElementById('practice-order-section').style.display = isByQuality ? '' : 'none';
-    if (isByQuality) {
-      const WHERE_OPTIONS = [
-        ['group1', 'Group 1 · All white'],
-        ['group2', 'Group 2 · Middle black'],
-        ['group3', 'Group 3 · Outer black'],
-        ['group4', 'Group 4 · Oddballs'],
-        ['group5', 'Group 5 · On the blacks'],
-        ['sharp', 'Sharp keys'],
-        ['flat', 'Flat keys'],
-        ['all12', 'All 12 roots'],
-      ];
-      document.getElementById('practice-where-grid').innerHTML = WHERE_OPTIONS.map(([val, label]) =>
-        `<button class="practice-choice-btn${draft.where === val ? ' selected' : ''}" data-where="${val}">${label}</button>`
-      ).join('');
-
-      const ORDER_OPTIONS = [
-        ['random', 'Random'],
-        ['fifths', 'Circle of fifths'],
-        ['fourths', 'Circle of fourths'],
-      ];
+    // Order — doesn't apply to single-root-family (fixed pedagogical order) or cells
+    const showOrder = !isCells && draft.what !== 'rootFamily';
+    document.getElementById('practice-order-section').style.display = showOrder ? '' : 'none';
+    if (showOrder) {
       document.getElementById('practice-order-grid').innerHTML = ORDER_OPTIONS.map(([val, label]) =>
         `<button class="practice-choice-btn${draft.order === val ? ' selected' : ''}" data-order="${val}">${label}</button>`
       ).join('');
     }
 
-    const startBtn = document.getElementById('btn-start-practice');
-    const noQualities = draft.what !== 'weakSpots' && draft.what !== 'cells' && draft.qualities.length === 0;
-    const weakBlocked  = draft.what === 'weakSpots' && weakQualified.length < 8;
-    const cellsBlocked = draft.what === 'cells' && (!draft.cells || draft.cells.length === 0);
-    startBtn.disabled = noQualities || weakBlocked || cellsBlocked;
+    const startBtn = document.getElementById('btn-start-practice-custom');
+    const noQualities = !isCells && draft.qualities.length === 0;
+    const cellsBlocked = isCells && (!draft.cells || draft.cells.length === 0);
+    startBtn.disabled = noQualities || cellsBlocked;
   },
 
   renderPracticeResults(summary) {

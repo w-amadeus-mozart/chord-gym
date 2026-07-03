@@ -350,9 +350,9 @@ function _startFromPrefill(prefill) {
   applyPrefillToDraft(prefill);
   document.getElementById('cell-modal-overlay').style.display = 'none';
   document.getElementById('drilldown-panel').style.display = 'none';
-  state.screen = 'practice-setup';
-  showScreen('practice-setup');
-  UI.renderPracticeSetup();
+  state.screen = 'practice-custom';
+  showScreen('practice-custom');
+  UI.renderPracticeCustom();
 }
 
 function _startSurvivalNightmare() {
@@ -410,7 +410,7 @@ export const Progress = {
       state.practice.setupDraft.origin = null;
       state.screen = 'practice-setup';
       showScreen('practice-setup');
-      UI.renderPracticeSetup();
+      UI.renderPracticeSetup(true);
     });
     document.getElementById('progress-empty-test').addEventListener('click', () => {
       state.screen = 'menu';

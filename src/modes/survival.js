@@ -209,7 +209,7 @@ export const SurvivalMode = {
 
     // Release gate: show neutral indicators and wait for all keys up
     if (state.waitingForRelease) {
-      UI.renderNoteIndicatorsReleasing(heldPCs);
+      UI.renderNoteIndicatorsReleasing(held);
       if (MidiInput.allReleased()) {
         state.waitingForRelease = false;
         state.attemptDirty = false;
@@ -252,7 +252,7 @@ export const SurvivalMode = {
       }
     }
 
-    UI.renderNoteIndicators(heldPCs, target);
+    UI.renderNoteIndicators(held, target);
 
     if (ChordEngine.isMatch(heldPCs, target)) {
       // Re-check at exact moment of match

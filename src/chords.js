@@ -89,8 +89,33 @@ export function toPitchClasses(noteSet) {
   return pcs;
 }
 
+// Pick a concrete MIDI voicing for a chord's root pitch class + intervals, preferring
+// whichever octave placement keeps the whole chord inside [rangeStart, rangeEnd] and,
+// among placements that fit, the one closest to MIDI 60 (middle C). Ties favor the lower
+// octave. Used by Practice hint level 2 to highlight one specific voicing instead of every
+// instance of the target pitch classes.
+export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 71) {
+  const maxIv = Math.max(...intervals);
+  const candidate = 60 + rootPc;      // 60..71
+  const alt = candidate - 12;         // 48..59
+  const candidateFits = candidate >= rangeStart && candidate + maxIv <= rangeEnd;
+  const altFits       = alt >= rangeStart && alt + maxIv <= rangeEnd;
+  let rootMidi;
+  if (candidateFits && altFits) {
+    rootMidi = (60 - alt) <= (candidate - 60) ? alt : candidate;
+  } else if (altFits) {
+    rootMidi = alt;
+  } else if (candidateFits) {
+    rootMidi = candidate;
+  } else {
+    rootMidi = (60 - alt) <= (candidate - 60) ? alt : candidate;
+  }
+  return intervals.map(iv => rootMidi + iv);
+}
+
 // Convenience object — keeps call sites identical to the original IIFE style
 export const ChordEngine = {
   ROOTS, CHORD_TYPES, DIFFICULTY_POOLS,
   buildPool, buildCustomPool, chordForCell, pickChord, isMatch, toPitchClasses,
+  voiceNearMiddleC,
 };

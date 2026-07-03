@@ -356,9 +356,25 @@ body {
   padding: 16px; text-align: center;
   box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
 }
-.keyboard-section h4 { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1.5px; }
-.piano-wrap { display: inline-flex; position: relative; height: 90px; }
-.white-key {
+.keyboard-section-header {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; margin-bottom: 12px; position: relative;
+}
+.keyboard-section h4 { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin: 0; }
+.kb-size-control { display: flex; gap: 6px; }
+.kb-size-btn {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.kb-size-btn:hover { border-color: var(--accent); }
+.kb-size-btn.selected { border-color: var(--accent); background: rgba(223,163,62,0.15); color: var(--accent); }
+
+.piano-frame { position: relative; }
+.piano-scroll { width: 100%; overflow-x: auto; }
+.piano-wrap { display: flex; position: relative; height: 90px; min-width: fit-content; }
+
+.piano-wrap.compact { display: inline-flex; }
+.piano-wrap.compact .white-key {
   width: 32px; height: 90px; background: #dde0f0;
   border: 1px solid #aab; border-radius: 0 0 6px 6px;
   cursor: pointer; position: relative; margin: 0 1px;
@@ -366,12 +382,7 @@ body {
   display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
   font-size: 10px; font-weight: 600; color: #555; user-select: none;
 }
-.white-key.active {
-  background: var(--accent);
-  box-shadow: 0 0 26px rgba(223,163,62,0.95), 0 0 54px rgba(223,163,62,0.45), inset 0 0 14px rgba(223,163,62,0.35);
-}
-.white-key.wrong-active { background: var(--red); box-shadow: 0 0 22px rgba(248,113,113,0.85); }
-.black-key {
+.piano-wrap.compact .black-key {
   width: 22px; height: 56px; background: #12121c;
   border-radius: 0 0 5px 5px; cursor: pointer;
   position: absolute; top: 0; z-index: 2;
@@ -380,13 +391,39 @@ body {
   font-size: 7px; color: #555; user-select: none;
   box-shadow: 0 4px 10px rgba(0,0,0,0.7);
 }
-.black-key.active {
-  background: var(--accent);
-  box-shadow: 0 0 22px rgba(223,163,62,0.95), 0 0 44px rgba(223,163,62,0.45);
+.piano-wrap.sized .white-key {
+  flex: 1 1 0; min-width: 16px; height: 90px; background: #dde0f0;
+  border: 1px solid #aab; border-radius: 0 0 6px 6px;
+  cursor: pointer; position: relative; margin: 0 1px;
+  transition: background 0.06s, box-shadow 0.06s;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
+  font-size: 9px; font-weight: 600; color: #555; user-select: none;
 }
+.piano-wrap.sized .black-key {
+  height: 56px; background: #12121c;
+  border-radius: 0 0 5px 5px; cursor: pointer;
+  position: absolute; top: 0; z-index: 2;
+  transition: background 0.06s, box-shadow 0.06s;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
+  font-size: 7px; color: #555; user-select: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+}
+
+.white-key.active { background: var(--accent); box-shadow: 0 0 26px rgba(223,163,62,0.95), 0 0 54px rgba(223,163,62,0.45), inset 0 0 14px rgba(223,163,62,0.35); }
+.white-key.wrong-active { background: var(--red); box-shadow: 0 0 22px rgba(248,113,113,0.85); }
+.black-key.active { background: var(--accent); box-shadow: 0 0 22px rgba(223,163,62,0.95), 0 0 44px rgba(223,163,62,0.45); }
 .black-key.wrong-active { background: var(--red); box-shadow: 0 0 18px rgba(248,113,113,0.85); }
 .white-key.releasing { background: #8888a0; box-shadow: none; }
 .black-key.releasing { background: #44445a; box-shadow: none; }
+
+.kb-edge-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  color: var(--amber); font-size: 18px; z-index: 3; pointer-events: none;
+  animation: kbArrowPulse 1s ease-in-out infinite;
+}
+.kb-edge-arrow-left { left: -4px; }
+.kb-edge-arrow-right { right: -4px; }
+@keyframes kbArrowPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 
 /* ── Results Screen ── */
 #results { padding-top: 80px; gap: 20px; }
@@ -720,8 +757,9 @@ body {
 .pillar-card-title { font-size: 18px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
 .pillar-card-desc { font-size: 12px; color: var(--text-dim); }
 
-/* ══════════ Practice setup screen ══════════ */
+/* ══════════ Practice screen — preset landing + Custom ══════════ */
 #practice-setup { padding-top: 80px; gap: 22px; }
+#practice-custom { padding-top: 80px; gap: 22px; }
 .practice-setup-section { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 10px; }
 .practice-setup-label {
   font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px;
@@ -738,6 +776,54 @@ body {
 }
 .practice-choice-btn:hover:not(.selected) { border-color: rgba(223,163,62,0.35); color: var(--text); }
 
+/* ── Preset cards ── */
+.preset-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+  width: 100%; max-width: 700px;
+}
+.preset-card {
+  padding: 16px 14px; border-radius: 14px;
+  background: var(--glass); backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  color: var(--text); cursor: pointer; text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, background 0.2s, opacity 0.2s;
+}
+.preset-card:hover:not(.selected):not(:disabled) {
+  border-color: rgba(223,163,62,0.5); transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(223,163,62,0.16);
+}
+.preset-card.selected {
+  border-color: var(--accent); background: rgba(223,163,62,0.14);
+  box-shadow: 0 0 24px rgba(223,163,62,0.24);
+}
+.preset-card.selected .preset-card-title { color: var(--accent); }
+.preset-card:disabled { cursor: not-allowed; opacity: 0.45; }
+.preset-card-title { font-size: 15px; font-weight: 800; margin-bottom: 3px; }
+.preset-card-sub { font-size: 11px; color: var(--text-dim); }
+
+.preset-card-gold:not(:disabled) { border-color: rgba(240,198,116,0.35); }
+.preset-card-gold:not(:disabled) .preset-card-title { color: var(--accent2); }
+.preset-card-gold.selected {
+  border-color: var(--accent2); background: rgba(240,198,116,0.14);
+  box-shadow: 0 0 24px rgba(240,198,116,0.24);
+}
+.preset-card-gold.selected .preset-card-title { color: var(--accent2); }
+
+.preset-card-custom { border-style: dashed; }
+.preset-card-custom .preset-card-title { color: var(--text-dim); }
+
+/* ── Start block ── */
+.practice-start-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.practice-last-session, .practice-start-nudge {
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+}
+.practice-start-nudge { color: var(--amber); }
+
+#btn-start-practice:disabled, #btn-start-practice-custom:disabled {
+  opacity: 0.4; cursor: not-allowed; animation: none; transform: none;
+}
+
+/* ── Custom screen controls ── */
 .quality-checkbox-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
   padding: 12px 14px; border-radius: 12px;
@@ -756,14 +842,6 @@ body {
   font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer;
 }
 .shuffle-toggle-label input { accent-color: var(--accent); cursor: pointer; }
-
-.weak-spots-panel {
-  padding: 12px 16px; border-radius: 10px; font-size: 13px;
-  background: rgba(223,163,62,0.08); border: 1px solid rgba(223,163,62,0.25);
-  color: var(--text-dim);
-}
-
-#btn-start-practice:disabled { opacity: 0.4; cursor: not-allowed; animation: none; transform: none; }
 
 /* ══════════ Practice session controls ══════════ */
 .practice-controls {

@@ -8,11 +8,11 @@ import { ChordEngine } from './chords.js';
 import { MidiInput } from './midi.js';
 import { GameAudio } from './audio.js';
 import { UI, showScreen } from './ui.js';
-import { buildPiano, KEY_MAP } from './piano.js';
+import { buildPiano, KEY_MAP, setKeyboardSize } from './piano.js';
 import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
-import { PracticeMode } from './modes/practice.js';
+import { PracticeMode, PRESETS, loadLastSessionIntoDraft } from './modes/practice.js';
 import { Progress } from './progress.js';
 
 // ── MIDI status bar ──────────────────────────────────────
@@ -90,7 +90,15 @@ document.getElementById('btn-connect-midi').addEventListener('click', async () =
   } else {
     btn.textContent = 'Connected';
     updateMidiStatus();
+    buildPiano(); // first successful connect() doesn't emit 'deviceChange' — switch modes explicitly
   }
+});
+
+// ── Keyboard size control (display mode only) ─────────────
+document.getElementById('kb-size-control').addEventListener('click', e => {
+  const btn = e.target.closest('[data-kb-size]');
+  if (!btn) return;
+  setKeyboardSize(parseInt(btn.dataset.kbSize, 10));
 });
 
 // ── Mute toggle ──────────────────────────────────────────
@@ -172,12 +180,14 @@ function goHome() {
   showScreen('home');
 }
 
-document.getElementById('pillar-practice').addEventListener('click', () => {
+function openPracticeSetup() {
   state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
   state.screen = 'practice-setup';
   showScreen('practice-setup');
-  UI.renderPracticeSetup();
-});
+  UI.renderPracticeSetup(true);
+}
+
+document.getElementById('pillar-practice').addEventListener('click', openPracticeSetup);
 
 document.getElementById('pillar-test').addEventListener('click', () => {
   state.screen = 'menu';
@@ -192,27 +202,79 @@ document.getElementById('pillar-progress').addEventListener('click', () => {
 });
 
 document.getElementById('btn-back-from-menu').addEventListener('click', goHome);
-document.getElementById('btn-back-from-practice-setup').addEventListener('click', goHome);
 document.getElementById('btn-back-from-progress').addEventListener('click', goHome);
 
-// ── Practice setup screen — wired once, re-renders on every change ────────
+// ── Practice landing screen (presets) — wired once, re-renders on every change ──
 document.getElementById('practice-setup').addEventListener('click', e => {
-  const draft = state.practice.setupDraft;
+  const presetBtn = e.target.closest('[data-preset]');
+  if (presetBtn) {
+    if (presetBtn.disabled) return;
+    const id = presetBtn.dataset.preset;
+    const draft = state.practice.setupDraft;
 
-  const whatBtn = e.target.closest('[data-what]');
-  if (whatBtn) { draft.what = whatBtn.dataset.what; UI.renderPracticeSetup(); return; }
+    if (id === 'custom') {
+      // Weak spots has no Custom-screen representation — normalize before entering.
+      if (draft.what === 'weakSpots') {
+        draft.what = 'byQuality';
+        if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
+        draft.where = draft.where || 'all12';
+      }
+      state.screen = 'practice-custom';
+      showScreen('practice-custom');
+      UI.renderPracticeCustom();
+      return;
+    }
 
-  const rootBtn = e.target.closest('[data-root]');
-  if (rootBtn) { draft.rootFamilyRoot = parseInt(rootBtn.dataset.root, 10); UI.renderPracticeSetup(); return; }
-
-  const whereBtn = e.target.closest('[data-where]');
-  if (whereBtn) { draft.where = whereBtn.dataset.where; UI.renderPracticeSetup(); return; }
+    if (id === 'weakSpots') {
+      draft.what = 'weakSpots';
+    } else {
+      const preset = PRESETS.find(p => p.id === id);
+      if (!preset) return;
+      draft.what = 'byQuality';
+      draft.qualities = [...preset.qualities];
+      draft.where = 'all12';
+    }
+    draft.presetId = id;
+    draft.origin = null;
+    UI.renderPracticeSetup();
+    return;
+  }
 
   const orderBtn = e.target.closest('[data-order]');
-  if (orderBtn) { draft.order = orderBtn.dataset.order; UI.renderPracticeSetup(); return; }
+  if (orderBtn) { state.practice.setupDraft.order = orderBtn.dataset.order; UI.renderPracticeSetup(); }
 });
 
-document.getElementById('practice-setup').addEventListener('change', e => {
+document.getElementById('btn-start-practice').addEventListener('click', () => {
+  PracticeMode.start(state.practice.setupDraft);
+});
+
+document.getElementById('btn-back-from-practice-setup').addEventListener('click', goHome);
+
+// ── Custom practice screen — wired once, re-renders on every change ───────
+document.getElementById('practice-custom').addEventListener('click', e => {
+  const draft = state.practice.setupDraft;
+
+  const scopeBtn = e.target.closest('[data-scope]');
+  if (scopeBtn) {
+    const val = scopeBtn.dataset.scope;
+    if (val === 'singleRoot') {
+      draft.what = 'rootFamily';
+    } else {
+      draft.what = 'byQuality';
+      draft.where = val;
+    }
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const rootBtn = e.target.closest('[data-root]');
+  if (rootBtn) { draft.rootFamilyRoot = parseInt(rootBtn.dataset.root, 10); UI.renderPracticeCustom(); return; }
+
+  const orderBtn = e.target.closest('[data-order]');
+  if (orderBtn) { draft.order = orderBtn.dataset.order; UI.renderPracticeCustom(); }
+});
+
+document.getElementById('practice-custom').addEventListener('change', e => {
   const draft = state.practice.setupDraft;
 
   if (e.target.matches('[data-quality]')) {
@@ -222,7 +284,7 @@ document.getElementById('practice-setup').addEventListener('change', e => {
     } else {
       draft.qualities = draft.qualities.filter(q => q !== name);
     }
-    UI.renderPracticeSetup();
+    UI.renderPracticeCustom();
     return;
   }
 
@@ -231,9 +293,12 @@ document.getElementById('practice-setup').addEventListener('change', e => {
   }
 });
 
-document.getElementById('btn-start-practice').addEventListener('click', () => {
+document.getElementById('btn-start-practice-custom').addEventListener('click', () => {
+  state.practice.setupDraft.presetId = 'custom';
   PracticeMode.start(state.practice.setupDraft);
 });
+
+document.getElementById('btn-back-from-practice-custom').addEventListener('click', openPracticeSetup);
 
 // ── Practice session controls ──────────────────────────────
 document.getElementById('btn-hint').addEventListener('click', () => PracticeMode.useHint());
@@ -308,9 +373,7 @@ document.getElementById('btn-change-level').addEventListener('click', () => {
   if (state.mode === 'falling') {
     openSongSelect();
   } else if (state.mode === 'practice') {
-    state.screen = 'practice-setup';
-    showScreen('practice-setup');
-    UI.renderPracticeSetup();
+    openPracticeSetup();
   } else {
     state.screen = 'menu';
     showScreen('menu');
@@ -447,6 +510,7 @@ document.getElementById('btn-welcome-go').addEventListener('click', () => {
 // ── Init ─────────────────────────────────────────────────
 buildPiano();
 Progress.init();
+loadLastSessionIntoDraft();
 if (!state.practice.setupDraft.qualities.length) {
   state.practice.setupDraft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
 }

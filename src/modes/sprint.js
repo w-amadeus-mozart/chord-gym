@@ -51,7 +51,7 @@ export const SprintMode = {
 
     // Release gate — render held keys in neutral grey so display stays honest
     if (state.waitingForRelease) {
-      UI.renderNoteIndicatorsReleasing(heldPCs);
+      UI.renderNoteIndicatorsReleasing(held);
       if (MidiInput.allReleased()) {
         state.waitingForRelease = false;
         state.attemptDirty = false;
@@ -70,7 +70,7 @@ export const SprintMode = {
       }
     }
 
-    UI.renderNoteIndicators(heldPCs, target);
+    UI.renderNoteIndicators(held, target);
 
     if (ChordEngine.isMatch(heldPCs, target)) {
       SprintMode.onChordMatched();
