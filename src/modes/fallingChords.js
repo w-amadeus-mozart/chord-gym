@@ -135,7 +135,7 @@ function _buildTiles(chart) {
       targetMs,
       rootPc:       ev.rootPc,
       typeName:     ev.typeName,
-      symbol:       ChordEngine.ROOTS[ev.rootPc] + type.symbol,
+      typeSymbol:   type.symbol,
       pitchClasses,
       hit:          false,
       missed:       false,
@@ -202,7 +202,7 @@ function _checkMisses(elapsed) {
     state.streak      = 0;
     state.multiplier  = 1;
     state.falling.misses++;
-    state.falling.results.push({ symbol: tile.symbol, result: 'miss', points: 0 });
+    state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, result: 'miss', points: 0 });
     Mastery.record(tile.rootPc, tile.typeName, null, false);
     LaneCanvas.flashMiss();
     _updateHealth(HEALTH_MISS);
@@ -232,7 +232,7 @@ function _checkHoldCompletions(elapsed) {
     _setMultiplier();
     state.falling.maxCombo = Math.max(state.falling.maxCombo, state.streak);
     _incRatingCount(rating);
-    state.falling.results.push({ symbol: tile.symbol, result: rating, points, hold: true, broken: tile.holdBroken });
+    state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, result: rating, points, hold: true, broken: tile.holdBroken });
     const holdClean = !tile.holdBroken && (rating === 'perfect' || rating === 'good');
     Mastery.record(tile.rootPc, tile.typeName, null, holdClean);
 
@@ -450,7 +450,7 @@ export const FallingChordsMode = {
       state.chordsCompleted++;
       state.falling.maxCombo = Math.max(state.falling.maxCombo, state.streak);
       _incRatingCount(rating);
-      state.falling.results.push({ symbol: candidate.symbol, result: rating, points, sloppy });
+      state.falling.results.push({ rootPc: candidate.rootPc, typeSymbol: candidate.typeSymbol, result: rating, points, sloppy });
       const hitClean = !sloppy && (rating === 'perfect' || rating === 'good');
       Mastery.record(candidate.rootPc, candidate.typeName, null, hitClean);
 

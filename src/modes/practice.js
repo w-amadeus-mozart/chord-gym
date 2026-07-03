@@ -10,6 +10,7 @@ import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { Mastery } from '../mastery.js';
+import { formatRoot, formatSymbol, getEnharmonicStyle } from '../notation.js';
 
 const AUTO_HINT_DELAY_MS = 5000;
 const LAST_SESSION_KEY = 'ct_practice_last_v1';
@@ -67,7 +68,7 @@ export function describeConfig(config) {
     return config.cellsLabel || `Custom · ${config.cells.length} chord${config.cells.length !== 1 ? 's' : ''}`;
   }
   if (config.what === 'rootFamily') {
-    return `Root family · ${ChordEngine.ROOTS[config.rootFamilyRoot]}` +
+    return `Root family · ${formatRoot(config.rootFamilyRoot, getEnharmonicStyle())}` +
       (config.rootFamilyShuffle ? ' · Shuffle' : '');
   }
   const orderLabel = ORDER_LABELS[config.order] || config.order;
@@ -209,7 +210,7 @@ function _pickNext(lastSymbol) {
 }
 
 function _showNextChord() {
-  document.getElementById('chord-display').textContent = _currentChord.symbol;
+  document.getElementById('chord-display').textContent = formatSymbol(_currentChord.rootPc, _currentChord.type.symbol);
   document.getElementById('hint-notice').style.display = 'none';
   UI.renderPracticeHUD();
   _armAutoHint();
@@ -228,9 +229,9 @@ function _onMatch() {
   state.practice.totalResponseMs += responseMs;
   state.practice.streakUnhinted = clean ? state.practice.streakUnhinted + 1 : 0;
   state.practice.sessionResults.push({
-    symbol: _currentChord.symbol,
     rootPc: _currentChord.rootPc,
     typeName: _currentChord.type.name,
+    typeSymbol: _currentChord.type.symbol,
     responseMs,
     clean,
     hinted: _hintLevel > 0,
@@ -395,8 +396,8 @@ export const PracticeMode = {
       const rootPc = parseInt(rootPcStr, 10);
       const before = _beforeScores.get(key) ?? 0;
       const after  = Mastery.masteryScore(rootPc, typeName);
-      const symbol = ChordEngine.chordForCell(rootPc, typeName).symbol;
-      return { rootPc, typeName, symbol, before, after };
+      const typeSymbol = ChordEngine.chordForCell(rootPc, typeName).type.symbol;
+      return { rootPc, typeName, typeSymbol, before, after };
     }).sort((a, b) => Math.abs(b.after - b.before) - Math.abs(a.after - a.before));
 
     document.getElementById('practice-controls').style.display = 'none';

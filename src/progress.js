@@ -9,6 +9,7 @@ import { ChordEngine } from './chords.js';
 import { Mastery, MIN_ATTEMPTS_FOR_WEAK } from './mastery.js';
 import { UI, showScreen } from './ui.js';
 import { ROOT_GROUPS, CIRCLE_FIFTHS, applyPrefillToDraft } from './modes/practice.js';
+import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
 
 // Heatmap row order — distinct from CHORD_TYPES' registry order (spec-defined pedagogical order).
 const ROW_QUALITIES = [
@@ -72,7 +73,8 @@ function _cellStyle(detail) {
 }
 
 function _cellTooltip(rootPc, typeName, d) {
-  const symbol = ChordEngine.chordForCell(rootPc, typeName).symbol;
+  const type = ChordEngine.CHORD_TYPES.find(t => t.name === typeName);
+  const symbol = formatSymbol(rootPc, type.symbol);
   if (d.attempts === 0) return `${symbol} — not played yet`;
   if (d.attempts < MIN_ATTEMPTS_FOR_WEAK) return `${symbol} — not enough data yet (${d.attempts}/${MIN_ATTEMPTS_FOR_WEAK} attempts)`;
   return `${symbol} — score ${d.score} (${d.attempts} attempts)`;
@@ -82,7 +84,8 @@ function _renderHeatmap() {
   const cols = _cols();
   let html = `<div class="heatmap-corner"></div>`;
   for (const rootPc of cols) {
-    html += `<button class="heatmap-col-header" data-root-header="${rootPc}" title="Practice ${ChordEngine.ROOTS[rootPc]} across all qualities">${ChordEngine.ROOTS[rootPc]}</button>`;
+    const rootLabel = formatRoot(rootPc, getEnharmonicStyle(), { compact: true });
+    html += `<button class="heatmap-col-header" data-root-header="${rootPc}" title="Practice ${rootLabel} across all qualities">${rootLabel}</button>`;
   }
   for (const typeName of ROW_QUALITIES) {
     html += `<button class="heatmap-row-header" data-quality-header="${typeName}" title="Practice ${typeName} across all roots">${typeName}</button>`;
@@ -135,7 +138,7 @@ function _renderStats() {
 // ── Row / column drill-in ────────────────────────────────────────────────────
 
 function _renderDrilldownPanel(title, avg, weakest, qualifiedCount) {
-  const weakestSymbol = weakest ? ChordEngine.chordForCell(weakest.rootPc, weakest.typeName).symbol : null;
+  const weakestSymbol = weakest ? formatSymbol(weakest.rootPc, ChordEngine.chordForCell(weakest.rootPc, weakest.typeName).type.symbol) : null;
   const panel = document.getElementById('drilldown-panel');
   panel.style.display = '';
   panel.innerHTML = `
@@ -168,7 +171,7 @@ function _showRowDrilldown(typeName) {
 }
 
 function _showColumnDrilldown(rootPc) {
-  const rootName = ChordEngine.ROOTS[rootPc];
+  const rootName = formatRoot(rootPc, getEnharmonicStyle());
   const cells = [];
   for (const t of ChordEngine.CHORD_TYPES) {
     const d = Mastery.cellDetail(rootPc, t.name);
@@ -205,9 +208,10 @@ function _openCellModal(rootPc, typeName) {
   const times = d.last10.map(e => e.ms).filter(ms => ms != null);
   const lastPracticed = d.lastSeenTs ? _relativeDays(d.lastSeenTs) : 'never';
 
+  const chordSymbol = formatSymbol(chord.rootPc, chord.type.symbol);
   document.getElementById('cell-modal').innerHTML = `
     <button class="cell-modal-close" id="cell-modal-close">✕</button>
-    <div class="cell-modal-symbol">${chord.symbol}</div>
+    <div class="cell-modal-symbol">${chordSymbol}</div>
     ${enoughData ? `
       <div class="cell-modal-score" style="color:${_scoreColor(d.score)}">${d.score}</div>
       <div class="cell-modal-components">
@@ -224,7 +228,7 @@ function _openCellModal(rootPc, typeName) {
     </div>
     <button class="btn-primary" id="cell-modal-practice-btn">Practice this</button>
   `;
-  _pendingCellPrefill = { pool: 'cells', cells: [{ rootPc, typeName }], label: `${chord.symbol} · single chord` };
+  _pendingCellPrefill = { pool: 'cells', cells: [{ rootPc, typeName }], label: `${chordSymbol} · single chord` };
   document.getElementById('cell-modal-overlay').style.display = '';
 }
 

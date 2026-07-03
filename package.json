@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:low-octave": "node scripts/regression-low-octave.mjs"
   },
   "devDependencies": {
+    "playwright": "^1.61.1",
     "vite": "^6.0.0"
   }
 }

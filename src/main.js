@@ -8,7 +8,8 @@ import { ChordEngine } from './chords.js';
 import { MidiInput } from './midi.js';
 import { GameAudio } from './audio.js';
 import { UI, showScreen } from './ui.js';
-import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode } from './piano.js';
+import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode, getIdleLabelMode, refreshKeyLabels } from './piano.js';
+import { setEnharmonicStyle } from './notation.js';
 import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
@@ -109,15 +110,39 @@ function _wireKbSizeControl(id) {
 _wireKbSizeControl('kb-size-control');
 _wireKbSizeControl('settings-kb-size-control');
 
-// ── Note names toggle (Settings) ──────────────────────────
+// ── Note names toggle — Settings checkbox + the in-session "ABC" button share
+// this one setting; piano.js's _syncChrome() keeps both controls' visual state
+// in sync on every rebuild, so either control just needs to call this ──
 const NOTE_NAMES_KEY = 'ct_note_names_v1';
 const _noteNamesCb = document.getElementById('note-names-toggle');
+function _setNoteNames(enabled) {
+  try { localStorage.setItem(NOTE_NAMES_KEY, enabled ? 'true' : 'false'); } catch (_) {}
+  setIdleLabelMode(enabled ? 'notes' : 'letters');
+}
 try { _noteNamesCb.checked = localStorage.getItem(NOTE_NAMES_KEY) === 'true'; } catch (_) {}
-setIdleLabelMode(_noteNamesCb.checked ? 'notes' : 'letters');
-_noteNamesCb.addEventListener('change', () => {
-  try { localStorage.setItem(NOTE_NAMES_KEY, _noteNamesCb.checked ? 'true' : 'false'); } catch (_) {}
-  setIdleLabelMode(_noteNamesCb.checked ? 'notes' : 'letters');
+_setNoteNames(_noteNamesCb.checked);
+_noteNamesCb.addEventListener('change', () => _setNoteNames(_noteNamesCb.checked));
+document.getElementById('kb-abc-toggle')?.addEventListener('click', () => {
+  _setNoteNames(getIdleLabelMode() !== 'notes');
 });
+
+// ── Enharmonic style (Settings) — Sharps / Flats / Both ──
+const enharmonicControl = document.getElementById('enharmonic-control');
+if (enharmonicControl) {
+  enharmonicControl.querySelectorAll('.selected').forEach(b => b.classList.remove('selected'));
+  const initial = enharmonicControl.querySelector(`[data-enharmonic="${localStorage.getItem('ct_enharmonic_v1') || 'both'}"]`)
+    || enharmonicControl.querySelector('[data-enharmonic="both"]');
+  initial?.classList.add('selected');
+  enharmonicControl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-enharmonic]');
+    if (!btn) return;
+    setEnharmonicStyle(btn.dataset.enharmonic);
+    enharmonicControl.querySelectorAll('[data-enharmonic]').forEach(b =>
+      b.classList.toggle('selected', b === btn));
+    refreshKeyLabels();
+    if (state.screen === 'progress') Progress.render();
+  });
+}
 
 // ── Mute toggle ──────────────────────────────────────────
 document.getElementById('mute-btn').addEventListener('click', () => {

@@ -24,11 +24,11 @@ export const state = {
   timerStart: 0,
   pausedAt: 0,
   // per-round history
-  attempts: [],             // { symbol, responseMs, clean, points } (+ windowSec for survival)
+  attempts: [],             // { rootPc, typeSymbol, responseMs, clean, points } (+ windowSec for survival)
   // falling-chords runtime (reset at start of each song)
   falling: {
     chartId:  '',
-    results:  [],   // { symbol, result: 'perfect'|'good'|'ok'|'miss', points }
+    results:  [],   // { rootPc, typeSymbol, result: 'perfect'|'good'|'ok'|'miss', points }
     perfects: 0,
     goods:    0,
     oks:      0,
@@ -57,7 +57,7 @@ export const state = {
     cleanCount: 0,
     totalResponseMs: 0,
     streakUnhinted: 0,
-    sessionResults: [],    // { symbol, rootPc, typeName, responseMs, clean, hinted }
+    sessionResults: [],    // { rootPc, typeName, typeSymbol, responseMs, clean, hinted }
     setupDraft: {
       what: 'byQuality',           // 'byQuality' | 'rootFamily' | 'weakSpots' | 'cells'
       qualities: [],                // chord type names selected — populated at init from CHORD_TYPES

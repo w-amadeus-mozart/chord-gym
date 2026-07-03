@@ -8,12 +8,12 @@
 //    shortcut letters (nothing to type on), fluid width via flexbox.
 
 import { MidiInput } from './midi.js';
+import { formatRoot, getEnharmonicStyle } from './notation.js';
 
 const PIANO_START = 48; // C3
 const PIANO_OCTAVES = 2;
 const WHITE_SEMITONES = [0, 2, 4, 5, 7, 9, 11]; // C D E F G A B
 const BLACK_SEMITONES = [1, 3, 6, 8, 10];       // C# D# F# G# A# — never between E-F or B-C
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 // Must match the CSS box model in styles/main.css (.piano-wrap.compact .white-key/.black-key).
 const WHITE_KEY_WIDTH = 34; // 32px width + 1px margin each side
@@ -153,11 +153,25 @@ function _buildSized(wrap, size) {
 function _syncChrome(connected) {
   const caption = document.getElementById('keyboard-caption');
   const control = document.getElementById('kb-size-control');
+  const abcToggle = document.getElementById('kb-abc-toggle');
   if (caption) caption.style.display = connected ? 'none' : '';
   if (control) control.style.display = connected ? '' : 'none';
+  if (abcToggle) abcToggle.style.display = connected ? '' : 'none';
   document.querySelectorAll('.kb-size-btn').forEach(b => {
     b.classList.toggle('selected', parseInt(b.dataset.kbSize, 10) === _kbSize);
   });
+  _syncLabelControls();
+}
+
+// Keeps the in-session ABC button and the Settings checkbox reflecting
+// _idleLabelMode — called on every rebuild (_syncChrome) AND whenever the
+// label mode itself changes via setIdleLabelMode, since that path doesn't
+// otherwise touch either control.
+function _syncLabelControls() {
+  const abcToggle = document.getElementById('kb-abc-toggle');
+  if (abcToggle) abcToggle.classList.toggle('selected', _idleLabelMode === 'notes');
+  const noteNamesCb = document.getElementById('note-names-toggle');
+  if (noteNamesCb) noteNamesCb.checked = _idleLabelMode === 'notes';
 }
 
 // Changes the display-mode keyboard size (61/73/88), persists it, and rebuilds. No-op if
@@ -173,24 +187,62 @@ export function setKeyboardSize(size) {
 // detect held notes that fall outside the visible keyboard (see updateEdgeArrows).
 export function getVisibleRange() { return { start: _rangeStart, end: _rangeEnd }; }
 
+// Out-of-range tracking (session-scoped, resets on reload) — drives the
+// persistent "N notes below/above view" chip and a one-time toast nudging
+// toward the 88-key view after repeated occurrences.
+let _oorActive = false;
+let _oorOccurrences = 0;
+let _oorToastShown = false;
+const OOR_TOAST_THRESHOLD = 3;
+
 // Shows a small pulsing arrow at the keyboard frame's edge while a held note falls outside
-// the currently rendered range (e.g. an octave-shifted controller).
+// the currently rendered range (e.g. an octave-shifted controller), plus a persistent chip
+// naming how many notes are out of view and (after repeated occurrences) a one-time toast.
 export function updateEdgeArrows(heldNotes) {
   const left = document.getElementById('kb-arrow-left');
   const right = document.getElementById('kb-arrow-right');
+  const chip = document.getElementById('kb-range-chip');
   if (!left || !right) return;
-  let below = false, above = false;
+  let belowCount = 0, aboveCount = 0;
   for (const n of heldNotes) {
-    if (n < _rangeStart) below = true;
-    if (n > _rangeEnd) above = true;
+    if (n < _rangeStart) belowCount++;
+    if (n > _rangeEnd) aboveCount++;
   }
-  left.style.display = below ? '' : 'none';
-  right.style.display = above ? '' : 'none';
+  left.style.display = belowCount ? '' : 'none';
+  right.style.display = aboveCount ? '' : 'none';
+
+  const anyOor = belowCount > 0 || aboveCount > 0;
+  if (anyOor && !_oorActive && _kbSize !== 88) {
+    _oorOccurrences++;
+    if (_oorOccurrences >= OOR_TOAST_THRESHOLD && !_oorToastShown) {
+      _oorToastShown = true;
+      _showRangeToast();
+    }
+  }
+  _oorActive = anyOor;
+
+  if (!chip) return;
+  if (!anyOor) {
+    chip.style.display = 'none';
+    return;
+  }
+  const parts = [];
+  if (belowCount) parts.push(`◀ ${belowCount} note${belowCount === 1 ? '' : 's'} below view`);
+  if (aboveCount) parts.push(`${aboveCount} note${aboveCount === 1 ? '' : 's'} above view ▶`);
+  chip.textContent = parts.join(' · ') + ' — shift octave up or switch key range';
+  chip.style.display = '';
+}
+
+function _showRangeToast() {
+  const toast = document.createElement('div');
+  toast.className = 'kb-range-toast';
+  toast.textContent = 'Notes keep falling outside the view — try the 88-key range for full coverage.';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4500);
 }
 
 // Swap key captions between computer-key letters (default) and note names
-// (Practice hint level 2). White keys only for now — black keys are 22px
-// wide and get cluttered fast; revisit if needed.
+// (Practice hint level 2, or the ABC toggle on a sized keyboard).
 export function setKeyLabelMode(mode) {
   _labelMode = mode === 'notes' ? 'notes' : 'letters';
   _applyLabelMode();
@@ -204,22 +256,33 @@ export function setIdleLabelMode(mode) {
     _labelMode = _idleLabelMode;
     _applyLabelMode();
   }
+  _syncLabelControls();
 }
 
+export function getIdleLabelMode() { return _idleLabelMode; }
+
+// Re-renders key captions in place (e.g. after the enharmonic style changes)
+// without touching label mode itself.
+export function refreshKeyLabels() { _applyLabelMode(); }
+
 function _applyLabelMode() {
+  const style = getEnharmonicStyle();
   document.querySelectorAll('.white-key').forEach(k => {
     if (_labelMode === 'notes') {
       const pc = parseInt(k.dataset.note, 10) % 12;
-      k.textContent = NOTE_NAMES[pc];
+      k.textContent = formatRoot(pc, style, { compact: true });
     } else {
       k.textContent = (k.dataset.letter || '').toUpperCase();
     }
   });
-  if (_labelMode === 'letters') {
-    document.querySelectorAll('.black-key').forEach(k => {
+  document.querySelectorAll('.black-key').forEach(k => {
+    if (_labelMode === 'notes') {
+      const pc = parseInt(k.dataset.note, 10) % 12;
+      k.textContent = formatRoot(pc, style, { compact: true });
+    } else {
       k.textContent = (k.dataset.letter || '').toUpperCase();
-    });
-  }
+    }
+  });
 }
 
 // heldNotes: exact MIDI note numbers currently held (no octave duplication in the highlight).

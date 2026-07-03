@@ -1,6 +1,8 @@
 // Canvas renderer for Falling Chords mode.
 // Driven by requestAnimationFrame from fallingChords.js.
 
+import { formatSymbol, getEnharmonicStyle } from './notation.js';
+
 const APPROACH_MS   = 2200;   // ms for a tile to travel from canvas top to hit zone
 const HIT_ZONE_BOTTOM = 70;   // px from canvas bottom to hit-zone line center
 const TILE_H        = 54;
@@ -209,7 +211,7 @@ export const LaneCanvas = {
       _ctx.font          = 'bold 18px "Segoe UI", system-ui, sans-serif';
       _ctx.textAlign     = 'center';
       _ctx.textBaseline  = 'middle';
-      _ctx.fillText(tile.symbol, tileLeft + tileW / 2, tileTop + TILE_H / 2);
+      _ctx.fillText(formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle()), tileLeft + tileW / 2, tileTop + TILE_H / 2);
       _ctx.restore();
     }
 
@@ -411,7 +413,7 @@ function _drawHoldHead(tile, tileLeft, tileW, centerY, color) {
   _ctx.font        = 'bold 18px "Segoe UI", system-ui, sans-serif';
   _ctx.textAlign   = 'center';
   _ctx.textBaseline = 'middle';
-  _ctx.fillText(tile.symbol, tileLeft + tileW / 2, tileTop + TILE_H / 2);
+  _ctx.fillText(formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle()), tileLeft + tileW / 2, tileTop + TILE_H / 2);
   _ctx.restore();
 }
 

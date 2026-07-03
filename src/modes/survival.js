@@ -194,7 +194,7 @@ export const SurvivalMode = {
 
     const now = performance.now();
     if (now >= state.survival.windowDeadline) {
-      SurvivalMode.end({ type: 'expiry', chord: state.currentChord.symbol });
+      SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol });
       return;
     }
 
@@ -224,7 +224,7 @@ export const SurvivalMode = {
     // Exact expiry check — a match arriving after the deadline never counts
     const now = performance.now();
     if (now >= state.survival.windowDeadline) {
-      SurvivalMode.end({ type: 'expiry', chord: state.currentChord.symbol });
+      SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol });
       return;
     }
 
@@ -237,8 +237,9 @@ export const SurvivalMode = {
         if (!target.has(pc)) {
           SurvivalMode.end({
             type: 'wrongNote',
-            chord: state.currentChord.symbol,
-            pitchClassName: ChordEngine.ROOTS[pc],
+            rootPc: state.currentChord.rootPc,
+            typeSymbol: state.currentChord.type.symbol,
+            wrongPc: pc,
           });
           return;
         }
@@ -257,7 +258,7 @@ export const SurvivalMode = {
     if (ChordEngine.isMatch(heldPCs, target)) {
       // Re-check at exact moment of match
       if (performance.now() >= state.survival.windowDeadline) {
-        SurvivalMode.end({ type: 'expiry', chord: state.currentChord.symbol });
+        SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol });
         return;
       }
       SurvivalMode.onChordMatched();
@@ -294,7 +295,8 @@ export const SurvivalMode = {
     state.survival.chordsSurvived++;
 
     state.attempts.push({
-      symbol: state.currentChord.symbol,
+      rootPc: state.currentChord.rootPc,
+      typeSymbol: state.currentChord.type.symbol,
       responseMs,
       clean,
       points,

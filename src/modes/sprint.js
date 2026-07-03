@@ -100,7 +100,11 @@ export const SprintMode = {
     state.score += points;
     state.chordsCompleted++;
 
-    state.attempts.push({ symbol: state.currentChord.symbol, responseMs, clean, points });
+    state.attempts.push({
+      rootPc: state.currentChord.rootPc,
+      typeSymbol: state.currentChord.type.symbol,
+      responseMs, clean, points,
+    });
     Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean);
 
     // Visual flash + audio chime

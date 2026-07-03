@@ -352,12 +352,14 @@
       <div class="keyboard-section">
         <div class="keyboard-section-header">
           <h4 id="keyboard-caption">On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
+          <button class="kb-size-btn kb-abc-toggle" id="kb-abc-toggle" style="display:none" title="Show note names on keys">ABC</button>
           <div class="kb-size-control" id="kb-size-control" style="display:none">
             <button class="kb-size-btn" data-kb-size="61">61</button>
             <button class="kb-size-btn" data-kb-size="73">73</button>
             <button class="kb-size-btn" data-kb-size="88">88</button>
           </div>
         </div>
+        <div class="kb-range-chip" id="kb-range-chip" style="display:none"></div>
         <div class="piano-frame">
           <span class="kb-edge-arrow kb-edge-arrow-left" id="kb-arrow-left" style="display:none">◀</span>
           <div class="piano-scroll"><div class="piano-wrap" id="piano"></div></div>
@@ -506,6 +508,14 @@
         <input type="checkbox" id="note-names-toggle">
         Show note names on keys
       </label>
+    </div>
+    <div class="settings-kb-row">
+      <span class="mixer-label" style="width:auto">Note spelling</span>
+      <div class="kb-size-control" id="enharmonic-control">
+        <button class="kb-size-btn" data-enharmonic="sharp">Sharps</button>
+        <button class="kb-size-btn" data-enharmonic="flat">Flats</button>
+        <button class="kb-size-btn selected" data-enharmonic="both">Both</button>
+      </div>
     </div>
   </div>
 

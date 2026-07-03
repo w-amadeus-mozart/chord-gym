@@ -10,6 +10,14 @@ import { UNLOCK_LADDER } from './unlockLadder.js';
 import { CHARTS } from './charts.js';
 import { Mastery } from './mastery.js';
 import { PRESETS, describeConfig } from './modes/practice.js';
+import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
+
+// Chord-object symbol, formatted for the current enharmonic style — use instead
+// of the pool-baked `chord.symbol` (which is always the dual "both" spelling)
+// anywhere a chord is shown to the player.
+function _symbolOf(chord) {
+  return chord ? formatSymbol(chord.rootPc, chord.type.symbol) : '—';
+}
 
 // All 132 root×quality cells — used by the weak-spots preset card.
 function _allCells() {
@@ -71,7 +79,7 @@ export const UI = {
   },
 
   renderChord() {
-    document.getElementById('chord-display').textContent = state.currentChord?.symbol ?? '—';
+    document.getElementById('chord-display').textContent = _symbolOf(state.currentChord);
     UI.renderNoteIndicators(new Set(), state.currentChord?.pitchClasses ?? new Set());
   },
 
@@ -174,10 +182,11 @@ export const UI = {
     const container = document.getElementById('note-indicators');
     container.innerHTML = '';
     const heldPCs = ChordEngine.toPitchClasses(heldNotes);
+    const style = getEnharmonicStyle();
     for (const pc of targetPCs) {
       const pip = document.createElement('div');
       pip.className = 'note-pip';
-      pip.textContent = ChordEngine.ROOTS[pc];
+      pip.textContent = formatRoot(pc, style);
       if (heldPCs.has(pc)) pip.classList.add('held');
       container.appendChild(pip);
     }
@@ -185,7 +194,7 @@ export const UI = {
       if (!targetPCs.has(pc)) {
         const pip = document.createElement('div');
         pip.className = 'note-pip wrong';
-        pip.textContent = ChordEngine.ROOTS[pc] + '✗';
+        pip.textContent = formatRoot(pc, style) + '✗';
         container.appendChild(pip);
       }
     }
@@ -201,10 +210,11 @@ export const UI = {
     const heldPCs = ChordEngine.toPitchClasses(heldNotes);
     const targetPCs = chord.pitchClasses;
     const revealed = hintLevel >= 1;
+    const style = getEnharmonicStyle();
     for (const pc of targetPCs) {
       const pip = document.createElement('div');
       pip.className = 'note-pip' + (revealed ? '' : ' hint-hidden');
-      pip.textContent = revealed ? ChordEngine.ROOTS[pc] : '•';
+      pip.textContent = revealed ? formatRoot(pc, style) : '•';
       if (heldPCs.has(pc)) pip.classList.add('held');
       container.appendChild(pip);
     }
@@ -212,7 +222,7 @@ export const UI = {
       if (!targetPCs.has(pc)) {
         const pip = document.createElement('div');
         pip.className = 'note-pip wrong';
-        pip.textContent = ChordEngine.ROOTS[pc] + '✗';
+        pip.textContent = formatRoot(pc, style) + '✗';
         container.appendChild(pip);
       }
     }
@@ -233,7 +243,7 @@ export const UI = {
     for (const pc of heldPCs) {
       const pip = document.createElement('div');
       pip.className = 'note-pip releasing';
-      pip.textContent = ChordEngine.ROOTS[pc];
+      pip.textContent = formatRoot(pc, getEnharmonicStyle());
       container.appendChild(pip);
     }
     document.querySelectorAll('.white-key, .black-key').forEach(k => {
@@ -293,7 +303,7 @@ export const UI = {
     const wsEl = document.getElementById('weak-spot');
     if (slowest) {
       wsEl.style.display = 'block';
-      wsEl.innerHTML = `Your weak spot: <span>${slowest.symbol}</span> — ${(slowest.responseMs / 1000).toFixed(1)}s response`;
+      wsEl.innerHTML = `Your weak spot: <span>${formatSymbol(slowest.rootPc, slowest.typeSymbol)}</span> — ${(slowest.responseMs / 1000).toFixed(1)}s response`;
     } else {
       wsEl.style.display = 'none';
     }
@@ -319,9 +329,10 @@ export const UI = {
       subEl.style.display = 'block';
       let deathMsg = '';
       if (deathReason) {
+        const deathChordSymbol = formatSymbol(deathReason.rootPc, deathReason.typeSymbol);
         deathMsg = deathReason.type === 'expiry'
-          ? `Window expired on <strong>${deathReason.chord}</strong>`
-          : `Wrong note on <strong>${deathReason.chord}</strong> — you played <strong>${deathReason.pitchClassName}</strong>`;
+          ? `Window expired on <strong>${deathChordSymbol}</strong>`
+          : `Wrong note on <strong>${deathChordSymbol}</strong> — you played <strong>${formatRoot(deathReason.wrongPc, getEnharmonicStyle())}</strong>`;
       }
       subEl.innerHTML =
         `<span class="mode-tag">${variantLabel}</span>` +
@@ -355,7 +366,7 @@ export const UI = {
           ? `<span class="unlock-badge">★ ${unlockLabel.replace(' unlocked', '')}</span>`
           : '';
         return `<tr${isSlowest ? ' class="slowest"' : ''}>
-          <td><strong>${a.symbol}</strong>${unlockBadge}</td>
+          <td><strong>${formatSymbol(a.rootPc, a.typeSymbol)}</strong>${unlockBadge}</td>
           <td>${(a.responseMs / 1000).toFixed(2)}s</td>
           <td>${a.windowSec != null ? a.windowSec.toFixed(1) + 's' : '—'}</td>
           <td>${a.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Corrected</span>'}</td>
@@ -393,7 +404,7 @@ export const UI = {
       document.getElementById('per-chord-tbody').innerHTML = attempts.map(a => {
         const isSlowest = a === slowest;
         return `<tr${isSlowest ? ' class="slowest"' : ''}>
-          <td><strong>${a.symbol}</strong></td>
+          <td><strong>${formatSymbol(a.rootPc, a.typeSymbol)}</strong></td>
           <td>${(a.responseMs / 1000).toFixed(2)}s</td>
           <td>${a.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Corrected</span>'}</td>
           <td>+${a.points}</td>
@@ -554,7 +565,7 @@ export const UI = {
       const holdTag  = r.hold   ? ' <span class="hold-badge">HOLD</span>' : '';
       const sloppyTag= r.sloppy ? ' <span class="sloppy-tag">~</span>'    : '';
       return `<tr>
-        <td><strong>${r.symbol}</strong>${holdTag}</td>
+        <td><strong>${formatSymbol(r.rootPc, r.typeSymbol)}</strong>${holdTag}</td>
         <td><span class="${cls}">${label}</span>${sloppyTag}</td>
         <td>${r.points > 0 ? '+' + r.points : '—'}</td>
       </tr>`;
@@ -655,8 +666,8 @@ export const UI = {
       const rfPanel = document.getElementById('root-family-panel');
       rfPanel.style.display = isSingleRoot ? '' : 'none';
       if (isSingleRoot) {
-        document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((r, i) =>
-          `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${r}</button>`
+        document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((_, i) =>
+          `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${formatRoot(i, getEnharmonicStyle())}</button>`
         ).join('');
         document.getElementById('root-family-shuffle').checked = draft.rootFamilyShuffle;
       }
@@ -667,7 +678,10 @@ export const UI = {
     cellsPanel.style.display = isCells ? '' : 'none';
     if (isCells) {
       const chips = (draft.cells || [])
-        .map(c => ChordEngine.chordForCell(c.rootPc, c.typeName)?.symbol)
+        .map(c => {
+          const chord = ChordEngine.chordForCell(c.rootPc, c.typeName);
+          return chord ? _symbolOf(chord) : null;
+        })
         .filter(Boolean);
       document.getElementById('cells-panel-msg').textContent = draft.cellsLabel
         || `Practicing ${chips.length} chord${chips.length !== 1 ? 's' : ''}, in rotation.`;
@@ -712,7 +726,7 @@ export const UI = {
     if (summary.slowest.length) {
       wsEl.style.display = 'block';
       wsEl.innerHTML = 'Slowest this session: ' + summary.slowest
-        .map(s => `<span>${s.symbol}</span> (${(s.responseMs / 1000).toFixed(1)}s)`)
+        .map(s => `<span>${formatSymbol(s.rootPc, s.typeSymbol)}</span> (${(s.responseMs / 1000).toFixed(1)}s)`)
         .join(', ');
     } else {
       wsEl.style.display = 'none';
@@ -723,7 +737,7 @@ export const UI = {
       deltaEl.style.display = 'block';
       deltaEl.innerHTML = '<h3>Mastery changes</h3>' + summary.deltas.map(d =>
         `<div class="mastery-delta-row${d.after >= d.before ? ' mastery-delta-up' : ' mastery-delta-down'}">
-          <span>${d.symbol}</span><span>${d.before} → ${d.after}</span>
+          <span>${formatSymbol(d.rootPc, d.typeSymbol)}</span><span>${d.before} → ${d.after}</span>
         </div>`
       ).join('');
     } else {
@@ -733,7 +747,7 @@ export const UI = {
     document.querySelector('.per-chord-table thead tr').innerHTML =
       '<th>Chord</th><th>Response</th><th>Hinted</th><th>Quality</th>';
     document.getElementById('per-chord-tbody').innerHTML = summary.sessionResults.map(r => `<tr>
-      <td><strong>${r.symbol}</strong></td>
+      <td><strong>${formatSymbol(r.rootPc, r.typeSymbol)}</strong></td>
       <td>${(r.responseMs / 1000).toFixed(2)}s</td>
       <td>${r.hinted ? 'Yes' : '—'}</td>
       <td>${r.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Assisted</span>'}</td>
