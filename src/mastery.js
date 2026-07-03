@@ -152,6 +152,13 @@ export function averageMastery() {
   return Math.round(sum / qualified.length);
 }
 
+// Reps logged so far today (local calendar day) — Dashboard stat tile.
+export function todayReps() {
+  const activity = loadActivity();
+  const today = activity[localDateStr(new Date())];
+  return today ? today.reps : 0;
+}
+
 // Consecutive days with >=1 rep, counting back from today (or yesterday, so a
 // streak isn't wiped out before the player has had a chance to play today).
 export function streakDays() {
@@ -216,5 +223,5 @@ export function resetAll() {
 
 export const Mastery = {
   record, masteryScore, weakest,
-  allCells, coverage, averageMastery, streakDays, cellDetail, resetAll,
+  allCells, coverage, averageMastery, streakDays, todayReps, cellDetail, resetAll,
 };

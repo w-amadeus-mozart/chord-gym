@@ -139,6 +139,12 @@ function _persistLastSession(config) {
   try { localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(config)); } catch (_) {}
 }
 
+// Whether a prior session exists to "Continue" — used by the Dashboard's Today's
+// Focus card when Progress doesn't have a recommendation yet.
+export function hasLastSession() {
+  try { return !!localStorage.getItem(LAST_SESSION_KEY); } catch (_) { return false; }
+}
+
 // ── Module-private runtime ───────────────────────────────────────────────────
 let _config           = null;
 let _pool              = [];

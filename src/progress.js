@@ -363,9 +363,23 @@ function _startSurvivalNightmare() {
   UI.renderMenu();
 }
 
+// Top recommendation, packaged for the Dashboard's Today's Focus card — reuses
+// the same rule engine and deep-link machinery as the Progress screen's own
+// recommendation cards. Returns null if there isn't enough data yet to qualify.
+export function getTodaysFocus() {
+  if (Mastery.allCells().length < SPARSE_THRESHOLD) return null;
+  const [top] = _computeRecommendations();
+  if (!top) return null;
+  return {
+    text: top.text,
+    start: () => (top.kind === 'survivalNightmare' ? _startSurvivalNightmare() : _startFromPrefill(top.prefill)),
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export const Progress = {
+  getTodaysFocus,
   // One-time DOM wiring — called once at app init, like buildPiano().
   init() {
     document.getElementById('heatmap-order-toggle').addEventListener('click', e => {

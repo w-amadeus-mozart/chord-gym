@@ -60,6 +60,16 @@ export function showScreen(id) {
 }
 
 export const UI = {
+  // Dashboard — streak/reps-today stats plus the Today's Focus card text.
+  // `focus` = { text, start } computed by main.js (recommendation, last
+  // session, or starter suggestion — see Progress.getTodaysFocus()).
+  renderHome(focus) {
+    const streak = Mastery.streakDays();
+    document.getElementById('home-stat-streak').textContent = `${streak} day${streak === 1 ? '' : 's'}${streak >= 2 ? ' 🔥' : ''}`;
+    document.getElementById('home-stat-reps').textContent = Mastery.todayReps();
+    document.getElementById('home-focus-text').textContent = focus.text;
+  },
+
   renderChord() {
     document.getElementById('chord-display').textContent = state.currentChord?.symbol ?? '—';
     UI.renderNoteIndicators(new Set(), state.currentChord?.pitchClasses ?? new Set());

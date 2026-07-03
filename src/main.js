@@ -12,7 +12,7 @@ import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode } from './piano.
 import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
-import { PracticeMode, PRESETS, loadLastSessionIntoDraft } from './modes/practice.js';
+import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
 import { Progress } from './progress.js';
 
 // ── MIDI status bar ──────────────────────────────────────
@@ -193,10 +193,31 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 });
 
 // ── Home pillar navigation ────────────────────────────────
+// Today's Focus — recommendation (Progress) > continue last session > starter
+// suggestion. Reuses each tier's existing deep-link/prefill machinery as-is.
+let _homeFocusStart = null;
+function _computeFocus() {
+  const fromProgress = Progress.getTodaysFocus();
+  if (fromProgress) return fromProgress;
+  if (hasLastSession()) {
+    return { text: `Continue: ${describeConfig(state.practice.setupDraft)}`, start: openPracticeSetup };
+  }
+  return { text: `Majors · Random — a good place to start.`, start: openPracticeSetup };
+}
+
+function renderHome() {
+  const focus = _computeFocus();
+  _homeFocusStart = focus.start;
+  UI.renderHome(focus);
+}
+
 function goHome() {
   state.screen = 'home';
   showScreen('home');
+  renderHome();
 }
+
+document.getElementById('home-focus-cta').addEventListener('click', () => _homeFocusStart && _homeFocusStart());
 
 function openPracticeSetup() {
   state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
@@ -536,6 +557,7 @@ if (!state.practice.setupDraft.qualities.length) {
   state.practice.setupDraft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
 }
 UI.renderMenu();
+renderHome();
 updateMidiStatus();
 _syncCalibrationTitle();
 if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.display = '';

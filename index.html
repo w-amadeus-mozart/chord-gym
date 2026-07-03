@@ -63,30 +63,72 @@
 
 <!-- ══════════ HOME SCREEN ══════════ -->
 <div id="home" class="screen active">
-  <div class="brand-lockup">
-    <img src="/chordgym-mark.svg" alt="" class="brand-mark">
-    <span class="brand-word">Chord<b>Gym</b></span>
-  </div>
-  <p class="tagline">Train your chords. Find your weak spots. Prove your speed.</p>
+  <div class="dash-grid">
+    <div class="dash-main">
+      <div class="dash-hero">
+        <div class="dash-hero-text">
+          <h1 class="dash-title">Train your chords<span class="dash-title-dot">.</span></h1>
+          <p class="dash-tagline">Find your weak spots. Prove your speed.</p>
+        </div>
+        <div class="dash-hero-art" aria-hidden="true">
+          <div class="dash-hero-bars">
+            <span class="dash-hero-bar" style="--h:56%"></span>
+            <span class="dash-hero-bar" style="--h:100%"></span>
+            <span class="dash-hero-bar" style="--h:74%"></span>
+          </div>
+          <div class="dash-hero-keys">
+            <span class="dash-hero-key"></span>
+            <span class="dash-hero-key"></span>
+            <span class="dash-hero-key"></span>
+            <span class="dash-hero-key"></span>
+            <span class="dash-hero-key"></span>
+          </div>
+        </div>
+      </div>
 
-  <div class="pillar-grid" id="pillar-grid">
-    <button class="pillar-card" id="pillar-practice">
-      <div class="pillar-card-icon">🎯</div>
-      <div class="pillar-card-title">Practice</div>
-      <div class="pillar-card-desc">Untimed drills, your pace</div>
-    </button>
-    <button class="pillar-card" id="pillar-test">
-      <div class="pillar-card-icon">⚡</div>
-      <div class="pillar-card-title">Test</div>
-      <div class="pillar-card-desc">Sprint, Survival, Falling Chords</div>
-    </button>
-    <button class="pillar-card" id="pillar-progress">
-      <div class="pillar-card-icon">📊</div>
-      <div class="pillar-card-title">Progress</div>
-      <div class="pillar-card-desc">Your mastery heatmap</div>
-    </button>
+      <div class="pillar-grid" id="pillar-grid">
+        <div class="pillar-card">
+          <div class="pillar-card-icon pillar-icon-practice">◎</div>
+          <div class="pillar-card-title">Practice</div>
+          <div class="pillar-card-desc">Untimed drills, your pace</div>
+          <button class="pillar-cta" id="pillar-practice">Start</button>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-card-icon pillar-icon-test">⚡</div>
+          <div class="pillar-card-title">Test</div>
+          <div class="pillar-card-desc">Sprint, Survival, Falling Chords</div>
+          <button class="pillar-cta" id="pillar-test">Start</button>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-card-icon pillar-icon-progress">▤</div>
+          <div class="pillar-card-title">Progress</div>
+          <div class="pillar-card-desc">Your mastery heatmap</div>
+          <button class="pillar-cta" id="pillar-progress">Explore</button>
+        </div>
+      </div>
+
+      <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
+    </div>
+
+    <div class="dash-side">
+      <div class="dash-stats">
+        <div class="stat-card">
+          <div class="sc-label">Streak</div>
+          <div class="sc-val" id="home-stat-streak">0 days</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Reps today</div>
+          <div class="sc-val" id="home-stat-reps">0</div>
+        </div>
+      </div>
+
+      <div class="focus-card">
+        <h4>Today's Focus</h4>
+        <p class="focus-card-text" id="home-focus-text">—</p>
+        <button class="btn-primary focus-cta" id="home-focus-cta">▶ Start Practice</button>
+      </div>
+    </div>
   </div>
-  <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
 </div>
 
 <!-- One-time first-run welcome overlay — shown over Home for a fresh profile only -->
