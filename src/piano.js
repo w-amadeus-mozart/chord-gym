@@ -72,9 +72,9 @@ export function buildPiano() {
   _applyLabelMode();
 }
 
-// Learn-only: swap key captions between computer-key letters (default, every
-// other mode) and note names (Learn sessions). White keys only for now —
-// black keys are 22px wide and get cluttered fast; revisit if needed.
+// Swap key captions between computer-key letters (default) and note names
+// (Practice hint level 2). White keys only for now — black keys are 22px
+// wide and get cluttered fast; revisit if needed.
 export function setKeyLabelMode(mode) {
   _labelMode = mode === 'notes' ? 'notes' : 'letters';
   _applyLabelMode();

@@ -5,7 +5,7 @@
 
 import { state, SPRINT_DURATION } from './state.js';
 import { ChordEngine } from './chords.js';
-import { updatePianoColors } from './piano.js';
+import { updatePianoColors, setKeyLabelMode } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
 import { CHARTS } from './charts.js';
 import { Mastery } from './mastery.js';
@@ -145,7 +145,8 @@ export const UI = {
     updatePianoColors(heldPCs, targetPCs);
   },
 
-  // Practice-only: note letters stay hidden until hintLevel >= 1; keyboard highlights at hintLevel 2.
+  // Practice-only: note letters stay hidden until hintLevel >= 1; keyboard highlights
+  // and swaps to note-name labels at hintLevel 2.
   renderPracticeNoteIndicators(heldPCs, targetPCs, hintLevel) {
     const container = document.getElementById('note-indicators');
     container.innerHTML = '';
@@ -165,24 +166,8 @@ export const UI = {
         container.appendChild(pip);
       }
     }
+    setKeyLabelMode(hintLevel >= 2 ? 'notes' : 'letters');
     updatePianoColors(heldPCs, targetPCs, hintLevel >= 2 ? targetPCs : null);
-  },
-
-  // Learn-only: labeled scale-degree pips (e.g. "1","3","5") instead of note names,
-  // plus an amber keyboard highlight — reuses the Practice hint-glow mechanism.
-  // entries: [{ pc, label }]; pass [] to clear.
-  renderLearnHighlight(entries) {
-    const container = document.getElementById('note-indicators');
-    container.innerHTML = '';
-    const pcs = new Set();
-    for (const { pc, label } of entries) {
-      pcs.add(pc);
-      const pip = document.createElement('div');
-      pip.className = 'note-pip learn-label-pip';
-      pip.textContent = label;
-      container.appendChild(pip);
-    }
-    updatePianoColors(new Set(), pcs, pcs);
   },
 
   // During release gate: show held keys in neutral grey — honest but non-distracting

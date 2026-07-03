@@ -127,28 +127,6 @@ function playSuccessChime(pitchClasses) {
   });
 }
 
-// Learn-only: play a chord's notes one at a time (not simultaneously) so the
-// learner can hear each note land — e.g. counting 1, 3, 5 up a triad.
-function playDemoSequence(pitchClasses, stepMs = 450) {
-  if (muted) return;
-  const c = getCtx();
-  const pcs = [...pitchClasses];
-  const now = c.currentTime;
-  if (Sampler.isLoaded()) {
-    pcs.forEach((pc, i) => {
-      const midi = 60 + pc;
-      const t = now + i * (stepMs / 1000);
-      Sampler.noteOn(midi, 0.7, t);
-      Sampler.noteOff(midi, t + (stepMs / 1000) * 0.9);
-    });
-    return;
-  }
-  pcs.forEach((pc, i) => {
-    const freq = 261.63 * Math.pow(2, pc / 12);
-    _uiOsc(c, freq, 'sine', now + i * (stepMs / 1000), 0.16, 0.02, (stepMs / 1000) * 0.85);
-  });
-}
-
 function playUnlockChime() {
   if (muted) return;
   const c = getCtx();
@@ -360,7 +338,6 @@ export const GameAudio = {
   getBackingVolume,
   getUiVolume,
   playSuccessChime,
-  playDemoSequence,
   playUnlockChime,
   playDeathSound,
   playExpiryWah,

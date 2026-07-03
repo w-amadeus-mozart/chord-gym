@@ -6,7 +6,15 @@ Train your chords. Practice, test, and track your piano chord mastery with your 
 
 A browser-based MIDI chord trainer. A chord symbol appears on screen — play those notes on your MIDI keyboard before the clock runs out (or, in Practice, at your own pace). Supports 11 chord types across 6 difficulty levels, with streak multipliers, speed bonuses, a mastery-tracking Progress dashboard, and a per-round stats breakdown. The **Sprint** game mode keeps its name — it's one mode among several (Sprint, Survival, Falling Chords) inside ChordGym. Originally built as a single HTML file; this repo is the Vite-structured version.
 
+ChordGym is three pillars: **Practice** (untimed drills with hints), **Test** (Sprint / Survival / Falling Chords), and **Progress** (a mastery heatmap with recommendations).
+
 ![screenshot placeholder](docs/screenshot.png)
+
+---
+
+## Roadmap
+
+Guided lessons are planned as a separate companion app.
 
 ---
 

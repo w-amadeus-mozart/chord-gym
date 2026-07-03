@@ -14,7 +14,6 @@ import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode } from './modes/practice.js';
 import { Progress } from './progress.js';
-import { LearnEngine } from './learn/engine.js';
 
 // ── MIDI status bar ──────────────────────────────────────
 function updateMidiStatus() {
@@ -70,8 +69,6 @@ MidiInput.on((type) => {
         FallingChordsMode.onNotesChanged();
       } else if (state.mode === 'practice') {
         PracticeMode.onNotesChanged();
-      } else if (state.mode === 'learn') {
-        LearnEngine.onNotesChanged();
       } else {
         SprintMode.onNotesChanged();
       }
@@ -173,14 +170,7 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 function goHome() {
   state.screen = 'home';
   showScreen('home');
-  LearnEngine.updateLearnPillarCard();
 }
-
-document.getElementById('pillar-learn').addEventListener('click', () => {
-  state.screen = 'learn-home';
-  showScreen('learn-home');
-  LearnEngine.renderHome();
-});
 
 document.getElementById('pillar-practice').addEventListener('click', () => {
   state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
@@ -204,7 +194,6 @@ document.getElementById('pillar-progress').addEventListener('click', () => {
 document.getElementById('btn-back-from-menu').addEventListener('click', goHome);
 document.getElementById('btn-back-from-practice-setup').addEventListener('click', goHome);
 document.getElementById('btn-back-from-progress').addEventListener('click', goHome);
-document.getElementById('btn-back-from-learn-home').addEventListener('click', goHome);
 
 // ── Practice setup screen — wired once, re-renders on every change ────────
 document.getElementById('practice-setup').addEventListener('click', e => {
@@ -442,14 +431,25 @@ document.addEventListener('click', e => {
   }
 });
 
+// ── First-run welcome overlay ─────────────────────────────
+const WELCOMED_KEY = 'ct_welcomed_v1';
+function shouldShowWelcome() {
+  try {
+    if (localStorage.getItem(WELCOMED_KEY)) return false;
+    return localStorage.getItem('ct_mastery_v1') == null; // existing players skip it
+  } catch (_) { return false; }
+}
+document.getElementById('btn-welcome-go').addEventListener('click', () => {
+  try { localStorage.setItem(WELCOMED_KEY, 'true'); } catch (_) {}
+  document.getElementById('welcome-overlay').style.display = 'none';
+});
+
 // ── Init ─────────────────────────────────────────────────
 buildPiano();
 Progress.init();
-LearnEngine.init();
-LearnEngine.updateLearnPillarCard();
 if (!state.practice.setupDraft.qualities.length) {
   state.practice.setupDraft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
 }
 UI.renderMenu();
 updateMidiStatus();
-LearnEngine.maybeShowWelcome();
+if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.display = '';
