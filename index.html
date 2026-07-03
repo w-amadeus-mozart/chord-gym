@@ -300,79 +300,85 @@
 
 <!-- ══════════ GAME SCREEN ══════════ -->
 <div id="game" class="screen">
-  <div class="hud">
-    <div class="hud-item">
-      <div class="hud-label" id="hud-label-score">Score</div>
-      <div class="hud-val score-val" id="hud-score">0</div>
-    </div>
-    <div class="hud-item">
-      <div class="hud-label" id="hud-label-timer">Time</div>
-      <div class="hud-val timer-val" id="hud-timer">60</div>
-    </div>
-    <div class="hud-item">
-      <div class="hud-label">Streak</div>
-      <div class="hud-val streak-val" id="hud-streak">0</div>
-    </div>
-    <div class="hud-item" id="hud-item-mult">
-      <div class="hud-label">Multiplier</div>
-      <div class="hud-val mult-val" id="hud-mult">×1</div>
-    </div>
-    <div class="hud-item">
-      <div class="hud-label" id="hud-label-chords">Chords</div>
-      <div class="hud-val" id="hud-chords">0</div>
-    </div>
-    <!-- Shown only in Survival Nightmare runs -->
-    <div class="nightmare-badge" id="nightmare-badge" style="display:none">☠ NIGHTMARE</div>
-  </div>
+  <div class="session-grid">
+    <div class="session-main">
+      <div class="hud">
+        <div class="hud-item">
+          <div class="hud-label" id="hud-label-score">Score</div>
+          <div class="hud-val score-val" id="hud-score">0</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label" id="hud-label-timer">Time</div>
+          <div class="hud-val timer-val" id="hud-timer">60</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">Streak</div>
+          <div class="hud-val streak-val" id="hud-streak">0</div>
+        </div>
+        <div class="hud-item" id="hud-item-mult">
+          <div class="hud-label">Multiplier</div>
+          <div class="hud-val mult-val" id="hud-mult">×1</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label" id="hud-label-chords">Chords</div>
+          <div class="hud-val" id="hud-chords">0</div>
+        </div>
+        <!-- Shown only in Survival Nightmare runs -->
+        <div class="nightmare-badge" id="nightmare-badge" style="display:none">☠ NIGHTMARE</div>
+      </div>
 
-  <div class="timer-bar-wrap" id="timer-bar-wrap">
-    <div class="timer-bar" id="timer-bar"></div>
-  </div>
-  <!-- Health bar — falling mode only, hidden during sprint/survival -->
-  <div class="health-bar-wrap" id="health-bar-wrap" style="display:none">
-    <span class="health-label">HP</span>
-    <div class="health-track">
-      <div class="health-bar" id="health-bar"></div>
-    </div>
-  </div>
+      <div class="timer-bar-wrap" id="timer-bar-wrap">
+        <div class="timer-bar" id="timer-bar"></div>
+      </div>
+      <!-- Health bar — falling mode only, hidden during sprint/survival -->
+      <div class="health-bar-wrap" id="health-bar-wrap" style="display:none">
+        <span class="health-label">HP</span>
+        <div class="health-track">
+          <div class="health-bar" id="health-bar"></div>
+        </div>
+      </div>
 
-  <!-- Practice controls — hidden unless mode === 'practice' -->
-  <div class="practice-controls" id="practice-controls" style="display:none">
-    <button class="song-opt-secondary" id="btn-hint">💡 Hint</button>
-    <label class="auto-hint-label">
-      <input type="checkbox" id="auto-hint-toggle">
-      Auto-hint after 5s
-    </label>
-    <span class="hint-notice" id="hint-notice" style="display:none">Hinted reps don't count toward mastery</span>
-    <button class="btn-secondary" id="btn-end-practice">End Session</button>
-  </div>
+      <!-- Falling Chords lane — hidden unless mode === 'falling' -->
+      <canvas id="lane-canvas" style="display:none"></canvas>
 
-  <!-- Falling Chords lane — hidden unless mode === 'falling' -->
-  <canvas id="lane-canvas" style="display:none"></canvas>
+      <div class="chord-arena" id="chord-arena">
+        <div class="streak-fire" id="streak-fire"></div>
+        <div id="chord-display">—</div>
+        <div class="note-indicators" id="note-indicators"></div>
+        <div class="arena-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div id="death-overlay"></div>
+      </div>
 
-  <div class="chord-arena" id="chord-arena">
-    <div class="streak-fire" id="streak-fire"></div>
-    <div id="chord-display">—</div>
-    <div class="note-indicators" id="note-indicators"></div>
-    <div id="death-overlay"></div>
-  </div>
-
-  <div class="keyboard-section">
-    <div class="keyboard-section-header">
-      <h4 id="keyboard-caption">On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
-      <div class="kb-size-control" id="kb-size-control" style="display:none">
-        <button class="kb-size-btn" data-kb-size="61">61</button>
-        <button class="kb-size-btn" data-kb-size="73">73</button>
-        <button class="kb-size-btn" data-kb-size="88">88</button>
+      <div class="keyboard-section">
+        <div class="keyboard-section-header">
+          <h4 id="keyboard-caption">On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
+          <div class="kb-size-control" id="kb-size-control" style="display:none">
+            <button class="kb-size-btn" data-kb-size="61">61</button>
+            <button class="kb-size-btn" data-kb-size="73">73</button>
+            <button class="kb-size-btn" data-kb-size="88">88</button>
+          </div>
+        </div>
+        <div class="piano-frame">
+          <span class="kb-edge-arrow kb-edge-arrow-left" id="kb-arrow-left" style="display:none">◀</span>
+          <div class="piano-scroll"><div class="piano-wrap" id="piano"></div></div>
+          <span class="kb-edge-arrow kb-edge-arrow-right" id="kb-arrow-right" style="display:none">▶</span>
+        </div>
       </div>
     </div>
-    <div class="piano-frame">
-      <span class="kb-edge-arrow kb-edge-arrow-left" id="kb-arrow-left" style="display:none">◀</span>
-      <div class="piano-scroll"><div class="piano-wrap" id="piano"></div></div>
-      <span class="kb-edge-arrow kb-edge-arrow-right" id="kb-arrow-right" style="display:none">▶</span>
+
+    <!-- Practice-only session rail — hidden unless mode === 'practice' (folds above the
+         arena as a horizontal row below ~1200px; see .session-rail media query) -->
+    <div class="session-rail" id="practice-controls" style="display:none">
+      <div class="session-rail-summary" id="practice-session-summary"></div>
+      <button class="song-opt-secondary" id="btn-hint">💡 Hint</button>
+      <label class="auto-hint-label">
+        <input type="checkbox" id="auto-hint-toggle">
+        Auto-hint after 5s
+      </label>
+      <span class="hint-notice" id="hint-notice" style="display:none">Hinted reps don't count toward mastery</span>
+      <button class="btn-secondary" id="btn-end-practice">End Session</button>
     </div>
   </div>
-
 </div>
 
 <!-- ══════════ RESULTS SCREEN ══════════ -->

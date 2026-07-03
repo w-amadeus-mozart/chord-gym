@@ -257,6 +257,7 @@ export const PracticeMode = {
     _config = { ...config, qualities: config.qualities ? [...config.qualities] : [] };
     state.practice.config = _config;
     _persistLastSession(_config);
+    document.getElementById('practice-session-summary').textContent = describeConfig(_config);
 
     _pool = [];
     _rootFamilyPool = [];
