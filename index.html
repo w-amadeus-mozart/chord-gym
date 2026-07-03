@@ -26,41 +26,40 @@
 <!-- Animated aurora background (CSS-driven, behind all screens) -->
 <div class="bg-aurora" aria-hidden="true"></div>
 
-<!-- Status bar (always visible) -->
-<div id="status-bar">
-  <div class="status-dot" id="status-dot"></div>
-  <div id="midi-activity" title="MIDI signal"></div>
-  <span id="midi-device-name">No MIDI device connected</span>
-  <button id="btn-connect-midi">Connect MIDI</button>
-  <button id="mute-btn" title="Toggle sound">🔊</button>
-  <button id="mixer-btn" title="Audio mixer">⚙</button>
-</div>
+<div class="app-shell">
+  <!-- ══════════ Sidebar ══════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-lockup">
+      <img src="/chordgym-mark.svg" alt="" class="sidebar-mark">
+      <span class="sidebar-word">Chord<b>Gym</b></span>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <button class="sidebar-nav-item selected" data-nav="home"><span class="snav-icon">⌂</span><span class="snav-label">Dashboard</span></button>
+      <button class="sidebar-nav-item" data-nav="practice"><span class="snav-icon">◎</span><span class="snav-label">Practice</span></button>
+      <button class="sidebar-nav-item" data-nav="test"><span class="snav-icon">⚡</span><span class="snav-label">Test</span></button>
+      <button class="sidebar-nav-item" data-nav="progress"><span class="snav-icon">▤</span><span class="snav-label">Progress</span></button>
+      <button class="sidebar-nav-item" data-nav="settings"><span class="snav-icon">⚙</span><span class="snav-label">Settings</span></button>
+    </nav>
+  </aside>
 
-<!-- Mixer popover — positioned via JS, toggled open/closed -->
-<div id="mixer-popover" class="mixer-popover" style="display:none" role="dialog" aria-label="Audio mixer">
-  <div class="mixer-row">
-    <label class="mixer-label" for="vol-piano">Piano</label>
-    <input class="mixer-slider" id="vol-piano" type="range" min="0" max="100" step="1">
-    <span class="mixer-val" id="val-piano"></span>
-  </div>
-  <div class="mixer-row">
-    <label class="mixer-label" for="vol-backing">Backing</label>
-    <input class="mixer-slider" id="vol-backing" type="range" min="0" max="100" step="1">
-    <span class="mixer-val" id="val-backing"></span>
-  </div>
-  <div class="mixer-row">
-    <label class="mixer-label" for="vol-ui">UI sounds</label>
-    <input class="mixer-slider" id="vol-ui" type="range" min="0" max="100" step="1">
-    <span class="mixer-val" id="val-ui"></span>
-  </div>
-  <div class="mixer-row mixer-row-toggle">
-    <label class="mixer-label mixer-toggle-label" for="live-audition">
-      <input type="checkbox" id="live-audition">
-      Live piano samples
-    </label>
-  </div>
-  <div class="mixer-status" id="sampler-status"></div>
-</div>
+  <div class="app-main">
+    <!-- Top bar (always visible) -->
+    <div id="topbar">
+      <div class="topbar-device">
+        <div class="status-dot" id="status-dot"></div>
+        <div id="midi-activity" title="MIDI signal"></div>
+        <div class="topbar-device-text">
+          <span class="topbar-device-name" id="midi-device-name">No MIDI device connected</span>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-connect-midi">Connect MIDI</button>
+        <button class="topbar-icon-btn" id="mute-btn" title="Toggle sound">🔊</button>
+        <button class="topbar-icon-btn" id="settings-btn" title="Settings">⚙</button>
+      </div>
+    </div>
+
+    <div class="app-content">
 
 <!-- ══════════ HOME SCREEN ══════════ -->
 <div id="home" class="screen active">
@@ -397,10 +396,6 @@
       <div class="drilldown-panel" id="drilldown-panel" style="display:none"></div>
 
       <div class="recommendations-panel" id="recommendations-panel"></div>
-
-      <div class="danger-zone" id="danger-zone">
-        <button class="danger-btn" id="btn-reset-progress">Reset all progress</button>
-      </div>
     </div>
 
     <div class="progress-empty-overlay" id="progress-empty-overlay" style="display:none">
@@ -411,6 +406,73 @@
           <button class="btn-secondary" id="progress-empty-test">Go to Test</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SETTINGS SCREEN ══════════ -->
+<div id="settings" class="screen">
+  <div class="song-select-header">
+    <h2 class="song-select-title">Settings</h2>
+    <p class="song-select-sub">Audio, keyboard, and calibration — plus the reset zone.</p>
+  </div>
+
+  <div class="settings-panel">
+    <h4>Audio</h4>
+    <div class="mixer-row">
+      <label class="mixer-label" for="vol-piano">Piano</label>
+      <input class="mixer-slider" id="vol-piano" type="range" min="0" max="100" step="1">
+      <span class="mixer-val" id="val-piano"></span>
+    </div>
+    <div class="mixer-row">
+      <label class="mixer-label" for="vol-backing">Backing</label>
+      <input class="mixer-slider" id="vol-backing" type="range" min="0" max="100" step="1">
+      <span class="mixer-val" id="val-backing"></span>
+    </div>
+    <div class="mixer-row">
+      <label class="mixer-label" for="vol-ui">UI sounds</label>
+      <input class="mixer-slider" id="vol-ui" type="range" min="0" max="100" step="1">
+      <span class="mixer-val" id="val-ui"></span>
+    </div>
+    <div class="mixer-row mixer-row-toggle">
+      <label class="mixer-label mixer-toggle-label" for="live-audition">
+        <input type="checkbox" id="live-audition">
+        Live piano samples
+      </label>
+    </div>
+    <div class="mixer-status" id="sampler-status"></div>
+  </div>
+
+  <div class="settings-panel">
+    <h4>Keyboard</h4>
+    <div class="settings-kb-row">
+      <span class="mixer-label" style="width:auto">Display size</span>
+      <div class="kb-size-control" id="settings-kb-size-control">
+        <button class="kb-size-btn" data-kb-size="61">61</button>
+        <button class="kb-size-btn" data-kb-size="73">73</button>
+        <button class="kb-size-btn" data-kb-size="88">88</button>
+      </div>
+    </div>
+    <div class="mixer-row mixer-row-toggle">
+      <label class="mixer-label mixer-toggle-label" for="note-names-toggle">
+        <input type="checkbox" id="note-names-toggle">
+        Show note names on keys
+      </label>
+    </div>
+  </div>
+
+  <div class="settings-panel">
+    <h4>Falling Chords</h4>
+    <div class="settings-btn-row">
+      <span class="mixer-label">Timing offset</span>
+      <button class="song-opt-secondary" id="btn-calibrate-settings">⏱ Calibrate timing</button>
+    </div>
+  </div>
+
+  <div class="settings-panel">
+    <h4>Danger zone</h4>
+    <div class="danger-zone" id="danger-zone">
+      <button class="danger-btn" id="btn-reset-progress">Reset all progress</button>
     </div>
   </div>
 </div>
@@ -432,6 +494,10 @@
     </div>
   </div>
 </div>
+
+    </div><!-- /.app-content -->
+  </div><!-- /.app-main -->
+</div><!-- /.app-shell -->
 
 <script type="module" src="/src/main.js"></script>
 </body>

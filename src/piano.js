@@ -33,7 +33,8 @@ const KEYBOARD_SIZES = {
 };
 const KB_SIZE_KEY = 'ct_kb_size_v1';
 
-let _labelMode = 'letters'; // 'letters' | 'notes' — see setKeyLabelMode()
+let _labelMode = 'letters';     // 'letters' | 'notes' — current directive, see setKeyLabelMode()
+let _idleLabelMode = 'letters'; // 'letters' | 'notes' — persisted Settings default, sized keyboard only
 let _kbSize = _loadKbSize();
 let _rangeStart = PIANO_START;
 let _rangeEnd = PIANO_START + PIANO_OCTAVES * 12 - 1; // 71 — updated per render by whichever path ran
@@ -69,6 +70,9 @@ export function buildPiano() {
     wrap.className = 'piano-wrap compact';
   }
 
+  // Compact mode's letters ARE the input scheme — the Settings note-names
+  // preference only applies once a sized (MIDI-connected) keyboard is shown.
+  _labelMode = connected ? _idleLabelMode : 'letters';
   _applyLabelMode();
   _syncChrome(connected);
 }
@@ -190,6 +194,16 @@ export function updateEdgeArrows(heldNotes) {
 export function setKeyLabelMode(mode) {
   _labelMode = mode === 'notes' ? 'notes' : 'letters';
   _applyLabelMode();
+}
+
+// Settings-driven default for the sized (MIDI-connected) keyboard — takes effect
+// immediately if already connected; otherwise applied on the next buildPiano().
+export function setIdleLabelMode(mode) {
+  _idleLabelMode = mode === 'notes' ? 'notes' : 'letters';
+  if (MidiInput.getDeviceNames().length > 0) {
+    _labelMode = _idleLabelMode;
+    _applyLabelMode();
+  }
 }
 
 function _applyLabelMode() {

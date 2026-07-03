@@ -8,7 +8,7 @@ import { ChordEngine } from './chords.js';
 import { MidiInput } from './midi.js';
 import { GameAudio } from './audio.js';
 import { UI, showScreen } from './ui.js';
-import { buildPiano, KEY_MAP, setKeyboardSize } from './piano.js';
+import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode } from './piano.js';
 import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode, skipDeath } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
@@ -19,14 +19,15 @@ import { Progress } from './progress.js';
 function updateMidiStatus() {
   const dot = document.getElementById('status-dot');
   const name = document.getElementById('midi-device-name');
+  const connectBtn = document.getElementById('btn-connect-midi');
   const devices = MidiInput.getDeviceNames();
-  if (devices.length > 0) {
-    dot.className = 'status-dot connected';
-    name.textContent = devices.join(', ');
-  } else {
-    dot.className = 'status-dot';
-    name.textContent = 'No MIDI device — use on-screen keyboard or A–K / W E T Y U keys';
-  }
+  const connected = devices.length > 0;
+  dot.className = connected ? 'status-dot connected' : 'status-dot';
+  name.textContent = connected
+    ? devices.join(', ')
+    : 'No MIDI device — use on-screen keyboard or A–K / W E T Y U keys';
+  connectBtn.classList.toggle('connected', connected);
+  if (connected) connectBtn.textContent = 'Connected';
 }
 
 // ── MIDI activity light ──────────────────────────────────
@@ -94,11 +95,28 @@ document.getElementById('btn-connect-midi').addEventListener('click', async () =
   }
 });
 
-// ── Keyboard size control (display mode only) ─────────────
-document.getElementById('kb-size-control').addEventListener('click', e => {
-  const btn = e.target.closest('[data-kb-size]');
-  if (!btn) return;
-  setKeyboardSize(parseInt(btn.dataset.kbSize, 10));
+// ── Keyboard size control (display mode only) — wired on both the in-session
+// panel and the Settings screen; piano.js keeps every .kb-size-btn in sync ──
+function _wireKbSizeControl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('click', e => {
+    const btn = e.target.closest('[data-kb-size]');
+    if (!btn) return;
+    setKeyboardSize(parseInt(btn.dataset.kbSize, 10));
+  });
+}
+_wireKbSizeControl('kb-size-control');
+_wireKbSizeControl('settings-kb-size-control');
+
+// ── Note names toggle (Settings) ──────────────────────────
+const NOTE_NAMES_KEY = 'ct_note_names_v1';
+const _noteNamesCb = document.getElementById('note-names-toggle');
+try { _noteNamesCb.checked = localStorage.getItem(NOTE_NAMES_KEY) === 'true'; } catch (_) {}
+setIdleLabelMode(_noteNamesCb.checked ? 'notes' : 'letters');
+_noteNamesCb.addEventListener('change', () => {
+  try { localStorage.setItem(NOTE_NAMES_KEY, _noteNamesCb.checked ? 'true' : 'false'); } catch (_) {}
+  setIdleLabelMode(_noteNamesCb.checked ? 'notes' : 'letters');
 });
 
 // ── Mute toggle ──────────────────────────────────────────
@@ -187,22 +205,39 @@ function openPracticeSetup() {
   UI.renderPracticeSetup(true);
 }
 
-document.getElementById('pillar-practice').addEventListener('click', openPracticeSetup);
-
-document.getElementById('pillar-test').addEventListener('click', () => {
+function openTest() {
   state.screen = 'menu';
   showScreen('menu');
   UI.renderMenu();
-});
+}
 
-document.getElementById('pillar-progress').addEventListener('click', () => {
+function openProgress() {
   state.screen = 'progress';
   showScreen('progress');
   Progress.render();
-});
+}
+
+function openSettings() {
+  state.screen = 'settings';
+  showScreen('settings');
+}
+
+document.getElementById('pillar-practice').addEventListener('click', openPracticeSetup);
+document.getElementById('pillar-test').addEventListener('click', openTest);
+document.getElementById('pillar-progress').addEventListener('click', openProgress);
 
 document.getElementById('btn-back-from-menu').addEventListener('click', goHome);
 document.getElementById('btn-back-from-progress').addEventListener('click', goHome);
+
+// ── Sidebar navigation — wired once ───────────────────────
+document.getElementById('sidebar-nav').addEventListener('click', e => {
+  const btn = e.target.closest('[data-nav]');
+  if (!btn) return;
+  const dest = { home: goHome, practice: openPracticeSetup, test: openTest, progress: openProgress, settings: openSettings };
+  (dest[btn.dataset.nav] || goHome)();
+});
+
+document.getElementById('settings-btn').addEventListener('click', openSettings);
 
 // ── Practice landing screen (presets) — wired once, re-renders on every change ──
 document.getElementById('practice-setup').addEventListener('click', e => {
@@ -329,12 +364,7 @@ function openSongSelect() {
     healthToggle.checked = localStorage.getItem('falling_health') !== 'false';
   } catch (_) {}
 
-  // Show calibration offset if set
-  const offset = FallingChordsMode.getInputOffsetMs();
-  if (Math.abs(offset) >= 1) {
-    const sign = offset >= 0 ? '+' : '';
-    document.getElementById('btn-calibrate').title = `Current offset: ${sign}${offset.toFixed(0)}ms`;
-  }
+  _syncCalibrationTitle();
 }
 
 // ── Button wiring ────────────────────────────────────────
@@ -403,8 +433,17 @@ document.getElementById('health-toggle').addEventListener('change', e => {
   try { localStorage.setItem('falling_health', e.target.checked ? 'true' : 'false'); } catch (_) {}
 });
 
-// ── Calibration ───────────────────────────────────────────
-document.getElementById('btn-calibrate').addEventListener('click', () => {
+// ── Calibration — entry points on both the Falling song-select screen and Settings ──
+function _syncCalibrationTitle() {
+  const offset = FallingChordsMode.getInputOffsetMs();
+  const title = Math.abs(offset) >= 1
+    ? `Current offset: ${offset >= 0 ? '+' : ''}${offset.toFixed(0)}ms`
+    : '';
+  document.getElementById('btn-calibrate').title = title;
+  document.getElementById('btn-calibrate-settings').title = title;
+}
+
+function openCalibration() {
   const overlay = document.getElementById('calibration-overlay');
   overlay.style.display = '';
   const resultEl = document.getElementById('calib-result');
@@ -412,7 +451,9 @@ document.getElementById('btn-calibrate').addEventListener('click', () => {
   const dotsEl = document.getElementById('calib-dots');
   dotsEl.style.display = '';
   FallingChordsMode.startCalibration();
-});
+}
+document.getElementById('btn-calibrate').addEventListener('click', openCalibration);
+document.getElementById('btn-calibrate-settings').addEventListener('click', openCalibration);
 
 document.getElementById('btn-cancel-calib').addEventListener('click', () => {
   FallingChordsMode.cancelCalibration();
@@ -423,7 +464,7 @@ document.getElementById('btn-calib-reset').addEventListener('click', () => {
   try { localStorage.removeItem('falling_offset_ms'); } catch (_) {}
   document.getElementById('calib-result').textContent = 'Offset cleared (0ms)';
   document.getElementById('calib-result').style.display = '';
-  document.getElementById('btn-calibrate').title = '';
+  _syncCalibrationTitle();
 });
 
 // ── Sampler loading ───────────────────────────────────────────────────────────
@@ -452,7 +493,7 @@ async function maybeLoadSampler() {
 document.addEventListener('keydown', () => maybeLoadSampler(), { once: true });
 document.addEventListener('click',   () => maybeLoadSampler(), { once: true });
 
-// ── Mixer popover ─────────────────────────────────────────────────────────────
+// ── Audio settings (Settings screen) ────────────────────────────────────────────
 function _bindSlider(id, valId, getter, setter) {
   const input = document.getElementById(id);
   const valEl = document.getElementById(valId);
@@ -472,26 +513,6 @@ _liveAuditionCb.checked = GameAudio.getLiveAudition();
 _liveAuditionCb.addEventListener('change', () => {
   GameAudio.setLiveAudition(_liveAuditionCb.checked);
   if (_liveAuditionCb.checked) maybeLoadSampler();
-});
-
-document.getElementById('mixer-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  const popover = document.getElementById('mixer-popover');
-  const btn     = document.getElementById('mixer-btn');
-  const opening = popover.style.display === 'none';
-  popover.style.display = opening ? '' : 'none';
-  btn.classList.toggle('open', opening);
-});
-
-document.addEventListener('click', e => {
-  const popover = document.getElementById('mixer-popover');
-  const btn     = document.getElementById('mixer-btn');
-  if (popover.style.display !== 'none'
-      && !popover.contains(e.target)
-      && e.target !== btn) {
-    popover.style.display = 'none';
-    btn.classList.remove('open');
-  }
 });
 
 // ── First-run welcome overlay ─────────────────────────────
@@ -516,4 +537,5 @@ if (!state.practice.setupDraft.qualities.length) {
 }
 UI.renderMenu();
 updateMidiStatus();
+_syncCalibrationTitle();
 if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.display = '';

@@ -33,8 +33,30 @@ const ORDER_OPTIONS = [
 // caption so it disappears the moment the user makes their own choice.
 let _showLastSessionCaption = false;
 
+// Maps a screen id to the sidebar pillar it belongs to. 'game'/'results'/'dying'
+// are shared by Practice and the Test games, so those resolve via state.mode.
+const NAV_MAP = {
+  home: 'home',
+  'practice-setup': 'practice',
+  'practice-custom': 'practice',
+  menu: 'test',
+  'song-select': 'test',
+  progress: 'progress',
+  settings: 'settings',
+};
+
+function _syncSidebarNav(screenId) {
+  let navId = NAV_MAP[screenId];
+  if (!navId && (screenId === 'game' || screenId === 'results' || screenId === 'dying')) {
+    navId = state.mode === 'practice' ? 'practice' : 'test';
+  }
+  document.querySelectorAll('.sidebar-nav-item').forEach(b =>
+    b.classList.toggle('selected', b.dataset.nav === navId));
+}
+
 export function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  _syncSidebarNav(id);
 }
 
 export const UI = {
