@@ -61,8 +61,13 @@ async function loadSampler(progressCb) {
 
 // ── Live audition toggle ─────────────────────────────────────────────────────
 // When ON: every MIDI noteOn/Off is routed through the sampler.
-let _liveAudition = false;
-try { _liveAudition = localStorage.getItem('live_audition') === 'true'; } catch (_) {}
+// Defaults ON for a fresh profile (silent controllers need to hear themselves
+// in a music lesson) but always respects an existing stored choice.
+let _liveAudition = true;
+try {
+  const stored = localStorage.getItem('live_audition');
+  _liveAudition = stored === null ? true : stored === 'true';
+} catch (_) {}
 
 function getLiveAudition() { return _liveAudition; }
 function setLiveAudition(v) {

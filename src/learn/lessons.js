@@ -7,13 +7,20 @@
 //
 // Step shapes:
 //   { type:'explain', text, highlight?:{rootPc,typeName,labels}, cta? }
-//   { type:'demo',    chord?:{rootPc,typeName}, chords?:[{rootPc,typeName},...], mode:'chord'|'sequential' }
-//   { type:'copy',     chord?:{rootPc,typeName}, anyNote?:true, text? }
+//   { type:'demo',    chord?:{rootPc,typeName}, chords?:[{rootPc,typeName},...], mode:'chord'|'sequential'|'resolve'|'compare' }
+//   { type:'copy',     chord?:{rootPc,typeName}, anyNote?:true, text?, register?:'low'|'high' }
 //   { type:'drill',   chords:[{rootPc,typeName},...], requiredClean }
-//   { type:'choice',  question, options:[{text,correct}], correction }
+//   { type:'choice',  question, options:[{text,correct}], correction, reinforcement }
 //
 // `labels` on a highlight are zipped positionally against the chord's pitch
 // classes in interval order (root, 3rd, 5th, [7th]) — e.g. ['1','3','5'].
+//
+// `register` on a copy step additionally requires the highest currently-held
+// MIDI note to sit below (`'low'`) or at-or-above (`'high'`) middle C (60) —
+// e.g. "play it with your left hand, lower on the keyboard."
+//
+// Every lesson carries a `summary` — the one-line takeaway shown on the
+// lesson-complete screen after the final step.
 
 const MAJOR   = ['1', '3', '5'];
 const MINOR   = ['1', 'b3', '5'];
@@ -34,10 +41,11 @@ export const LESSONS = [
     title: 'Welcome to the Gym',
     description: 'Get your keyboard connected and play your first chord.',
     duration: '~90 sec',
+    summary: 'ChordGym listens through your MIDI keyboard or the on-screen keys — and every chord is just notes played together.',
     steps: [
       {
         type: 'explain',
-        text: "ChordGym listens to your MIDI keyboard. Let's make sure it hears you.",
+        text: "ChordGym listens to your MIDI keyboard. Let's make sure it hears you. Hearing every note twice? Turn off ChordGym's key sound in settings (⚙ top right).",
         showMidiStatus: true,
       },
       {
@@ -61,54 +69,112 @@ export const LESSONS = [
   },
 
   {
-    id: 'major-triad',
-    title: 'The Major Triad',
-    description: 'Learn the shape and the sound recipe behind every major chord.',
-    duration: '~3 min',
+    id: 'your-first-chord',
+    title: 'Your First Chord',
+    description: 'Three notes, one motion — meet C major and the builder\'s shortcut behind it.',
+    duration: '~2 min',
+    summary: 'A chord is three notes played together — C, E, G build C major by skipping a letter each time from the root.',
     steps: [
+      { type: 'explain', text: 'A chord is three notes.' },
+      { type: 'explain', text: "They're played together — at the same time, one motion." },
       {
         type: 'explain',
-        text: 'Count from the root: 1, skip a letter, 3, skip a letter, 5.',
-        highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
-      },
-      {
-        type: 'explain',
-        text: 'The sound recipe: 4 half-steps up to the 3rd, then 3 more half-steps up to the 5th.',
+        text: "Let's play your first chord.",
         highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
       },
       { type: 'demo', chord: { rootPc: C, typeName: 'Major' }, mode: 'chord' },
-      { type: 'demo', chord: { rootPc: C, typeName: 'Major' }, mode: 'sequential' },
-      { type: 'copy', chord: { rootPc: C, typeName: 'Major' } },
       {
         type: 'explain',
-        text: 'Same recipe, new root. Start on F.',
+        text: 'C, E and G together form a C major chord.',
+        highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
+      },
+      {
+        type: 'explain',
+        text: 'Major chords are the happy-sounding chords.',
+        highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
+      },
+      { type: 'demo', chord: { rootPc: C, typeName: 'Major' }, mode: 'chord' },
+      { type: 'copy', chord: { rootPc: C, typeName: 'Major' } },
+      {
+        type: 'copy',
+        chord: { rootPc: C, typeName: 'Major' },
+        register: 'low',
+        text: 'Now with your left hand — same three notes, lower on the keyboard.',
+      },
+      {
+        type: 'explain',
+        text: "The chord is named after its first note — its root. A C chord starts on C. See the name, start on that note, build from there.",
+        highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
+      },
+      {
+        type: 'explain',
+        text: "The builder's shortcut: start on the root, skip a note, skip a note. C, skip D, E, skip F, G.",
+        highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
+        cta: 'Finish',
+      },
+    ],
+  },
+
+  {
+    id: 'skip-skip-chords',
+    title: 'Skip-Skip Chords',
+    description: 'The same builder\'s shortcut on five more roots — three majors, three minors.',
+    duration: '~4 min',
+    summary: 'Skip-skip from F, G, A, D, and E builds F, G major and Am, Dm, Em — the white-key six.',
+    steps: [
+      {
+        type: 'explain',
+        text: 'The same skip-skip move, starting on other white keys, builds more chords. F and G give you more majors.',
         highlight: { rootPc: F, typeName: 'Major', labels: MAJOR },
       },
       { type: 'copy', chord: { rootPc: F, typeName: 'Major' } },
       {
         type: 'explain',
-        text: 'New root, same shape. This time: G.',
+        text: 'G major — same move, new root.',
         highlight: { rootPc: G, typeName: 'Major', labels: MAJOR },
       },
       { type: 'copy', chord: { rootPc: G, typeName: 'Major' } },
       {
+        type: 'explain',
+        text: 'Start skip-skip on A, D, or E and you get a different flavor: Am, Dm, Em — the sad-sounding minor cousins.',
+        highlight: { rootPc: A, typeName: 'Minor', labels: MINOR },
+      },
+      {
+        type: 'demo',
+        chords: [{ rootPc: C, typeName: 'Major' }, { rootPc: A, typeName: 'Minor' }],
+        mode: 'compare',
+      },
+      { type: 'copy', chord: { rootPc: A, typeName: 'Minor' } },
+      {
+        type: 'explain',
+        text: 'Em — same minor shape, new root.',
+        highlight: { rootPc: E, typeName: 'Minor', labels: MINOR },
+      },
+      { type: 'copy', chord: { rootPc: E, typeName: 'Minor' } },
+      {
+        type: 'explain',
+        text: 'Dm — same minor shape again.',
+        highlight: { rootPc: D, typeName: 'Minor', labels: MINOR },
+      },
+      { type: 'copy', chord: { rootPc: D, typeName: 'Minor' } },
+      {
         type: 'drill',
         chords: [
-          { rootPc: C, typeName: 'Major' },
-          { rootPc: F, typeName: 'Major' },
-          { rootPc: G, typeName: 'Major' },
+          { rootPc: C, typeName: 'Major' }, { rootPc: F, typeName: 'Major' }, { rootPc: G, typeName: 'Major' },
+          { rootPc: A, typeName: 'Minor' }, { rootPc: E, typeName: 'Minor' }, { rootPc: D, typeName: 'Minor' },
         ],
-        requiredClean: 6,
+        requiredClean: 8,
       },
       {
         type: 'choice',
-        question: 'The major recipe is:',
+        question: "A chord's root is…",
         options: [
-          { text: '1 – 3 – 5', correct: true },
-          { text: '1 – 2 – 3', correct: false },
-          { text: '1 – 4 – 5', correct: false },
+          { text: "The note it's named after", correct: true },
+          { text: 'Always C', correct: false },
+          { text: 'The highest note', correct: false },
         ],
-        correction: 'Not quite — count 1, skip a letter to 3, skip a letter to 5.',
+        correction: "Not quite — the root is the note the chord is named after, and where you start building.",
+        reinforcement: "the note it's named after. Start there and build up.",
       },
     ],
   },
@@ -118,10 +184,11 @@ export const LESSONS = [
     title: 'Same Shape, New Ground',
     description: 'Major chords by feel across the white keys and their black-key neighbors.',
     duration: '~4 min',
+    summary: 'D, A, and E major put one black key in the middle — same skip-skip shape, new ground.',
     steps: [
       {
         type: 'explain',
-        text: 'Your hands learn terrain before theory. C, F, and G are all-white chords. D, A, and E each put one black key in the middle.',
+        text: 'Three more white-key majors put one black key in the middle: D, A, and E.',
       },
       { type: 'demo', chord: { rootPc: D, typeName: 'Major' }, mode: 'chord' },
       {
@@ -152,7 +219,7 @@ export const LESSONS = [
       },
       {
         type: 'explain',
-        text: 'Next: every major chord becomes minor by moving one finger.',
+        text: "Next: you've already played Am, Dm, and Em — let's see what actually makes them minor.",
         cta: 'Finish',
       },
     ],
@@ -163,10 +230,11 @@ export const LESSONS = [
     title: 'One Finger Down: Minor',
     description: 'The one move that turns any major chord minor.',
     duration: '~4 min',
+    summary: "Lower the 3rd a half-step and any major chord becomes its minor twin.",
     steps: [
       {
         type: 'explain',
-        text: 'Every major chord becomes minor by lowering the 3rd one half-step. Same root, same 5th — just the middle note moves.',
+        text: "You've already played Am, Em, and Dm. Here's what actually makes them minor: lower the 3rd one half-step. Same root, same 5th — just the middle note moves.",
         highlight: { rootPc: C, typeName: 'Major', labels: MAJOR },
       },
       { type: 'demo', chord: { rootPc: C, typeName: 'Major' }, mode: 'chord' },
@@ -174,7 +242,7 @@ export const LESSONS = [
       { type: 'copy', chord: { rootPc: C, typeName: 'Minor' } },
       {
         type: 'explain',
-        text: 'Same move, new root: A major becomes A minor.',
+        text: 'Same move, new root: A major becomes A minor — the chord you already know.',
         highlight: { rootPc: A, typeName: 'Minor', labels: MINOR },
       },
       { type: 'demo', chord: { rootPc: A, typeName: 'Major' }, mode: 'chord' },
@@ -189,6 +257,7 @@ export const LESSONS = [
           { text: 'Lower the root a whole-step', correct: false },
         ],
         correction: 'Close — the move is on the middle note: lower the 3rd one half-step.',
+        reinforcement: 'lower the 3rd a half-step. Root and 5th stay put.',
       },
       {
         type: 'drill',
@@ -202,7 +271,7 @@ export const LESSONS = [
       },
       {
         type: 'explain',
-        text: 'Lesson 4 takes you into the black keys — Db, Eb, and Ab major.',
+        text: 'Next lesson takes you into the black keys — Db, Eb, and Ab major.',
         cta: 'Finish',
       },
     ],
@@ -213,6 +282,7 @@ export const LESSONS = [
     title: 'The Black-Key Majors',
     description: 'Db, Eb, and Ab share a shape — then the oddballs: B, Bb, and F#.',
     duration: '~4 min',
+    summary: 'Db, Eb, and Ab share a black-white-black shape; B, Bb, and F# round out all twelve major roots.',
     steps: [
       {
         type: 'explain',
@@ -268,6 +338,7 @@ export const LESSONS = [
     title: 'Minor Everywhere',
     description: 'The same lowered-3rd move, across every root.',
     duration: '~4 min',
+    summary: 'The lowered-3rd move works from every root — major and minor, all twelve keys.',
     steps: [
       {
         type: 'explain',
@@ -307,6 +378,7 @@ export const LESSONS = [
     title: 'Shrink and Stretch: Dim & Aug',
     description: 'Diminished lowers the 5th from minor; augmented raises it from major.',
     duration: '~4 min',
+    summary: "Diminished shrinks a minor chord's 5th; augmented stretches a major chord's 5th.",
     steps: [
       {
         type: 'explain',
@@ -340,6 +412,7 @@ export const LESSONS = [
           { text: 'Diminished', correct: false },
         ],
         correction: 'Augmented stretches a major chord — diminished shrinks a minor one.',
+        reinforcement: 'augmented stretches a major chord\'s 5th up.',
       },
       {
         type: 'drill',
@@ -364,6 +437,7 @@ export const LESSONS = [
     title: 'The Moving Third: Sus Chords',
     description: 'Sus chords replace the 3rd entirely — no major, no minor, just tension.',
     duration: '~4 min',
+    summary: "Sus chords swap out the 3rd entirely, trading major/minor color for tension.",
     steps: [
       {
         type: 'explain',
@@ -417,6 +491,7 @@ export const LESSONS = [
     title: 'Four Notes: Sevenths',
     description: 'Add one note on top of a triad — dominant, major, and minor 7ths.',
     duration: '~4 min',
+    summary: 'Adding a 7th on top of a triad gives you dominant, major, and minor sevenths — four-note color.',
     steps: [
       {
         type: 'explain',

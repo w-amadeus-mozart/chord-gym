@@ -364,7 +364,7 @@ body {
   cursor: pointer; position: relative; margin: 0 1px;
   transition: background 0.06s, box-shadow 0.06s;
   display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
-  font-size: 8px; color: #555; user-select: none;
+  font-size: 10px; font-weight: 600; color: #555; user-select: none;
 }
 .white-key.active {
   background: var(--accent);
@@ -778,8 +778,10 @@ body {
 .hint-notice { font-size: 12px; color: var(--amber); font-weight: 600; }
 
 .note-pip.hint-hidden { color: var(--text-dim); opacity: 0.6; letter-spacing: 2px; }
-.white-key.hint { box-shadow: 0 0 0 3px var(--amber) inset, 0 0 16px rgba(251,191,36,0.6); }
-.black-key.hint { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 14px rgba(251,191,36,0.6); }
+.white-key.hint { box-shadow: 0 0 0 3px var(--amber) inset, 0 0 16px rgba(251,191,36,0.6); color: var(--amber); font-weight: 800; }
+.black-key.hint { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 14px rgba(251,191,36,0.6); color: var(--amber); font-weight: 800; }
+.white-key.active { color: #1a1000; font-weight: 800; }
+.black-key.active { color: var(--amber); font-weight: 800; }
 
 /* ══════════ Mastery deltas (practice results) ══════════ */
 .mastery-deltas {
@@ -979,7 +981,8 @@ body {
 }
 .learn-panel-text { font-size: 17px; line-height: 1.5; color: var(--text); max-width: 560px; }
 .learn-panel-caption { font-size: 13px; color: var(--text-dim); font-weight: 600; }
-.learn-panel-midi-status { font-size: 13px; color: var(--gold); font-weight: 600; }
+.learn-panel-midi-status { font-size: 13px; color: var(--text-dim); font-weight: 600; transition: color 0.2s; }
+.learn-panel-midi-status.connected { color: var(--green); }
 
 .learn-panel-choices { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .learn-choice-btn {
@@ -989,9 +992,17 @@ body {
   transition: border-color 0.2s, background 0.2s, transform 0.15s;
 }
 .learn-choice-btn:hover:not(:disabled) { border-color: rgba(223,163,62,0.5); transform: translateY(-2px); }
-.learn-choice-btn.correct { border-color: var(--green); background: rgba(74,222,128,0.15); color: var(--green); }
-.learn-choice-btn.wrong { border-color: var(--amber); background: rgba(251,191,36,0.12); color: var(--amber); }
+.learn-choice-btn.correct { border-color: var(--gold); background: rgba(223,163,62,0.18); color: var(--gold); font-weight: 800; }
+.learn-choice-btn.wrong { border-color: var(--red); background: rgba(248,113,113,0.14); color: var(--red); }
+.learn-choice-btn.shake { animation: learnChoiceShake 0.4s ease; }
 .learn-choice-btn:disabled { cursor: default; }
+
+@keyframes learnChoiceShake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-5px); }
+  40%, 60% { transform: translateX(5px); }
+}
 
 .learn-nudge {
   font-size: 13px; color: var(--text-dim); font-style: italic;
@@ -1055,6 +1066,23 @@ body {
   transition: border-color 0.15s, color 0.15s;
 }
 .learn-lesson-redo:hover, .learn-lesson-testout:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── Lesson-complete overlay ── */
+.lesson-complete-modal { max-width: 420px; }
+.lesson-complete-check {
+  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; font-weight: 900; color: #1a1000;
+  background: var(--gold); box-shadow: 0 0 30px rgba(223,163,62,0.55);
+  animation: lessonCheckPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes lessonCheckPop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.lesson-complete-modal h3 { font-size: 20px; font-weight: 900; color: var(--text); }
+.lesson-complete-modal p { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
 
 /* ── First-run welcome overlay ── */
 .welcome-modal { max-width: 420px; }

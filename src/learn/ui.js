@@ -7,6 +7,7 @@
 import { ChordEngine } from '../chords.js';
 import { MidiInput } from '../midi.js';
 import { UI } from '../ui.js';
+import { setKeyLabelMode } from '../piano.js';
 
 function _resetControls() {
   document.getElementById('btn-learn-back').style.display = '';
@@ -37,15 +38,22 @@ function setChordSymbol(text) {
   document.getElementById('chord-display').textContent = text;
 }
 
+// Tracks whether the currently-rendered step is showing the MIDI status line,
+// so a live 'deviceChange' event knows whether to repaint it.
+let _midiStatusStepActive = false;
+
 function _renderMidiStatusLine() {
+  _midiStatusStepActive = true;
   const el = document.getElementById('learn-panel-midi-status');
   const names = MidiInput.getDeviceNames();
   el.style.display = '';
+  el.classList.toggle('connected', names.length > 0);
   el.textContent = names.length
     ? `✓ Connected: ${names.join(', ')}`
     : 'No MIDI device detected — click "Connect MIDI" at the top, or use the on-screen keyboard below.';
 }
 function _clearMidiStatusLine() {
+  _midiStatusStepActive = false;
   document.getElementById('learn-panel-midi-status').style.display = 'none';
 }
 
@@ -62,6 +70,7 @@ export const LearnUI = {
     document.getElementById('learn-panel').style.display = 'flex';
     document.getElementById('learn-controls').style.display = 'flex';
     document.getElementById('learn-nudge').style.display = 'none';
+    setKeyLabelMode('notes');
 
     // Clear residual visuals from a prior Sprint/Survival run
     document.getElementById('death-overlay').className = '';
@@ -69,6 +78,18 @@ export const LearnUI = {
     document.getElementById('chord-display').classList.remove('chord-dying');
     document.getElementById('chord-display').style.color = '';
     document.getElementById('chord-arena').classList.remove('arena-flash-red', 'chord-shake', 'survival-red');
+  },
+
+  // Called whenever a Learn session hands #game back to another mode —
+  // restores the on-screen keyboard's default computer-key labels.
+  exitLearnMode() {
+    setKeyLabelMode('letters');
+  },
+
+  // Repaints the Lesson 0 connect-step MIDI status line live, if it's the
+  // step currently on screen — called from engine.js on MidiInput 'deviceChange'.
+  refreshMidiStatus() {
+    if (_midiStatusStepActive) _renderMidiStatusLine();
   },
 
   renderChrome(lesson, stepIndex) {
@@ -161,25 +182,35 @@ export const LearnUI = {
     _clearMidiStatusLine();
     setChordSymbol('');
     UI.renderNoteIndicators(new Set(), new Set());
-    _showPanel({ text: step.question, showChoices: true });
+    _showPanel({ text: step.question, caption: 'Tap the right answer.', showChoices: true });
     document.getElementById('learn-panel-choices').innerHTML = step.options.map((opt, i) =>
       `<button class="learn-choice-btn" data-choice-index="${i}">${opt.text}</button>`
     ).join('');
   },
 
-  markChoiceCorrect(index) {
+  // Correct answer: lock the card, turn the pick gold with a check, show a
+  // one-line reinforcement, and reveal Continue — never auto-advance.
+  markChoiceCorrect(index, reinforcementText) {
     const buttons = document.querySelectorAll('#learn-panel-choices .learn-choice-btn');
     buttons.forEach(b => { b.disabled = true; });
-    buttons[index]?.classList.add('correct');
+    const btn = buttons[index];
+    if (btn) { btn.classList.add('correct'); btn.textContent = '✓ ' + btn.textContent; }
+    const capEl = document.getElementById('learn-panel-caption');
+    capEl.style.display = '';
+    capEl.textContent = reinforcementText ? `That's it — ${reinforcementText}` : "That's it!";
+    document.getElementById('btn-learn-next').style.display = '';
+    document.getElementById('btn-learn-next').textContent = 'Continue';
   },
 
+  // Wrong answer: shake/flash the pick, show the correction, let them try again.
   markChoiceWrong(index, correctionText) {
     const buttons = document.querySelectorAll('#learn-panel-choices .learn-choice-btn');
-    buttons[index]?.classList.add('wrong');
+    const btn = buttons[index];
+    btn?.classList.add('wrong', 'shake');
     const capEl = document.getElementById('learn-panel-caption');
     capEl.style.display = '';
     capEl.textContent = correctionText;
-    setTimeout(() => buttons[index]?.classList.remove('wrong'), 1200);
+    setTimeout(() => btn?.classList.remove('wrong', 'shake'), 500);
   },
 
   renderTestOut(lesson, testOut) {
@@ -240,5 +271,16 @@ export const LearnUI = {
     el.textContent = text;
     host.appendChild(el);
     setTimeout(() => el.remove(), 4600);
+  },
+
+  // Shown at the end of every lesson — replaces the old silent jump to the menu.
+  showLessonComplete(lesson, hasNext) {
+    document.getElementById('lesson-complete-title').textContent = `Lesson complete — ${lesson.title}`;
+    document.getElementById('lesson-complete-summary').textContent = lesson.summary || '';
+    document.getElementById('btn-lesson-complete-next').style.display = hasNext ? '' : 'none';
+    document.getElementById('lesson-complete-overlay').style.display = '';
+  },
+  hideLessonComplete() {
+    document.getElementById('lesson-complete-overlay').style.display = 'none';
   },
 };

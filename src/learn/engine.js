@@ -31,6 +31,20 @@ function _save(p) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch (_) {}
 }
 
+// Curriculum revision migration: the old 'major-triad' lesson was split into
+// 'your-first-chord' + 'skip-skip-chords' — its completion record can't map
+// cleanly onto either new lesson, so a stored record under the old id resets
+// all Learn completions once. Every other lesson id is unchanged (content
+// updates were reframes/intro-text only, same chords/drills).
+function _migrateLegacyIds() {
+  const p = _load();
+  if (Object.prototype.hasOwnProperty.call(p, 'major-triad')) {
+    console.info('[Learn] Curriculum revised (major-triad split into your-first-chord + skip-skip-chords) — resetting lesson completions.');
+    _save({});
+  }
+}
+_migrateLegacyIds();
+
 function _markComplete(lessonId, accuracyPct, testedOut) {
   const p = _load();
   const prev = p[lessonId] || {};
@@ -208,6 +222,19 @@ function _updateCopyVisuals() {
   UI.renderPracticeNoteIndicators(heldPCs, chord.pitchClasses, 2); // full hints always on
 }
 
+// register:'low'|'high' constraints check the highest currently-held raw MIDI
+// note against middle C (60) — lets a copy step require the same three notes
+// played an octave down (or up) instead of just anywhere. On the on-screen
+// keyboard (2 octaves, C3-B4) this is naturally satisfiable in either half.
+function _registerOk(step, heldNotes) {
+  if (!step.register) return true;
+  if (!heldNotes.size) return false;
+  const highest = Math.max(...heldNotes);
+  if (step.register === 'low') return highest < 60;
+  if (step.register === 'high') return highest >= 60;
+  return true;
+}
+
 function _onCopyPassed() {
   _clearCopyNudge();
   const step = _lesson.steps[_stepIdx];
@@ -221,7 +248,8 @@ function _onCopyPassed() {
 }
 
 function _copyOnNotesChanged(step) {
-  const heldPCs = ChordEngine.toPitchClasses(MidiInput.getHeld());
+  const heldNotes = MidiInput.getHeld();
+  const heldPCs = ChordEngine.toPitchClasses(heldNotes);
   if (_waitingForRelease) {
     UI.renderNoteIndicatorsReleasing(heldPCs);
     if (MidiInput.allReleased()) {
@@ -237,7 +265,7 @@ function _copyOnNotesChanged(step) {
   }
   _updateCopyVisuals();
   const chord = ChordEngine.chordForCell(step.chord.rootPc, step.chord.typeName);
-  if (ChordEngine.isMatch(heldPCs, chord.pitchClasses)) _onCopyPassed();
+  if (ChordEngine.isMatch(heldPCs, chord.pitchClasses) && _registerOk(step, heldNotes)) _onCopyPassed();
 }
 
 // ── Drill step ───────────────────────────────────────────────────────────────
@@ -306,9 +334,10 @@ export function selectChoice(index) {
   const opt = step.options[index];
   if (!opt) return;
   if (opt.correct) {
+    // Never auto-advance from a choice — the player reads the reinforcement
+    // and clicks Continue (the shared learn-next button) on their own time.
     _choiceLocked = true;
-    LearnUI.markChoiceCorrect(index);
-    setTimeout(() => next(), 700);
+    LearnUI.markChoiceCorrect(index, step.reinforcement);
   } else {
     LearnUI.markChoiceWrong(index, step.correction);
   }
@@ -346,19 +375,39 @@ export function replay() {
   }
 }
 
+let _lastCompletedLesson = null;
+
 function _completeLesson() {
   _clearCopyNudge();
   _markComplete(_lesson.id, _lastDrillAccuracy, false);
+  _lastCompletedLesson = _lesson;
   _lesson = null;
-  state.screen = 'home';
-  showScreen('home');
   updateLearnPillarCard();
+  const idx = LESSONS.findIndex(l => l.id === _lastCompletedLesson.id);
+  const hasNext = idx >= 0 && idx < LESSONS.length - 1;
+  LearnUI.showLessonComplete(_lastCompletedLesson, hasNext);
+}
+
+// Called from the lesson-complete overlay's two buttons.
+function continueAfterComplete(goNext) {
+  LearnUI.hideLessonComplete();
+  const finishedId = _lastCompletedLesson?.id;
+  if (goNext && finishedId) {
+    const idx = LESSONS.findIndex(l => l.id === finishedId);
+    const nextLesson = LESSONS[idx + 1];
+    if (nextLesson) { start(nextLesson.id); return; }
+  }
+  LearnUI.exitLearnMode();
+  state.screen = 'learn-home';
+  showScreen('learn-home');
+  renderHome();
 }
 
 export function exit() {
   if (_testOut) { _endTestOut(false); return; }
   _clearCopyNudge();
   _lesson = null;
+  LearnUI.exitLearnMode();
   state.screen = 'learn-home';
   showScreen('learn-home');
   renderHome();
@@ -436,6 +485,7 @@ function _endTestOut(passed) {
   const lesson = _testOut.lesson;
   if (passed) _markComplete(lesson.id, Math.round((_testOut.hits / TESTOUT_COUNT) * 100), true);
   _testOut = null;
+  LearnUI.exitLearnMode();
   state.screen = 'learn-home';
   showScreen('learn-home');
   renderHome();
@@ -475,6 +525,9 @@ export function init() {
   document.getElementById('btn-learn-hint').addEventListener('click', useHint);
   document.getElementById('btn-learn-exit').addEventListener('click', exit);
 
+  document.getElementById('btn-lesson-complete-next').addEventListener('click', () => continueAfterComplete(true));
+  document.getElementById('btn-lesson-complete-back').addEventListener('click', () => continueAfterComplete(false));
+
   document.getElementById('btn-welcome-new').addEventListener('click', () => {
     markWelcomed();
     document.getElementById('welcome-overlay').style.display = 'none';
@@ -485,6 +538,10 @@ export function init() {
     document.getElementById('welcome-overlay').style.display = 'none';
     LearnUI.showToast('Check out Practice to drill chords at your pace, or Test to prove your speed.');
   });
+
+  // Lesson 0's connect step must update live as a device is plugged in or
+  // unplugged — it's the whole point of sitting on that step.
+  MidiInput.on(type => { if (type === 'deviceChange') LearnUI.refreshMidiStatus(); });
 }
 
 export function maybeShowWelcome() {
