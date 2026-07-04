@@ -31,10 +31,46 @@ function _clearDeathTimers() {
   _deathTimers = [];
 }
 
+// ── Per-chord window bar — rAF-driven so it drains continuously instead of jumping
+// once per 250ms game-logic tick. Reads the same windowDeadline/windowSec clock the
+// tick uses for the actual expiry check; only the visual interpolates, the tick itself
+// is untouched. Self-cancels once the screen/mode moves on (mirrors fallingChords.js's
+// _animate), and teardown() cancels it explicitly too for the idempotent-safety net.
+let _barRafId = null;
+
+function _renderWindowBar() {
+  const bar   = document.getElementById('survival-window-bar');
+  const arena = document.getElementById('chord-arena');
+  let pct, cls;
+
+  if (state.waitingForRelease) {
+    // Window hasn't started yet — hold full
+    pct = 100;
+    cls = 'green';
+  } else {
+    const remaining = Math.max(0, (state.survival.windowDeadline - performance.now()) / 1000);
+    pct = state.survival.windowSec > 0 ? Math.max(0, Math.min(100, (remaining / state.survival.windowSec) * 100)) : 0;
+    cls = pct > 50 ? 'green' : pct > 25 ? 'amber' : 'red';
+  }
+
+  bar.style.width = pct + '%';
+  bar.className = 'timer-bar survival-window-bar' + (cls !== 'green' ? ' ' + cls : '');
+
+  // Pulse the chord arena when in the red zone — tension is the point
+  arena.classList.toggle('survival-red', cls === 'red' && !state.waitingForRelease);
+}
+
+function _barLoop() {
+  if (state.screen !== 'game' || state.activeMode !== 'survival') { _barRafId = null; return; }
+  if (!document.hidden) _renderWindowBar(); // freeze while tab hidden, same as onTick
+  _barRafId = requestAnimationFrame(_barLoop);
+}
+
 // Shared path to results — called by both the natural timeout sequence and any skip input.
 // withFadeIn: true on the natural path (results fade in); false on skip (instant cut).
 function finishDeath(withFadeIn) {
   SurvivalMode.teardown();
+  state.resultsOwner = 'survival'; // the fade-in cleanup timer below still owns the transition
 
   state.screen = 'results';
 
@@ -46,13 +82,15 @@ function finishDeath(withFadeIn) {
     deathReason:    state.survival.deathReason,
   });
 
+  // Always go through showScreen() (not a hand-rolled .active toggle) so the sidebar
+  // nav selection stays in sync same as every other screen transition.
+  showScreen('results');
   if (withFadeIn) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const resultsEl = document.getElementById('results');
-    resultsEl.classList.add('active', 'screen-fadein');
-    setTimeout(() => resultsEl.classList.remove('screen-fadein'), DEATH_TIMINGS.fadeInMs + 60);
-  } else {
-    showScreen('results');
+    resultsEl.classList.add('screen-fadein');
+    // Registered in the same cancellable set teardown() clears — if the player
+    // navigates away before this fires, it must not touch #results at all.
+    _deathTimers.push(setTimeout(() => resultsEl.classList.remove('screen-fadein'), DEATH_TIMINGS.fadeInMs + 60));
   }
 }
 
@@ -166,21 +204,25 @@ export const SurvivalMode = {
     document.getElementById('nightmare-badge').style.display =
       variant === 'nm' ? 'block' : 'none';
 
+    // Survival gets its own dedicated bar instead of sharing Sprint's timer-bar
+    document.getElementById('timer-bar-wrap').style.display = 'none';
+    document.getElementById('survival-window-bar-wrap').style.display = '';
+
     UI.renderChord();
     UI.renderSurvivalHUD();
-    UI.renderSurvivalTimer();
+    UI.renderSurvivalWindowStat();
+    _renderWindowBar();
 
     state.timerInterval = setInterval(SurvivalMode.onTick, 250);
+    if (_barRafId) cancelAnimationFrame(_barRafId);
+    _barRafId = requestAnimationFrame(_barLoop);
   },
 
   onTick() {
     if (document.hidden || state.activeMode !== 'survival') return;
 
-    // During release gate the window hasn't started yet — keep bar at full
-    if (state.waitingForRelease) {
-      UI.renderSurvivalTimer();
-      return;
-    }
+    // During release gate the window hasn't started yet — the bar loop already holds it full
+    if (state.waitingForRelease) return;
 
     const now = performance.now();
     if (now >= state.survival.windowDeadline) {
@@ -188,7 +230,6 @@ export const SurvivalMode = {
       return;
     }
 
-    UI.renderSurvivalTimer();
     UI.renderSurvivalHUD();
   },
 
@@ -206,7 +247,6 @@ export const SurvivalMode = {
         // Window timer starts NOW — gate has cleared
         state.survival.windowDeadline = performance.now() + state.survival.windowSec * 1000;
         UI.renderNoteIndicators(new Set(), state.currentChord.pitchClasses);
-        UI.renderSurvivalTimer();
       }
       return;
     }
@@ -355,7 +395,7 @@ export const SurvivalMode = {
 
     UI.renderChord();
     UI.renderSurvivalHUD();
-    UI.renderSurvivalTimer(); // reset bar to full while gate is active
+    UI.renderSurvivalWindowStat(); // windowSec just changed (possibly + unlock grace)
   },
 
   end(deathReason) {
@@ -405,6 +445,7 @@ export const SurvivalMode = {
   // natural-completion path so the death-visual reset logic lives in one place.
   teardown() {
     if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+    if (_barRafId) { cancelAnimationFrame(_barRafId); _barRafId = null; }
     _clearDeathTimers();
 
     document.getElementById('death-overlay').className = '';
@@ -413,6 +454,8 @@ export const SurvivalMode = {
     document.getElementById('chord-display').style.color = '';
     document.getElementById('chord-arena').classList.remove('arena-flash-red', 'chord-shake', 'survival-red');
     document.getElementById('game').classList.remove('screen-fadeout');
+    document.getElementById('survival-window-bar-wrap').style.display = 'none';
+    document.getElementById('timer-bar-wrap').style.display = '';
 
     setPianoTarget(new Set());
     state.activeMode = 'none';

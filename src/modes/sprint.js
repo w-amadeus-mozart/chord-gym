@@ -10,6 +10,10 @@ import { UI, showScreen } from '../ui.js';
 import { Mastery } from '../mastery.js';
 import { setPianoTarget } from '../piano.js';
 
+let _resultsTimer = null; // the "TIME!" flash-then-results setTimeout below — tracked so
+                           // teardown() can cancel it if the player navigates away mid-flash
+let _flashEl = null;      // the flash element itself, for the same reason
+
 export const SprintMode = {
   start(difficultyIndex) {
     state.mode = 'sprint';
@@ -128,15 +132,18 @@ export const SprintMode = {
     SprintMode.teardown();
     state.timeLeft = 0;
     state.screen = 'results';
+    state.resultsOwner = 'sprint'; // this end flow isn't done yet — the flash timer below still owns the transition
 
     // Brief TIME! flash on arena before switching to results
     const arena = document.getElementById('chord-arena');
-    const flash = document.createElement('div');
-    flash.className = 'sprint-time-flash';
-    flash.textContent = 'TIME!';
-    arena.appendChild(flash);
-    setTimeout(() => {
-      flash.remove();
+    _flashEl = document.createElement('div');
+    _flashEl.className = 'sprint-time-flash';
+    _flashEl.textContent = 'TIME!';
+    arena.appendChild(_flashEl);
+    _resultsTimer = setTimeout(() => {
+      _flashEl.remove();
+      _flashEl = null;
+      _resultsTimer = null;
       UI.renderResults();
       showScreen('results');
     }, 350);
@@ -145,9 +152,14 @@ export const SprintMode = {
   // Idempotent — safe to call twice, safe to call when not running. Cancels the tick
   // interval (whose callback has no screen/mode guard of its own and would otherwise
   // keep counting down and eventually call end() while the player is somewhere else
-  // entirely) and clears the piano highlight so a subsequent mode starts with a clean key bed.
+  // entirely), clears the piano highlight so a subsequent mode starts with a clean key
+  // bed, and cancels the "TIME!"-flash-then-results timer above — navigateTo() calls
+  // this again via state.resultsOwner even after activeMode is already 'none', so a
+  // player who navigates away during that 350ms flash can't get hijacked back to results.
   teardown() {
     if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+    if (_resultsTimer) { clearTimeout(_resultsTimer); _resultsTimer = null; }
+    if (_flashEl) { _flashEl.remove(); _flashEl = null; }
     setPianoTarget(new Set());
     state.activeMode = 'none';
   },

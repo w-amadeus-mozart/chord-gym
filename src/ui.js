@@ -139,34 +139,12 @@ export const UI = {
     el.className = 'hud-val timer-val' + (cls !== 'green' ? ' ' + cls : '');
   },
 
-  renderSurvivalTimer() {
-    const sv = state.survival;
-    const bar = document.getElementById('timer-bar');
-    const timerEl = document.getElementById('hud-timer');
-    const arena = document.getElementById('chord-arena');
-
-    let pct, cls, displayText;
-
-    if (state.waitingForRelease) {
-      // Window hasn't started; show full bar and upcoming window duration
-      pct = 100;
-      cls = 'green';
-      displayText = sv.windowSec.toFixed(1) + 's';
-    } else {
-      const remaining = Math.max(0, (sv.windowDeadline - performance.now()) / 1000);
-      pct = sv.windowSec > 0 ? Math.max(0, (remaining / sv.windowSec) * 100) : 0;
-      cls = pct > 50 ? 'green' : pct > 25 ? 'amber' : 'red';
-      displayText = remaining.toFixed(1) + 's';
-    }
-
-    bar.style.width = pct + '%';
-    bar.className = 'timer-bar' + (cls !== 'green' ? ' ' + cls : '');
-
-    timerEl.textContent = displayText;
-    timerEl.className = 'hud-val timer-val' + (cls !== 'green' ? ' ' + cls : '');
-
-    // Pulse the chord arena when in the red zone — tension is the point
-    arena.classList.toggle('survival-red', cls === 'red' && !state.waitingForRelease);
+  // Static "Window: 6.2s" HUD stat — the current chord's window LENGTH, not a live
+  // countdown. Call only when windowSec itself changes (start of a run, each chord
+  // match); the live urgency indicator is survival.js's own rAF-driven draining bar.
+  renderSurvivalWindowStat() {
+    document.getElementById('hud-timer').textContent = state.survival.windowSec.toFixed(1) + 's';
+    document.getElementById('hud-timer').className = 'hud-val timer-val';
   },
 
   // Show a brief banner in the chord arena when a new tier unlocks (non-blocking)

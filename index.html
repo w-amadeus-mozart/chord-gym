@@ -330,6 +330,12 @@
       <div class="timer-bar-wrap" id="timer-bar-wrap">
         <div class="timer-bar" id="timer-bar"></div>
       </div>
+      <!-- Survival-only per-chord window bar — its own element (not shared with Sprint's
+           timer-bar) so its rAF-driven, transition-free rendering can't fight over the
+           same node with Sprint's 250ms-tick + CSS-transition approach. -->
+      <div class="timer-bar-wrap" id="survival-window-bar-wrap" style="display:none">
+        <div class="timer-bar survival-window-bar" id="survival-window-bar"></div>
+      </div>
       <!-- Health bar — falling mode only, hidden during sprint/survival -->
       <div class="health-bar-wrap" id="health-bar-wrap" style="display:none">
         <span class="health-label">HP</span>

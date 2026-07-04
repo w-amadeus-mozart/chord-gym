@@ -352,6 +352,11 @@ body {
 .timer-bar.amber { background: linear-gradient(90deg, var(--amber), #fde68a); box-shadow: 0 0 10px rgba(251,191,36,0.7); }
 .timer-bar.red   { background: linear-gradient(90deg, var(--red),   #fca5a5); box-shadow: 0 0 10px rgba(248,113,113,0.7); }
 
+/* Survival's window bar is repainted every animation frame from the same clock as the
+   deadline, so it's already continuous — a width transition on top would only add lag
+   chasing a constantly-moving target. Keep the color-flip transition, drop the width one. */
+.timer-bar.survival-window-bar { transition: background 0.3s; }
+
 /* ── Chord Arena ── */
 .chord-arena {
   width: 100%;

@@ -8,6 +8,13 @@
 // Does NOT cover the natural-completion path (a mode's own end() calling showScreen
 // to reach 'results') — that's not "navigating away", it's the mode finishing on its
 // own terms, and continues to call showScreen directly.
+//
+// One wrinkle: a mode's end flow can still have a results-transition timer/animation
+// pending (e.g. a brief flash before results actually render) even though activeMode is
+// already 'none' by the time results show — teardown() already ran for the "stop the
+// game loop" half of end(). state.resultsOwner tracks that lingering ownership so
+// navigateTo() can still tear it down, and it does so unconditionally: navigation
+// always wins, and no pending mode timer may re-assert a screen after that.
 
 import { state } from './state.js';
 import { showScreen } from './ui.js';
@@ -25,6 +32,10 @@ const MODES = {
 
 export function navigateTo(screenId) {
   MODES[state.activeMode]?.teardown();
+  if (state.resultsOwner !== 'none') {
+    MODES[state.resultsOwner]?.teardown();
+    state.resultsOwner = 'none';
+  }
   state.screen = screenId;
   showScreen(screenId);
 }

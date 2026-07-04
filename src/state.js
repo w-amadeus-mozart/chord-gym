@@ -12,6 +12,11 @@ export const state = {
                           // running right now. Set by that mode's start(), cleared to 'none' by its teardown(). The
                           // notesChanged dispatcher and navigateTo() key off this, not `mode`, so a stale `mode` value
                           // (still meaningful for menu selection / Play Again) can never make an idle screen misbehave.
+  resultsOwner: 'none',   // 'none' | 'sprint' | 'survival' | 'falling' | 'practice' — set by a mode's end flow the
+                          // moment it takes ownership of showing results, even after activeMode is already reset to
+                          // 'none'. navigateTo() tears this down too (calling that mode's idempotent teardown()) and
+                          // clears it, so a pending results-transition timer/animation can never fire after the
+                          // player has already navigated elsewhere and hijack the screen back to "Round Over."
   selectedVariant: 'std', // 'std' | 'nm' — chosen on menu for survival
   // sprint/survival shared runtime
   score: 0,
