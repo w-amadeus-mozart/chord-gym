@@ -1,11 +1,12 @@
 // UI rendering, screen management.
-// Imports: state, chords (for ROOTS/DIFFICULTY_POOLS), piano (for updatePianoColors),
+// Imports: state, chords (for ROOTS/DIFFICULTY_POOLS), piano (for setPianoTarget/setPianoReleasing —
+//          declares what the keyboard should highlight; piano.js owns the actual recoloring),
 //          unlockLadder (for menu progression preview and results tier display).
 // Does NOT import audio or midi — callers supply data, UI only renders.
 
 import { state, SPRINT_DURATION } from './state.js';
 import { ChordEngine } from './chords.js';
-import { updatePianoColors, setKeyLabelMode, updateEdgeArrows, getVisibleRange } from './piano.js';
+import { setPianoTarget, setPianoReleasing, setKeyLabelMode, getVisibleRange } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
 import { CHARTS } from './charts.js';
 import { Mastery } from './mastery.js';
@@ -198,7 +199,7 @@ export const UI = {
         container.appendChild(pip);
       }
     }
-    updatePianoColors(heldNotes, targetPCs);
+    setPianoTarget(targetPCs);
   },
 
   // Practice-only: note letters stay hidden until hintLevel >= 1; keyboard highlights
@@ -232,7 +233,7 @@ export const UI = {
       const { start, end } = getVisibleRange();
       hintNotes = new Set(ChordEngine.voiceNearMiddleC(chord.rootPc, chord.type.intervals, start, end));
     }
-    updatePianoColors(heldNotes, targetPCs, hintNotes);
+    setPianoTarget(targetPCs, hintNotes);
   },
 
   // During release gate: show held keys in neutral grey — honest but non-distracting
@@ -246,12 +247,7 @@ export const UI = {
       pip.textContent = formatRoot(pc, getEnharmonicStyle());
       container.appendChild(pip);
     }
-    document.querySelectorAll('.white-key, .black-key').forEach(k => {
-      const note = parseInt(k.dataset.note, 10);
-      k.classList.toggle('releasing', heldNotes.has(note));
-      k.classList.remove('active', 'wrong-active');
-    });
-    updateEdgeArrows(heldNotes);
+    setPianoReleasing(true);
   },
 
   renderStreakFire() {

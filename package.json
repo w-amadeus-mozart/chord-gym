@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:low-octave": "node scripts/regression-low-octave.mjs"
+    "test:low-octave": "node scripts/regression-low-octave.mjs",
+    "test:lifecycle": "node scripts/regression-lifecycle.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1",

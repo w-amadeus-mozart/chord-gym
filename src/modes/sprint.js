@@ -8,10 +8,12 @@ import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { Mastery } from '../mastery.js';
+import { setPianoTarget } from '../piano.js';
 
 export const SprintMode = {
   start(difficultyIndex) {
     state.mode = 'sprint';
+    state.activeMode = 'sprint';
     state.screen = 'game';
     state.difficulty = difficultyIndex;
     state.score = 0;
@@ -36,7 +38,7 @@ export const SprintMode = {
   },
 
   onTick() {
-    if (document.hidden) return; // timer is paused via visibilitychange in main.js
+    if (document.hidden || state.activeMode !== 'sprint') return; // timer is paused via visibilitychange in main.js
     const elapsed = (Date.now() - state.timerStart) / 1000;
     state.timeLeft = Math.max(0, SPRINT_DURATION - elapsed);
     UI.renderTimer();
@@ -123,7 +125,7 @@ export const SprintMode = {
   },
 
   end() {
-    clearInterval(state.timerInterval);
+    SprintMode.teardown();
     state.timeLeft = 0;
     state.screen = 'results';
 
@@ -138,5 +140,15 @@ export const SprintMode = {
       UI.renderResults();
       showScreen('results');
     }, 350);
+  },
+
+  // Idempotent — safe to call twice, safe to call when not running. Cancels the tick
+  // interval (whose callback has no screen/mode guard of its own and would otherwise
+  // keep counting down and eventually call end() while the player is somewhere else
+  // entirely) and clears the piano highlight so a subsequent mode starts with a clean key bed.
+  teardown() {
+    if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+    setPianoTarget(new Set());
+    state.activeMode = 'none';
   },
 };

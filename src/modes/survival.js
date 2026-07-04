@@ -10,6 +10,7 @@ import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { UNLOCK_LADDER } from '../unlockLadder.js';
 import { Mastery } from '../mastery.js';
+import { setPianoTarget } from '../piano.js';
 
 export const WINDOW_START     = 8.0;  // seconds for the very first chord
 export const WINDOW_DECAY     = 0.10; // seconds shorter per chord (softened from 0.15)
@@ -33,19 +34,7 @@ function _clearDeathTimers() {
 // Shared path to results — called by both the natural timeout sequence and any skip input.
 // withFadeIn: true on the natural path (results fade in); false on skip (instant cut).
 function finishDeath(withFadeIn) {
-  _clearDeathTimers();
-
-  const arena   = document.getElementById('chord-arena');
-  const display = document.getElementById('chord-display');
-  const overlay = document.getElementById('death-overlay');
-  const gameEl  = document.getElementById('game');
-
-  arena.classList.remove('arena-flash-red', 'chord-shake', 'survival-red');
-  display.classList.remove('chord-dying');
-  display.style.color = '';
-  overlay.className = '';
-  overlay.textContent = '';
-  gameEl.classList.remove('screen-fadeout');
+  SurvivalMode.teardown();
 
   state.screen = 'results';
 
@@ -128,6 +117,7 @@ export const SurvivalMode = {
   start(variant) {
     _clearDeathTimers();
     state.mode = 'survival';
+    state.activeMode = 'survival';
     state.screen = 'game';
     state.score = 0;
     state.streak = 0;
@@ -184,7 +174,7 @@ export const SurvivalMode = {
   },
 
   onTick() {
-    if (document.hidden) return;
+    if (document.hidden || state.activeMode !== 'survival') return;
 
     // During release gate the window hasn't started yet — keep bar at full
     if (state.waitingForRelease) {
@@ -370,6 +360,7 @@ export const SurvivalMode = {
 
   end(deathReason) {
     clearInterval(state.timerInterval);
+    state.timerInterval = null;
     _clearDeathTimers();
     state.survival.deathReason = deathReason;
     Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, null, false);
@@ -405,5 +396,25 @@ export const SurvivalMode = {
     _deathTimers.push(setTimeout(() => {
       finishDeath(true);
     }, holdEnd + DEATH_TIMINGS.fadeOutMs));
+  },
+
+  // Idempotent — safe to call twice, safe to call when not running, safe to call mid
+  // death-sequence (navigating away during the 'dying' screen must cancel those two
+  // cancellable timeouts above, or finishDeath() fires later and hijacks whatever
+  // screen the player has moved on to). finishDeath() itself calls this for the
+  // natural-completion path so the death-visual reset logic lives in one place.
+  teardown() {
+    if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+    _clearDeathTimers();
+
+    document.getElementById('death-overlay').className = '';
+    document.getElementById('death-overlay').textContent = '';
+    document.getElementById('chord-display').classList.remove('chord-dying');
+    document.getElementById('chord-display').style.color = '';
+    document.getElementById('chord-arena').classList.remove('arena-flash-red', 'chord-shake', 'survival-red');
+    document.getElementById('game').classList.remove('screen-fadeout');
+
+    setPianoTarget(new Set());
+    state.activeMode = 'none';
   },
 };

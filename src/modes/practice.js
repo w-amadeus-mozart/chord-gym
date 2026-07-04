@@ -11,6 +11,7 @@ import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { Mastery } from '../mastery.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from '../notation.js';
+import { setPianoTarget } from '../piano.js';
 
 const AUTO_HINT_DELAY_MS = 5000;
 const LAST_SESSION_KEY = 'ct_practice_last_v1';
@@ -254,6 +255,7 @@ export const PracticeMode = {
   start(config) {
     _clearAutoHintTimer();
     state.mode = 'practice';
+    state.activeMode = 'practice';
     state.screen = 'game';
     _config = { ...config, qualities: config.qualities ? [...config.qualities] : [] };
     state.practice.config = _config;
@@ -331,7 +333,7 @@ export const PracticeMode = {
   },
 
   onNotesChanged() {
-    if (state.screen !== 'game' || state.mode !== 'practice') return;
+    if (state.screen !== 'game' || state.activeMode !== 'practice') return;
     const held = MidiInput.getHeld();
     const heldPCs = ChordEngine.toPitchClasses(held);
 
@@ -358,7 +360,7 @@ export const PracticeMode = {
   },
 
   useHint() {
-    if (state.screen !== 'game' || state.mode !== 'practice') return;
+    if (state.screen !== 'game' || state.activeMode !== 'practice') return;
     if (_hintLevel >= 2) return;
     _revealHint(_hintLevel + 1);
     _clearAutoHintTimer();
@@ -372,13 +374,13 @@ export const PracticeMode = {
   // Called from main.js's visibilitychange handler so hidden-tab time doesn't
   // count against response time or the auto-hint countdown.
   handleVisibilityShift(deltaMs) {
-    if (state.screen !== 'game' || state.mode !== 'practice') return;
+    if (state.screen !== 'game' || state.activeMode !== 'practice') return;
     if (!_waitingForRelease) _attemptStart += deltaMs;
     if (_autoHintTimer) _armAutoHint(); // restart the 5s window fresh rather than tracking precise remaining time
   },
 
   end() {
-    _clearAutoHintTimer();
+    PracticeMode.teardown();
     state.screen = 'results';
 
     const results = state.practice.sessionResults;
@@ -400,10 +402,6 @@ export const PracticeMode = {
       return { rootPc, typeName, typeSymbol, before, after };
     }).sort((a, b) => Math.abs(b.after - b.before) - Math.abs(a.after - a.before));
 
-    document.getElementById('practice-controls').style.display = 'none';
-    document.getElementById('timer-bar-wrap').style.display = '';
-    document.getElementById('hud-item-mult').style.display = '';
-
     UI.renderPracticeResults({
       reps, accuracy, avgResponseMs, bestStreak, slowest, deltas,
       sessionResults: results,
@@ -411,5 +409,18 @@ export const PracticeMode = {
       origin: _config.origin,
     });
     showScreen('results');
+  },
+
+  // Idempotent — safe to call twice, safe to call when not running (e.g. mid hint-state,
+  // or from the practice-setup/custom screens where no session is active). Restores the
+  // HUD chrome practice.start() swapped out, or Sprint/Survival's next start() would
+  // otherwise inherit a hidden timer bar and a visible practice rail.
+  teardown() {
+    _clearAutoHintTimer();
+    document.getElementById('practice-controls').style.display = 'none';
+    document.getElementById('timer-bar-wrap').style.display = '';
+    document.getElementById('hud-item-mult').style.display = '';
+    setPianoTarget(new Set());
+    state.activeMode = 'none';
   },
 };

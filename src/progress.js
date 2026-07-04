@@ -7,7 +7,8 @@
 import { state } from './state.js';
 import { ChordEngine } from './chords.js';
 import { Mastery, MIN_ATTEMPTS_FOR_WEAK } from './mastery.js';
-import { UI, showScreen } from './ui.js';
+import { UI } from './ui.js';
+import { navigateTo } from './navigation.js';
 import { ROOT_GROUPS, CIRCLE_FIFTHS, applyPrefillToDraft } from './modes/practice.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
 
@@ -354,16 +355,14 @@ function _startFromPrefill(prefill) {
   applyPrefillToDraft(prefill);
   document.getElementById('cell-modal-overlay').style.display = 'none';
   document.getElementById('drilldown-panel').style.display = 'none';
-  state.screen = 'practice-custom';
-  showScreen('practice-custom');
+  navigateTo('practice-custom');
   UI.renderPracticeCustom();
 }
 
 function _startSurvivalNightmare() {
   state.mode = 'survival';
   state.selectedVariant = 'nm';
-  state.screen = 'menu';
-  showScreen('menu');
+  navigateTo('menu');
   UI.renderMenu();
 }
 
@@ -426,13 +425,11 @@ export const Progress = {
 
     document.getElementById('progress-empty-practice').addEventListener('click', () => {
       state.practice.setupDraft.origin = null;
-      state.screen = 'practice-setup';
-      showScreen('practice-setup');
+      navigateTo('practice-setup');
       UI.renderPracticeSetup(true);
     });
     document.getElementById('progress-empty-test').addEventListener('click', () => {
-      state.screen = 'menu';
-      showScreen('menu');
+      navigateTo('menu');
       UI.renderMenu();
     });
 

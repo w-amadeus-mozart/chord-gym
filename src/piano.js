@@ -9,6 +9,7 @@
 
 import { MidiInput } from './midi.js';
 import { formatRoot, getEnharmonicStyle } from './notation.js';
+import { state } from './state.js';
 
 const PIANO_START = 48; // C3
 const PIANO_OCTAVES = 2;
@@ -301,6 +302,51 @@ export function updatePianoColors(heldNotes, targetPCs, hintNotes = null) {
   });
   updateEdgeArrows(heldNotes);
 }
+
+// ── Centralized held-key highlighting ────────────────────────────────────────
+// The keyboard subscribes ONCE to the held-notes source (MidiInput's notesChanged)
+// here, at the keyboard-panel level, active whenever the game screen is showing —
+// no mode pushes held notes to the display itself. Modes only declare *what* to
+// highlight against (setPianoTarget/setPianoReleasing); this module handles *how*.
+// This is what a mode forgetting to wire up highlighting (or passing the wrong data
+// shape) used to break silently — now every mode gets it for free.
+let _targetPCs   = new Set();
+let _hintNotes   = null;
+let _releasing   = false;
+
+function _renderHeldHighlight() {
+  if (state.screen !== 'game') return;
+  const held = MidiInput.getHeld();
+  if (_releasing) {
+    document.querySelectorAll('.white-key, .black-key').forEach(k => {
+      const note = parseInt(k.dataset.note, 10);
+      k.classList.toggle('releasing', held.has(note));
+      k.classList.remove('active', 'wrong-active', 'hint');
+    });
+    updateEdgeArrows(held);
+  } else {
+    updatePianoColors(held, _targetPCs, _hintNotes);
+  }
+}
+
+// Declares the pitch classes (and optional exact-note hint voicing) the keyboard should
+// color held notes against. Call whenever the target changes (new chord, hint level,
+// release gate clearing) — not on every keystroke; the notesChanged subscription below
+// re-renders on every keystroke automatically using whatever was last declared here.
+export function setPianoTarget(targetPCs, hintNotes = null) {
+  _targetPCs = targetPCs || new Set();
+  _hintNotes = hintNotes;
+  _releasing = false;
+  _renderHeldHighlight();
+}
+
+// Release-gate visual: held keys render neutral grey until every key is released.
+export function setPianoReleasing(isReleasing) {
+  _releasing = isReleasing;
+  _renderHeldHighlight();
+}
+
+MidiInput.on((type) => { if (type === 'notesChanged') _renderHeldHighlight(); });
 
 // Live mode-switching on MIDI hotplug (the very first successful connect() doesn't emit
 // this event — main.js handles that path explicitly after MidiInput.connect() resolves).

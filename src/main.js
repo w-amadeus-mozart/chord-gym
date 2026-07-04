@@ -7,7 +7,8 @@ import { state } from './state.js';
 import { ChordEngine } from './chords.js';
 import { MidiInput } from './midi.js';
 import { GameAudio } from './audio.js';
-import { UI, showScreen } from './ui.js';
+import { UI } from './ui.js';
+import { navigateTo } from './navigation.js';
 import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode, getIdleLabelMode, refreshKeyLabels } from './piano.js';
 import { setEnharmonicStyle } from './notation.js';
 import { SprintMode } from './modes/sprint.js';
@@ -65,13 +66,16 @@ MidiInput.on((type) => {
       return;
     }
     if (state.screen === 'game') {
-      if (state.mode === 'survival') {
+      // Keyed off activeMode (which mode's loop is actually running), not `mode` (which
+      // stays around for menu-selection/results-screen purposes after a mode ends) — so an
+      // idle screen can never get mis-dispatched to a stale mode's onNotesChanged.
+      if (state.activeMode === 'survival') {
         SurvivalMode.onNotesChanged();
-      } else if (state.mode === 'falling') {
+      } else if (state.activeMode === 'falling') {
         FallingChordsMode.onNotesChanged();
-      } else if (state.mode === 'practice') {
+      } else if (state.activeMode === 'practice') {
         PracticeMode.onNotesChanged();
-      } else {
+      } else if (state.activeMode === 'sprint') {
         SprintMode.onNotesChanged();
       }
     }
@@ -119,7 +123,9 @@ function _setNoteNames(enabled) {
   try { localStorage.setItem(NOTE_NAMES_KEY, enabled ? 'true' : 'false'); } catch (_) {}
   setIdleLabelMode(enabled ? 'notes' : 'letters');
 }
-try { _noteNamesCb.checked = localStorage.getItem(NOTE_NAMES_KEY) === 'true'; } catch (_) {}
+// Defaults ON for a profile that's never touched this setting — letter/note names help
+// more than they hurt on a first run — but always respects an explicit stored choice.
+try { _noteNamesCb.checked = localStorage.getItem(NOTE_NAMES_KEY) !== 'false'; } catch (_) { _noteNamesCb.checked = true; }
 _setNoteNames(_noteNamesCb.checked);
 _noteNamesCb.addEventListener('change', () => _setNoteNames(_noteNamesCb.checked));
 document.getElementById('kb-abc-toggle')?.addEventListener('click', () => {
@@ -184,10 +190,10 @@ document.addEventListener('visibilitychange', () => {
       const delta = Date.now() - state.pausedAt;
       state.timerStart += delta;
       state.attemptStart += delta; // don't penalise response time for hidden time
-      if (state.mode === 'survival') {
+      if (state.activeMode === 'survival') {
         // Shift windowDeadline forward by the same hidden duration
         state.survival.windowDeadline += delta;
-      } else if (state.mode === 'practice') {
+      } else if (state.activeMode === 'practice') {
         PracticeMode.handleVisibilityShift(delta);
       }
       state.pausedAt = 0;
@@ -237,8 +243,7 @@ function renderHome() {
 }
 
 function goHome() {
-  state.screen = 'home';
-  showScreen('home');
+  navigateTo('home');
   renderHome();
 }
 
@@ -246,26 +251,22 @@ document.getElementById('home-focus-cta').addEventListener('click', () => _homeF
 
 function openPracticeSetup() {
   state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
-  state.screen = 'practice-setup';
-  showScreen('practice-setup');
+  navigateTo('practice-setup');
   UI.renderPracticeSetup(true);
 }
 
 function openTest() {
-  state.screen = 'menu';
-  showScreen('menu');
+  navigateTo('menu');
   UI.renderMenu();
 }
 
 function openProgress() {
-  state.screen = 'progress';
-  showScreen('progress');
+  navigateTo('progress');
   Progress.render();
 }
 
 function openSettings() {
-  state.screen = 'settings';
-  showScreen('settings');
+  navigateTo('settings');
 }
 
 document.getElementById('pillar-practice').addEventListener('click', openPracticeSetup);
@@ -300,8 +301,7 @@ document.getElementById('practice-setup').addEventListener('click', e => {
         if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
         draft.where = draft.where || 'all12';
       }
-      state.screen = 'practice-custom';
-      showScreen('practice-custom');
+      navigateTo('practice-custom');
       UI.renderPracticeCustom();
       return;
     }
@@ -388,8 +388,7 @@ document.getElementById('btn-end-practice').addEventListener('click', () => Prac
 
 // ── Song-select setup (backing toggle, health toggle, calibration) ────────
 function openSongSelect() {
-  state.screen = 'song-select';
-  showScreen('song-select');
+  navigateTo('song-select');
   UI.renderSongSelect();
 
   // Wire song card clicks (re-wired each visit so rank/HS badges refresh)
@@ -440,8 +439,7 @@ document.getElementById('btn-start').addEventListener('click', startGame);
 document.getElementById('btn-play-again').addEventListener('click', replayGame);
 
 document.getElementById('btn-back-from-songs').addEventListener('click', () => {
-  state.screen = 'menu';
-  showScreen('menu');
+  navigateTo('menu');
   UI.renderMenu();
 });
 
@@ -451,8 +449,7 @@ document.getElementById('btn-change-level').addEventListener('click', () => {
   } else if (state.mode === 'practice') {
     openPracticeSetup();
   } else {
-    state.screen = 'menu';
-    showScreen('menu');
+    navigateTo('menu');
     UI.renderMenu();
   }
 });
@@ -460,8 +457,7 @@ document.getElementById('btn-change-level').addEventListener('click', () => {
 document.getElementById('btn-results-home').addEventListener('click', goHome);
 
 document.getElementById('btn-results-progress').addEventListener('click', () => {
-  state.screen = 'progress';
-  showScreen('progress');
+  navigateTo('progress');
   Progress.render();
 });
 

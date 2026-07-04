@@ -7,7 +7,11 @@ export const state = {
   screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'practice-custom' | 'song-select' | 'game' | 'results' | 'dying'
   calibrating: false,     // true while timing calibration is running
   difficulty: 0,          // 0–5
-  mode: 'sprint',         // 'sprint' | 'survival' | 'falling' | 'practice'
+  mode: 'sprint',         // 'sprint' | 'survival' | 'falling' | 'practice' — menu selection / results-screen context; NOT cleared on teardown
+  activeMode: 'none',     // 'none' | 'sprint' | 'survival' | 'falling' | 'practice' — which mode's game loop is actually
+                          // running right now. Set by that mode's start(), cleared to 'none' by its teardown(). The
+                          // notesChanged dispatcher and navigateTo() key off this, not `mode`, so a stale `mode` value
+                          // (still meaningful for menu selection / Play Again) can never make an idle screen misbehave.
   selectedVariant: 'std', // 'std' | 'nm' — chosen on menu for survival
   // sprint/survival shared runtime
   score: 0,

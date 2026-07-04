@@ -13,6 +13,7 @@ import { UI, showScreen } from '../ui.js';
 import { LaneCanvas } from '../laneCanvas.js';
 import { CHARTS } from '../charts.js';
 import { Mastery } from '../mastery.js';
+import { setPianoTarget } from '../piano.js';
 
 // ── Timing constants ─────────────────────────────────────────────────────────
 const APPROACH_MS    = 2200;  // must match laneCanvas.js
@@ -78,7 +79,7 @@ function _elapsedForBeat(beat)   { return (beat - 1) * _beatMs(); }
 
 // ── Page-visibility pause (suspend/resume AudioContext) ───────────────────────
 function _onVisibilityChange() {
-  if (state.screen !== 'game' || state.mode !== 'falling') return;
+  if (state.screen !== 'game' || state.activeMode !== 'falling') return;
   if (document.hidden) {
     GameAudio.suspendAudio();
   } else {
@@ -275,7 +276,7 @@ function _triggerFail() {
 
 // ── rAF loop ─────────────────────────────────────────────────────────────────
 function _animate() {
-  if (state.screen !== 'game' || state.mode !== 'falling') return;
+  if (state.screen !== 'game' || state.activeMode !== 'falling') return;
 
   const elapsed = _elapsed();
 
@@ -306,6 +307,7 @@ function _animate() {
 export const FallingChordsMode = {
   start(chartId) {
     state.mode            = 'falling';
+    state.activeMode      = 'falling';
     state.screen          = 'game';
     state.score           = 0;
     state.streak          = 0;
@@ -389,7 +391,7 @@ export const FallingChordsMode = {
   },
 
   onNotesChanged() {
-    if (state.screen !== 'game' || state.mode !== 'falling') return;
+    if (state.screen !== 'game' || state.activeMode !== 'falling') return;
 
     // Skip if failed (key press will end the run)
     if (_failed) {
@@ -413,9 +415,12 @@ export const FallingChordsMode = {
       }
     }
 
-    if (heldPCs.size === 0) return;
-
+    // Declare what the keyboard should highlight against — the actual recolor happens
+    // in piano.js's own notesChanged subscription, not here (see setPianoTarget).
     const candidate = _candidateTile(adjElapsed);
+    setPianoTarget(candidate ? candidate.pitchClasses : new Set());
+
+    if (heldPCs.size === 0) return;
     if (!candidate) return;
 
     // Sloppy detection: all target PCs held but extras too
@@ -469,12 +474,25 @@ export const FallingChordsMode = {
   },
 
   end() {
+    FallingChordsMode.teardown();
+    state.screen = 'results';
+    UI.renderFallingResults(_chart);
+    showScreen('results');
+  },
+
+  // Idempotent — safe to call twice, safe to call when not running. This is the one
+  // place that owns every long-lived resource the mode creates (rAF loop, the
+  // lookahead audio scheduler, the visibilitychange listener, the canvas ResizeObserver)
+  // — leaving any of these running after navigating away is exactly how "audio keeps
+  // playing in the background" happened. end() calls this for the resource-cleanup half
+  // of natural completion; navigateTo() calls it directly when the player leaves early.
+  teardown() {
     if (_failTimer) { clearTimeout(_failTimer); _failTimer = null; }
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     if (_schedulerTimer) { clearInterval(_schedulerTimer); _schedulerTimer = null; }
     if (_resizeObs) { _resizeObs.disconnect(); _resizeObs = null; }
     document.removeEventListener('visibilitychange', _onVisibilityChange);
-    GameAudio.resumeAudio(); // ensure context is running for piano on results screen
+    GameAudio.resumeAudio(); // ensure context is running for piano on whatever screen comes next
 
     document.getElementById('chord-arena').style.display = '';
     document.getElementById('lane-canvas').style.display = 'none';
@@ -482,9 +500,8 @@ export const FallingChordsMode = {
     if (healthWrap) healthWrap.style.display = 'none';
     LaneCanvas.cleanup();
 
-    state.screen = 'results';
-    UI.renderFallingResults(_chart);
-    showScreen('results');
+    setPianoTarget(new Set());
+    state.activeMode = 'none';
   },
 
   // ── Calibration ──────────────────────────────────────────────────────────
