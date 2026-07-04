@@ -32,6 +32,7 @@
     <div class="sidebar-lockup">
       <img src="/chordgym-mark.svg" alt="" class="sidebar-mark">
       <span class="sidebar-word">Chord<b>Gym</b></span>
+      <span class="demo-pill">DEMO</span>
     </div>
     <nav class="sidebar-nav" id="sidebar-nav">
       <button class="sidebar-nav-item selected" data-nav="home"><span class="snav-icon">⌂</span><span class="snav-label">Dashboard</span></button>
@@ -417,6 +418,9 @@
     <button class="btn-secondary" id="btn-results-home" style="display:none">Home</button>
     <button class="btn-secondary" id="btn-results-progress" style="display:none">Back to Progress</button>
   </div>
+
+  <!-- Demo conversion panel — Sprint end screen only -->
+  <div class="demo-conversion-panel" id="demo-conversion-panel" style="display:none"></div>
 </div>
 
 <!-- ══════════ PROGRESS SCREEN ══════════ -->
@@ -521,7 +525,7 @@
     </div>
   </div>
 
-  <div class="settings-panel">
+  <div class="settings-panel" id="settings-panel-falling">
     <h4>Falling Chords</h4>
     <div class="settings-btn-row">
       <span class="mixer-label">Timing offset</span>
@@ -540,6 +544,11 @@
 <!-- Cell drill-in modal -->
 <div class="cell-modal-overlay" id="cell-modal-overlay" style="display:none">
   <div class="cell-modal" id="cell-modal"></div>
+</div>
+
+<!-- Demo upgrade panel — reused by every locked-feature entry point -->
+<div class="cell-modal-overlay" id="upgrade-modal-overlay" style="display:none">
+  <div class="cell-modal upgrade-modal" id="upgrade-modal"></div>
 </div>
 
 <!-- Reset confirmation modal -->

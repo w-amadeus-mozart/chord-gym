@@ -13,6 +13,11 @@ import { Achievements } from './achievements.js';
 import { Mastery } from './mastery.js';
 import { PRESETS, describeConfig } from './modes/practice.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
+import { IS_DEMO, DEMO_CHORDS, UPGRADE_URL } from './edition.js';
+
+// Locked-quality chips shown on the demo Sprint end screen — curated display labels,
+// not derived from CHORD_TYPES, since they're marketing copy rather than data.
+const DEMO_LOCKED_QUALITY_CHIPS = ['Minor', 'Dim', 'Aug', '7ths', 'Sus'];
 
 const FALLING_PROGRESS_KEY = 'ct_falling_progress_v1';
 function _highestFallingLevel() {
@@ -33,6 +38,23 @@ function _allCells() {
     for (const t of ChordEngine.CHORD_TYPES) cells.push({ rootPc, typeName: t.name });
   }
   return cells;
+}
+
+// Sprint end-screen conversion panel (demo only) — reuses the `slowest` attempt
+// already computed by renderResults() for the existing "weak spot" line.
+function _renderDemoConversionPanel(slowest) {
+  const panel = document.getElementById('demo-conversion-panel');
+  const totalChords = ChordEngine.ROOTS.length * ChordEngine.CHORD_TYPES.length;
+  const slowestLine = slowest
+    ? `Your slowest: <strong>${formatRoot(slowest.rootPc, getEnharmonicStyle())}</strong> — ${(slowest.responseMs / 1000).toFixed(1)}s. The full app tracks this for every chord.`
+    : '';
+  panel.innerHTML = `
+    <p class="demo-panel-headline">That's ${DEMO_CHORDS.length} of ChordGym's ${totalChords} chords.</p>
+    <div class="locked-quality-row">${DEMO_LOCKED_QUALITY_CHIPS.map(q => `<span class="locked-chip">🔒 ${q}</span>`).join('')}</div>
+    ${slowestLine ? `<p class="demo-slowest-line">${slowestLine}</p>` : ''}
+    <a class="btn-primary demo-upgrade-cta" href="${UPGRADE_URL}" target="_blank" rel="noopener">Get ChordGym — $9.99 · yours forever</a>
+  `;
+  panel.style.display = '';
 }
 
 // Order chips — shared by the Practice landing screen and the Custom screen.
@@ -299,6 +321,7 @@ export const UI = {
     document.getElementById('btn-play-again').textContent = 'Play Again';
     document.getElementById('btn-change-level').textContent = 'Change Level';
     document.getElementById('mastery-deltas').style.display = 'none';
+    document.getElementById('demo-conversion-panel').style.display = 'none';
 
     const { attempts, difficulty } = state;
 
@@ -423,6 +446,8 @@ export const UI = {
           <td>+${a.points}</td>
         </tr>`;
       }).join('');
+
+      if (IS_DEMO) _renderDemoConversionPanel(slowest);
     }
   },
 
@@ -764,10 +789,10 @@ export const UI = {
     const isSurvival = state.mode === 'survival';
     const isFalling  = state.mode === 'falling';
 
-    // Difficulty grid: Sprint only
+    // Difficulty grid: Sprint only (hidden entirely in demo — pool is always the six)
     const grid = document.getElementById('difficulty-grid');
-    grid.style.display = (isSurvival || isFalling) ? 'none' : '';
-    if (!isSurvival && !isFalling) {
+    grid.style.display = (isSurvival || isFalling || IS_DEMO) ? 'none' : '';
+    if (!isSurvival && !isFalling && !IS_DEMO) {
       grid.innerHTML = ChordEngine.DIFFICULTY_POOLS.map((d, i) =>
         `<button class="diff-btn${state.difficulty === i ? ' selected' : ''}" data-diff="${i}">
           <span class="diff-num">${i + 1}</span>
@@ -807,4 +832,36 @@ export const UI = {
 
     UI.renderHSPanel();
   },
+
+  // Demo-only upgrade panel — one component, reused by every locked-feature entry
+  // point (Survival/Falling cards, locked Progress heatmap cells/headers).
+  openUpgradePanel(teaseLine = '') {
+    document.getElementById('upgrade-modal').innerHTML = `
+      ${teaseLine ? `<p class="upgrade-tease">${teaseLine}</p>` : ''}
+      <h3>Unlock the full ChordGym</h3>
+      <ul class="upgrade-features">
+        <li>All 132 chords — every root × every quality</li>
+        <li>Survival &amp; Falling Chords modes</li>
+        <li>Full mastery heatmap</li>
+        <li>Desktop app for Mac &amp; Windows</li>
+      </ul>
+      <p class="upgrade-price">$9.99 · yours forever — no subscription</p>
+      <a class="btn-primary upgrade-cta" href="${UPGRADE_URL}" target="_blank" rel="noopener">Get ChordGym</a>
+      <button class="btn-secondary" id="upgrade-modal-close">Not now</button>
+    `;
+    document.getElementById('upgrade-modal-overlay').style.display = '';
+  },
+
+  closeUpgradePanel() {
+    document.getElementById('upgrade-modal-overlay').style.display = 'none';
+  },
 };
+
+// Self-contained wiring for the upgrade panel's dismissal — mirrors how
+// navigation.js wires the exit-confirm dialog at module scope.
+document.getElementById('upgrade-modal-overlay').addEventListener('click', e => {
+  if (e.target.id === 'upgrade-modal-overlay') UI.closeUpgradePanel();
+});
+document.getElementById('upgrade-modal').addEventListener('click', e => {
+  if (e.target.id === 'upgrade-modal-close') UI.closeUpgradePanel();
+});

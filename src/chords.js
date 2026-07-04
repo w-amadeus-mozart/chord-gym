@@ -1,4 +1,8 @@
-// Pure chord logic — no imports, no side effects.
+// Pure chord logic — buildPool/buildCustomPool are the demo build's one gate: every
+// selection path (Sprint, Practice presets/Custom/rootFamily, weak-spots) funnels
+// through these two, so clamping here covers all of them without touching call sites.
+
+import { IS_DEMO, DEMO_CHORDS } from './edition.js';
 
 export const ROOTS = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'];
 
@@ -29,6 +33,7 @@ export const DIFFICULTY_POOLS = [
 
 // Build full chord list for a difficulty level
 export function buildPool(diffIndex) {
+  if (IS_DEMO) return buildCustomPool(DEMO_CHORDS, ['Major']);
   const types = DIFFICULTY_POOLS[diffIndex].typeIndices.map(i => CHORD_TYPES[i]);
   const pool = [];
   for (const root of ROOTS) {
@@ -44,6 +49,11 @@ export function buildPool(diffIndex) {
 // Build a chord list for an arbitrary subset of roots × qualities (cross product).
 // rootPcs: [0-11], typeNames: chord type `name` strings — used by Practice mode.
 export function buildCustomPool(rootPcs, typeNames) {
+  if (IS_DEMO) {
+    const demoRoots = rootPcs.filter(pc => DEMO_CHORDS.includes(pc));
+    rootPcs = demoRoots.length ? demoRoots : DEMO_CHORDS;
+    typeNames = ['Major']; // the only demo quality — any other selection collapses to it
+  }
   const types = CHORD_TYPES.filter(t => typeNames.includes(t.name));
   const pool = [];
   for (const rootPc of rootPcs) {

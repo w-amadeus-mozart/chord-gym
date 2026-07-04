@@ -12,6 +12,7 @@ import { UI, showScreen } from '../ui.js';
 import { Mastery } from '../mastery.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from '../notation.js';
 import { setPianoTarget } from '../piano.js';
+import { IS_DEMO, DEMO_CHORDS } from '../edition.js';
 
 const AUTO_HINT_DELAY_MS = 5000;
 const LAST_SESSION_KEY = 'ct_practice_last_v1';
@@ -284,7 +285,11 @@ export const PracticeMode = {
         .filter(Boolean);
       _pool = _rootFamilyPool;
     } else {
-      const roots = ROOT_GROUPS[_config.where] || ROOT_GROUPS.all12;
+      let roots = ROOT_GROUPS[_config.where] || ROOT_GROUPS.all12;
+      if (IS_DEMO) {
+        const demoRoots = roots.filter(pc => DEMO_CHORDS.includes(pc));
+        roots = demoRoots.length ? demoRoots : DEMO_CHORDS;
+      }
       _pool = ChordEngine.buildCustomPool(roots, _config.qualities);
       if (_config.order === 'fifths' || _config.order === 'fourths') {
         const fullCircle = _config.order === 'fifths' ? CIRCLE_FIFTHS : CIRCLE_FOURTHS;

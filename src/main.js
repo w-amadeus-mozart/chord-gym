@@ -16,10 +16,17 @@ import { SurvivalMode } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
 import { Progress } from './progress.js';
+import { IS_DEMO } from './edition.js';
 
 // The only two modes with a skippable "dying" freeze sequence — keyed off state.activeMode,
 // since each mode's own teardown() (which resets activeMode) hasn't run yet at that point.
 const DEATH_MODES = { survival: SurvivalMode, falling: FallingChordsMode };
+
+// Tease copy for the locked Survival/Falling cards on the Test screen (demo only).
+const DEMO_LOCK_TEASE = {
+  survival: 'Survival — how long can you last?',
+  falling:  'Falling Chords — play in rhythm',
+};
 
 // ── MIDI status bar ──────────────────────────────────────
 function updateMidiStatus() {
@@ -210,6 +217,10 @@ document.addEventListener('visibilitychange', () => {
 // ── Mode selector — wired once on init ───────────────────
 document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (IS_DEMO && (btn.dataset.mode === 'survival' || btn.dataset.mode === 'falling')) {
+      UI.openUpgradePanel(DEMO_LOCK_TEASE[btn.dataset.mode]);
+      return;
+    }
     state.mode = btn.dataset.mode;
     document.querySelectorAll('.mode-btn').forEach(b =>
       b.classList.toggle('selected', b === btn));
@@ -582,3 +593,14 @@ renderHome();
 updateMidiStatus();
 _syncCalibrationTitle();
 if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.display = '';
+
+// ── Demo edition gating ────────────────────────────────────
+// All demo-only DOM mutation lives here — one block, one grep target. The chord-set
+// restriction itself lives in chords.js; this only handles what's visible/clickable.
+if (IS_DEMO) {
+  document.body.classList.add('is-demo');
+  document.querySelectorAll('.mode-btn[data-mode="survival"], .mode-btn[data-mode="falling"]').forEach(btn => {
+    btn.classList.add('locked');
+    btn.querySelector('.mode-btn-desc').textContent = DEMO_LOCK_TEASE[btn.dataset.mode];
+  });
+}

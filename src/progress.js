@@ -11,6 +11,7 @@ import { UI } from './ui.js';
 import { navigateTo } from './navigation.js';
 import { ROOT_GROUPS, CIRCLE_FIFTHS, applyPrefillToDraft } from './modes/practice.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
+import { IS_DEMO, DEMO_CHORDS } from './edition.js';
 
 // Heatmap row order — distinct from CHORD_TYPES' registry order (spec-defined pedagogical order).
 const ROW_QUALITIES = [
@@ -86,11 +87,17 @@ function _renderHeatmap() {
   let html = `<div class="heatmap-corner"></div>`;
   for (const rootPc of cols) {
     const rootLabel = formatRoot(rootPc, getEnharmonicStyle(), { compact: true });
-    html += `<button class="heatmap-col-header" data-root-header="${rootPc}" title="Practice ${rootLabel} across all qualities">${rootLabel}</button>`;
+    const locked = IS_DEMO && !DEMO_CHORDS.includes(rootPc);
+    html += `<button class="heatmap-col-header${locked ? ' locked' : ''}" data-root-header="${rootPc}" title="${locked ? 'Full app only' : `Practice ${rootLabel} across all qualities`}">${locked ? '🔒' : rootLabel}</button>`;
   }
   for (const typeName of ROW_QUALITIES) {
-    html += `<button class="heatmap-row-header" data-quality-header="${typeName}" title="Practice ${typeName} across all roots">${typeName}</button>`;
+    const rowLocked = IS_DEMO && typeName !== 'Major';
+    html += `<button class="heatmap-row-header${rowLocked ? ' locked' : ''}" data-quality-header="${typeName}" title="${rowLocked ? 'Full app only' : `Practice ${typeName} across all roots`}">${rowLocked ? '🔒 ' + typeName : typeName}</button>`;
     for (const rootPc of cols) {
+      if (rowLocked || (IS_DEMO && !DEMO_CHORDS.includes(rootPc))) {
+        html += `<button class="heatmap-cell cell-locked" title="Full app only">🔒</button>`;
+        continue;
+      }
       const d = Mastery.cellDetail(rootPc, typeName);
       const { className, style } = _cellStyle(d);
       const label = d.attempts >= MIN_ATTEMPTS_FOR_WEAK ? d.score : '';
@@ -344,7 +351,7 @@ function _computeRecommendations() {
     if (r) hits.push(r);
     if (hits.length >= 3) break;
   }
-  if (!hits.length) hits.push(_fallbackRecommendation());
+  if (!hits.length && !IS_DEMO) hits.push(_fallbackRecommendation());
   return hits;
 }
 
@@ -395,11 +402,20 @@ export const Progress = {
 
     document.getElementById('heatmap-grid').addEventListener('click', e => {
       const cell = e.target.closest('button.heatmap-cell');
-      if (cell) { _openCellModal(parseInt(cell.dataset.root, 10), cell.dataset.quality); return; }
+      if (cell) {
+        if (cell.classList.contains('cell-locked')) { UI.openUpgradePanel(); return; }
+        _openCellModal(parseInt(cell.dataset.root, 10), cell.dataset.quality); return;
+      }
       const colHeader = e.target.closest('[data-root-header]');
-      if (colHeader) { _showColumnDrilldown(parseInt(colHeader.dataset.rootHeader, 10)); return; }
+      if (colHeader) {
+        if (colHeader.classList.contains('locked')) { UI.openUpgradePanel(); return; }
+        _showColumnDrilldown(parseInt(colHeader.dataset.rootHeader, 10)); return;
+      }
       const rowHeader = e.target.closest('[data-quality-header]');
-      if (rowHeader) _showRowDrilldown(rowHeader.dataset.qualityHeader);
+      if (rowHeader) {
+        if (rowHeader.classList.contains('locked')) { UI.openUpgradePanel(); return; }
+        _showRowDrilldown(rowHeader.dataset.qualityHeader);
+      }
     });
 
     document.getElementById('drilldown-panel').addEventListener('click', e => {
