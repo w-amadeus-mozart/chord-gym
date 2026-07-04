@@ -19,6 +19,12 @@ import { IS_DEMO, DEMO_CHORDS, UPGRADE_URL } from './edition.js';
 // not derived from CHORD_TYPES, since they're marketing copy rather than data.
 const DEMO_LOCKED_QUALITY_CHIPS = ['Minor', 'Dim', 'Aug', '7ths', 'Sus'];
 
+// Custom screen's root-scope groups that map cleanly onto the demo six (group1/group2
+// are exact 3-root subsets of DEMO_CHORDS, all12 clamps down to it, singleRoot lets you
+// pick any one of the six individually) — every other group is entirely or mostly
+// outside the demo set and gets locked rather than silently degrading.
+const DEMO_UNLOCKED_SCOPES = new Set(['group1', 'group2', 'all12', 'singleRoot']);
+
 const FALLING_PROGRESS_KEY = 'ct_falling_progress_v1';
 function _highestFallingLevel() {
   try { return parseInt(localStorage.getItem(FALLING_PROGRESS_KEY) || '1', 10) || 1; } catch (_) { return 1; }
@@ -610,6 +616,13 @@ export const UI = {
     const weakReady = weakQualified.length >= 8;
 
     const presetCards = PRESETS.map(p => {
+      const locked = IS_DEMO && p.id !== 'major';
+      if (locked) {
+        return `<button class="preset-card locked" data-preset="${p.id}">
+          <div class="preset-card-title">${p.label}</div>
+          <div class="preset-card-sub">🔒 Full version</div>
+        </button>`;
+      }
       const n = p.qualities.length * ChordEngine.ROOTS.length;
       return `<button class="preset-card${draft.presetId === p.id ? ' selected' : ''}" data-preset="${p.id}">
         <div class="preset-card-title">${p.label}</div>
@@ -617,10 +630,15 @@ export const UI = {
       </button>`;
     }).join('');
 
-    const weakCard = `<button class="preset-card preset-card-gold${draft.presetId === 'weakSpots' ? ' selected' : ''}" data-preset="weakSpots"${weakReady ? '' : ' disabled'}>
-      <div class="preset-card-title">My weak spots</div>
-      <div class="preset-card-sub">${weakReady ? '8 weakest chords' : `Keep playing — found ${weakQualified.length}/8`}</div>
-    </button>`;
+    const weakCard = IS_DEMO
+      ? `<button class="preset-card preset-card-gold locked" data-preset="weakSpots">
+          <div class="preset-card-title">My weak spots</div>
+          <div class="preset-card-sub">🔒 Full version</div>
+        </button>`
+      : `<button class="preset-card preset-card-gold${draft.presetId === 'weakSpots' ? ' selected' : ''}" data-preset="weakSpots"${weakReady ? '' : ' disabled'}>
+          <div class="preset-card-title">My weak spots</div>
+          <div class="preset-card-sub">${weakReady ? '8 weakest chords' : `Keep playing — found ${weakQualified.length}/8`}</div>
+        </button>`;
 
     const customCard = `<button class="preset-card preset-card-custom" data-preset="custom">
       <div class="preset-card-title">Custom…</div>
@@ -660,12 +678,15 @@ export const UI = {
     // Quality checkboxes — shared by byQuality and rootFamily
     document.getElementById('practice-quality-section').style.display = isCells ? 'none' : '';
     if (!isCells) {
-      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t =>
-        `<label class="quality-checkbox">
+      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t => {
+        if (IS_DEMO && t.name !== 'Major') {
+          return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
+        }
+        return `<label class="quality-checkbox">
           <input type="checkbox" data-quality="${t.name}"${draft.qualities.includes(t.name) ? ' checked' : ''}>
           ${t.name}
-        </label>`
-      ).join('');
+        </label>`;
+      }).join('');
     }
 
     // Root scope — shape groups / sharp / flat / all12 / single-root family
@@ -684,6 +705,9 @@ export const UI = {
       ];
       const isSingleRoot = draft.what === 'rootFamily';
       document.getElementById('practice-scope-grid').innerHTML = SCOPE_OPTIONS.map(([val, label]) => {
+        if (IS_DEMO && !DEMO_UNLOCKED_SCOPES.has(val)) {
+          return `<button class="practice-choice-btn locked" data-locked-scope="${val}">🔒 ${label}</button>`;
+        }
         const selected = val === 'singleRoot' ? isSingleRoot : (!isSingleRoot && draft.where === val);
         return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-scope="${val}">${label}</button>`;
       }).join('');
@@ -691,9 +715,12 @@ export const UI = {
       const rfPanel = document.getElementById('root-family-panel');
       rfPanel.style.display = isSingleRoot ? '' : 'none';
       if (isSingleRoot) {
-        document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((_, i) =>
-          `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${formatRoot(i, getEnharmonicStyle())}</button>`
-        ).join('');
+        document.getElementById('root-picker-grid').innerHTML = ChordEngine.ROOTS.map((_, i) => {
+          if (IS_DEMO && !DEMO_CHORDS.includes(i)) {
+            return `<button class="practice-choice-btn locked" data-locked-root="${i}">🔒 ${formatRoot(i, getEnharmonicStyle())}</button>`;
+          }
+          return `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${formatRoot(i, getEnharmonicStyle())}</button>`;
+        }).join('');
         document.getElementById('root-family-shuffle').checked = draft.rootFamilyShuffle;
       }
     }

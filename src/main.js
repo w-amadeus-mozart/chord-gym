@@ -16,7 +16,7 @@ import { SurvivalMode } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
 import { Progress } from './progress.js';
-import { IS_DEMO } from './edition.js';
+import { IS_DEMO, UPGRADE_URL } from './edition.js';
 
 // The only two modes with a skippable "dying" freeze sequence — keyed off state.activeMode,
 // since each mode's own teardown() (which resets activeMode) hasn't run yet at that point.
@@ -307,6 +307,7 @@ document.getElementById('settings-btn').addEventListener('click', openSettings);
 document.getElementById('practice-setup').addEventListener('click', e => {
   const presetBtn = e.target.closest('[data-preset]');
   if (presetBtn) {
+    if (presetBtn.classList.contains('locked')) { UI.openUpgradePanel(); return; }
     if (presetBtn.disabled) return;
     const id = presetBtn.dataset.preset;
     const draft = state.practice.setupDraft;
@@ -351,6 +352,11 @@ document.getElementById('btn-back-from-practice-setup').addEventListener('click'
 // ── Custom practice screen — wired once, re-renders on every change ───────
 document.getElementById('practice-custom').addEventListener('click', e => {
   const draft = state.practice.setupDraft;
+
+  if (e.target.closest('[data-locked-quality], [data-locked-scope], [data-locked-root]')) {
+    UI.openUpgradePanel();
+    return;
+  }
 
   const scopeBtn = e.target.closest('[data-scope]');
   if (scopeBtn) {
@@ -599,6 +605,8 @@ if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.displa
 // restriction itself lives in chords.js; this only handles what's visible/clickable.
 if (IS_DEMO) {
   document.body.classList.add('is-demo');
+  document.title = 'ChordGym Demo';
+  document.getElementById('dash-demo-cta').href = UPGRADE_URL;
   document.querySelectorAll('.mode-btn[data-mode="survival"], .mode-btn[data-mode="falling"]').forEach(btn => {
     btn.classList.add('locked');
     btn.querySelector('.mode-btn-desc').textContent = DEMO_LOCK_TEASE[btn.dataset.mode];
