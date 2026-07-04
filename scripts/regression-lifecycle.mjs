@@ -113,6 +113,19 @@ async function main() {
     }, notes);
     const targetPcs = () => page.$$eval('.note-pip', els => els.map(e => e.textContent)).then(texts => texts.map(pipTextToPc));
     const activeKeyCount = () => page.$$eval('.white-key.active, .black-key.active', els => els.length);
+    const barWidth = () => page.$eval('#survival-window-bar', el => parseFloat(el.style.width));
+
+    // Every sidebar-nav click below goes through this helper instead of a bare page.click,
+    // since navigating away mid-session now opens the "End this session?" confirm dialog
+    // (see navigation.js) instead of committing immediately. When a mode is running, this
+    // clicks through with "End session" so the rest of the script's assertions (written
+    // against immediate navigation) keep working unchanged; when no mode is running the
+    // dialog never appears and this is equivalent to the old bare click.
+    async function navAway(navKey) {
+      await page.click(`.sidebar-nav-item[data-nav="${navKey}"]`);
+      const dialogOpen = await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none').catch(() => false);
+      if (dialogOpen) await page.click('#btn-end-session');
+    }
 
     // Presses the current Survival target chord and robustly waits (poll, not a fixed
     // timeout — a fixed guess was occasionally too short under load) for the match to
@@ -150,13 +163,13 @@ async function main() {
     // TEST 1 — Sprint: navigating away mid-round leaves nothing running
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[1] Sprint: navigate away mid-game, stale timer must not hijack later');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
     assert(await page.$eval('#game', el => el.classList.contains('active')), 'game screen should be active');
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await navAway('home');
     await page.waitForTimeout(100);
     assert(await page.$eval('#home', el => el.classList.contains('active')), 'home screen should now be active');
 
@@ -167,7 +180,7 @@ async function main() {
     assert(!(await page.$eval('#results', el => el.classList.contains('active'))), 'results screen must not have appeared from a stale Sprint timer');
     ok('home screen stable 1s later — no stale Sprint interval hijack');
 
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
@@ -179,12 +192,12 @@ async function main() {
     // TEST 2 — Survival: navigate away mid-game, same stale-interval hazard
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[2] Survival: navigate away mid-game, stale timer must not hijack later');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('home');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await navAway('home');
     await page.waitForTimeout(100);
 
     // Survival's window can expire in as little as ~2.5s; wait past a plausible expiry.
@@ -198,7 +211,7 @@ async function main() {
     // TEST 3 — Survival: navigate away DURING the death sequence itself
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[3] Survival: navigate away mid-death-sequence, cancelled timers must not fire later');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('[data-variant="nm"]');
     await page.click('#btn-start');
@@ -218,7 +231,7 @@ async function main() {
     ok('death overlay visible — mid death-sequence');
 
     // Navigate away now, before the ~1600ms+600ms death-sequence timers would fire finishDeath.
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await navAway('home');
     await page.waitForTimeout(100);
     assert(await page.$eval('#home', el => el.classList.contains('active')), 'home should be active after navigating away mid-death');
 
@@ -232,19 +245,19 @@ async function main() {
     // TEST 4 — Falling: navigate away during count-in AND mid-play; DOM restored
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[4] Falling: navigate away during count-in');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="falling"]');
     await page.click('#btn-start');
     await page.waitForTimeout(300);
     await page.click('[data-chart]');
     await page.waitForTimeout(300); // still in count-in
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await navAway('home');
     await page.waitForTimeout(100);
     assert(await page.$eval('#home', el => el.classList.contains('active')), 'home should be active after leaving during count-in');
     ok('navigated home during Falling count-in');
 
     console.log('[4b] Falling: navigate away mid-play, lane-canvas/chord-arena DOM must be restored');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="falling"]');
     await page.click('#btn-start');
     await page.waitForTimeout(300);
@@ -252,13 +265,13 @@ async function main() {
     await page.waitForTimeout(2500); // now mid-play
     assert((await page.$eval('#lane-canvas', el => getComputedStyle(el).display)) !== 'none', 'lane canvas should be visible mid-play (sanity check)');
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await navAway('home');
     await page.waitForTimeout(100);
     assert((await page.$eval('#lane-canvas', el => getComputedStyle(el).display)) === 'none', 'lane canvas should be hidden again after navigating away (teardown DOM restore)');
     assert((await page.$eval('#chord-arena', el => getComputedStyle(el).display)) !== 'none', 'chord-arena should be restored to visible after navigating away from Falling');
     ok('Falling teardown restored lane-canvas/chord-arena DOM state');
 
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
@@ -270,8 +283,8 @@ async function main() {
     // TEST 5 — Practice: navigate away mid-hint-state; HUD chrome restored
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[5] Practice: navigate away mid-hint-state, next mode gets correct HUD chrome');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="practice"]');
+    await navAway('home');
+    await navAway('practice');
     await page.waitForTimeout(200);
     await page.click('[data-preset="major"]');
     await page.click('#btn-start-practice');
@@ -280,12 +293,12 @@ async function main() {
     await page.waitForTimeout(100);
     assert(await page.$eval('#practice-controls', el => getComputedStyle(el).display !== 'none'), 'practice rail should be visible during Practice (sanity check)');
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await navAway('home');
     await page.waitForTimeout(100);
     assert((await page.$eval('#practice-controls', el => getComputedStyle(el).display)) === 'none', 'practice rail should be hidden again after navigating away (teardown DOM restore)');
     ok('Practice teardown restored practice-controls/timer-bar-wrap DOM state');
 
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
@@ -305,8 +318,8 @@ async function main() {
       ok(`${label}: ${count} active key(s)`);
     }
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('home');
+    await navAway('test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
@@ -316,7 +329,7 @@ async function main() {
     await checkHighlight('Sprint');
     await sendNoteOff([note]);
 
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);
@@ -328,7 +341,7 @@ async function main() {
 
     // Falling — during actual play; candidate detection is timing-sensitive so this
     // asserts the highlight mechanism fires (active or wrong-active), not a scored hit.
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="falling"]');
     await page.click('#btn-start');
     await page.waitForTimeout(300);
@@ -341,7 +354,7 @@ async function main() {
     ok(`Falling: ${fallingColored} colored key(s) while holding C E G during play`);
     await sendNoteOff([60, 64, 67]);
 
-    await page.click('.sidebar-nav-item[data-nav="practice"]');
+    await navAway('practice');
     await page.waitForTimeout(200);
     await page.click('[data-preset="major"]');
     await page.click('#btn-start-practice');
@@ -359,8 +372,8 @@ async function main() {
     // (exercises state.mode surviving teardown resetting state.activeMode to 'none')
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[7] Natural completion: results screen + Play Again still dispatch correctly');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="practice"]');
+    await navAway('home');
+    await navAway('practice');
     await page.waitForTimeout(200);
     await page.click('[data-preset="major"]');
     await page.click('#btn-start-practice');
@@ -371,7 +384,7 @@ async function main() {
     assert((await page.textContent('#results-headline')).includes('Practice'), 'results headline should reflect Practice completion');
     ok('Practice natural end -> results');
 
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('[data-variant="nm"]');
     await page.click('#btn-start');
@@ -400,8 +413,8 @@ async function main() {
     // (pre-fix) results timer would fire, and proves it can no longer hijack back.
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[8] Results-screen hijack repro (Sprint): navigating away during the end-of-round flash must stick');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('home');
+    await navAway('test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(100);
@@ -409,7 +422,7 @@ async function main() {
     await page.clock.install();
     await page.clock.fastForward(60500); // past SPRINT_DURATION -> end() fires; screen='results' internally,
                                           // but the 350ms "TIME!" flash timer is still pending
-    await page.click('.sidebar-nav-item[data-nav="practice"]');
+    await navAway('practice');
     assert(await page.$eval('#practice-setup', el => el.classList.contains('active')), 'practice-setup should be active right after navigating away');
 
     await page.clock.fastForward(1000); // let the pending flash timer's fake-clock deadline pass
@@ -427,8 +440,8 @@ async function main() {
     // TEST 7 already recorded a 0-chord Nightmare high score — clear it so THIS run
     // still counts as a new one even before surviving a chord.
     await page.evaluate(() => localStorage.removeItem('chordSprint_survival_nm_hs'));
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('home');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('[data-variant="nm"]');
     await page.click('#btn-start');
@@ -447,7 +460,7 @@ async function main() {
     ok('Survival results fully shown, including new-high-score badge');
     await sendNoteOff([60 + wrongPc]); // release the death-triggering note before any later test presses chords
 
-    await page.click('.sidebar-nav-item[data-nav="practice"]');
+    await navAway('practice');
     await page.waitForTimeout(100);
     assert(await page.$eval('#practice-setup', el => el.classList.contains('active')), 'practice-setup should be active right after navigating away');
 
@@ -461,13 +474,12 @@ async function main() {
     // tab-hide freeze/resume, and no jump across an unlock-grace boundary
     // ════════════════════════════════════════════════════════════════════════
     console.log('\n[10] Survival window bar physics');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('home');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('#btn-start'); // Standard variant, chord 1 window = 8.0s exactly
     await page.waitForTimeout(150);
 
-    const barWidth = () => page.$eval('#survival-window-bar', el => parseFloat(el.style.width));
     const barClass = () => page.$eval('#survival-window-bar', el => el.className);
     const arenaHasRed = () => page.$eval('#chord-arena', el => el.classList.contains('survival-red'));
 
@@ -514,8 +526,8 @@ async function main() {
     // Unlock grace: play 10 clean chords to trigger the tier-1 (Minor) unlock and confirm
     // the bar shows full (no dip/jump) right as the grace-inflated window starts.
     console.log('[10b] Survival window bar: unlock-grace window renders without a jump');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await navAway('home');
+    await navAway('test');
     await page.click('[data-mode="survival"]');
     await page.click('#btn-start');
     await page.waitForTimeout(150);
@@ -528,6 +540,116 @@ async function main() {
     const bannerShown = await page.$('.unlock-banner');
     assert(bannerShown, 'unlock banner should have appeared at the 10th chord (Minor unlocked)');
     ok(`unlock-grace window renders at ${widthAtUnlock.toFixed(1)}% with no jump, unlock banner shown`);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // TEST 11 — "End this session?" confirmation dialog: freeze/resume, input
+    // gating, Esc/backdrop = Keep playing, and no-prompt-from-results.
+    // ════════════════════════════════════════════════════════════════════════
+    console.log('\n[11] Exit-confirm dialog: freeze/resume, input gating, Esc/backdrop, results exemption');
+
+    // 11a — mid-Survival: dialog appears, screen stays put, window bar freezes while it's
+    // up, and Keep playing resumes the drain with the paused time excluded.
+    await navAway('home');
+    await navAway('test');
+    await page.click('[data-mode="survival"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(1000); // let the bar drain a bit so a freeze is detectable
+
+    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none'), 'dialog should appear navigating away mid-Survival');
+    assert(await page.$eval('#game', el => el.classList.contains('active')), 'game screen must stay active while the dialog is up (navigation deferred)');
+
+    const widthAtOpen = await barWidth();
+    await page.waitForTimeout(500);
+    const widthWhileOpen = await barWidth();
+    assert(Math.abs(widthWhileOpen - widthAtOpen) < 0.5, `window bar must freeze while the dialog is open, went from ${widthAtOpen.toFixed(1)} to ${widthWhileOpen.toFixed(1)}`);
+    ok('Survival window bar frozen while the exit-confirm dialog is open');
+
+    await page.click('#btn-keep-playing');
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'dialog should close on Keep playing');
+    assert(await page.$eval('#game', el => el.classList.contains('active')), 'game screen should still be active after Keep playing');
+    const widthJustAfterResume = await barWidth();
+    assert(widthJustAfterResume <= widthWhileOpen + 0.5, `bar must not jump upward on resume, ${widthWhileOpen.toFixed(1)} -> ${widthJustAfterResume.toFixed(1)}`);
+    await page.waitForTimeout(400);
+    assert((await barWidth()) < widthJustAfterResume - 0.5, 'window bar should resume draining after Keep playing');
+    ok('Survival window bar resumes correctly after Keep playing, with dialog-open time excluded');
+
+    await playCleanSurvivalChord();
+    ok('chord completed normally after Keep playing — dialog pause did not corrupt input state');
+
+    // 11b — Nightmare: a wrong note held while the dialog is open must not cause a death.
+    await navAway('home');
+    await navAway('test');
+    await page.click('[data-mode="survival"]');
+    await page.click('[data-variant="nm"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+
+    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none'), 'dialog should appear mid-Nightmare');
+
+    pcs = await targetPcs();
+    wrongPc = [...Array(12).keys()].find(pc => !pcs.includes(pc));
+    await sendNoteOn([60 + wrongPc]);
+    await page.waitForTimeout(300);
+    assert(await page.$eval('#game', el => el.classList.contains('active')), 'a wrong note while the dialog is open must not trigger a Nightmare death');
+    assert(!(await page.$eval('#death-overlay', el => el.classList.contains('visible'))), 'death overlay must not appear from input received while the dialog is open');
+    ok('Nightmare wrong note held while dialog open causes no death');
+    await sendNoteOff([60 + wrongPc]);
+
+    await page.click('#btn-keep-playing');
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'dialog closes on Keep playing');
+
+    await navAway('home'); // actually end this run so it doesn't linger into the next scenario
+    await page.waitForTimeout(100);
+    assert(await page.$eval('#home', el => el.classList.contains('active')), 'home should be active after ending the Nightmare session');
+
+    // 11c — Backdrop click and Escape both act as Keep playing: dialog closes, session resumes.
+    await navAway('test');
+    await page.click('[data-mode="sprint"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+
+    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.waitForTimeout(50);
+    await page.click('#exit-confirm-overlay', { position: { x: 5, y: 5 } }); // backdrop, not the card
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'backdrop click should close the dialog');
+    assert(await page.$eval('#game', el => el.classList.contains('active')), 'game should still be active after a backdrop click (session resumed, not ended)');
+
+    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.waitForTimeout(50);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'Escape should close the dialog');
+    assert(await page.$eval('#game', el => el.classList.contains('active')), 'game should still be active after Escape');
+    ok('backdrop click and Escape both act as Keep playing');
+
+    await navAway('home');
+    assert(await page.$eval('#home', el => el.classList.contains('active')), 'home should be active after actually ending via End session');
+
+    // 11d — No dialog when navigating away from a results screen.
+    await navAway('test');
+    await page.click('[data-mode="survival"]');
+    await page.click('[data-variant="nm"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+    pcs = await targetPcs();
+    wrongPc = [...Array(12).keys()].find(pc => !pcs.includes(pc));
+    await sendNoteOn([60 + wrongPc]);
+    await page.waitForTimeout(2700); // full death sequence -> results
+    assert(await page.$eval('#results', el => el.classList.contains('active')), 'sanity check: should be on results');
+    await sendNoteOff([60 + wrongPc]);
+
+    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.waitForTimeout(100);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'no exit-confirm dialog should appear navigating away from results');
+    assert(await page.$eval('#home', el => el.classList.contains('active')), 'navigating from results should go straight to home, no dialog');
+    ok('navigating away from a results screen skips the confirmation dialog');
 
     assertEqual(pageErrors.length, 0, `No console/page errors expected, got: ${JSON.stringify(pageErrors)}`);
 

@@ -1241,6 +1241,9 @@ body {
 .reset-confirm-input:focus { outline: none; border-color: var(--red); }
 #btn-confirm-reset:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.exit-confirm-modal h3 { font-size: 20px; font-weight: 900; color: var(--text); }
+.exit-confirm-modal p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
 /* ── First-run welcome overlay ── */
 .welcome-modal { max-width: 420px; }
 .welcome-mark { height: 56px; width: auto; margin-bottom: 4px; }

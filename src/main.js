@@ -65,10 +65,12 @@ MidiInput.on((type) => {
       skipDeath();
       return;
     }
-    if (state.screen === 'game') {
+    if (state.screen === 'game' && !state.confirmingExit) {
       // Keyed off activeMode (which mode's loop is actually running), not `mode` (which
       // stays around for menu-selection/results-screen purposes after a mode ends) — so an
-      // idle screen can never get mis-dispatched to a stale mode's onNotesChanged.
+      // idle screen can never get mis-dispatched to a stale mode's onNotesChanged. Gated on
+      // confirmingExit too — while the exit-confirm dialog is up, held/pressed notes must
+      // never reach a mode's match/death logic (see navigation.js).
       if (state.activeMode === 'survival') {
         SurvivalMode.onNotesChanged();
       } else if (state.activeMode === 'falling') {
@@ -182,7 +184,7 @@ document.addEventListener('click', () => {
 
 // ── Page visibility — pause timer and response/window clock ─────
 document.addEventListener('visibilitychange', () => {
-  if (state.screen !== 'game') return;
+  if (state.screen !== 'game' || state.confirmingExit) return; // exit-confirm dialog owns pause/resume while it's open
   if (document.hidden) {
     state.pausedAt = Date.now();
   } else {

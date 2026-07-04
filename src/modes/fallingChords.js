@@ -79,7 +79,7 @@ function _elapsedForBeat(beat)   { return (beat - 1) * _beatMs(); }
 
 // ── Page-visibility pause (suspend/resume AudioContext) ───────────────────────
 function _onVisibilityChange() {
-  if (state.screen !== 'game' || state.activeMode !== 'falling') return;
+  if (state.screen !== 'game' || state.activeMode !== 'falling' || state.confirmingExit) return; // exit-confirm dialog owns suspend/resume while it's open
   if (document.hidden) {
     GameAudio.suspendAudio();
   } else {

@@ -62,7 +62,7 @@ function _renderWindowBar() {
 
 function _barLoop() {
   if (state.screen !== 'game' || state.activeMode !== 'survival') { _barRafId = null; return; }
-  if (!document.hidden) _renderWindowBar(); // freeze while tab hidden, same as onTick
+  if (!document.hidden && !state.confirmingExit) _renderWindowBar(); // freeze while tab hidden or exit-confirm dialog open, same as onTick
   _barRafId = requestAnimationFrame(_barLoop);
 }
 
@@ -219,7 +219,7 @@ export const SurvivalMode = {
   },
 
   onTick() {
-    if (document.hidden || state.activeMode !== 'survival') return;
+    if (document.hidden || state.activeMode !== 'survival' || state.confirmingExit) return;
 
     // During release gate the window hasn't started yet — the bar loop already holds it full
     if (state.waitingForRelease) return;

@@ -17,6 +17,10 @@ export const state = {
                           // 'none'. navigateTo() tears this down too (calling that mode's idempotent teardown()) and
                           // clears it, so a pending results-transition timer/animation can never fire after the
                           // player has already navigated elsewhere and hijack the screen back to "Round Over."
+  confirmingExit: false, // true while the "End this session?" dialog is open — gates game
+                          // input dispatch (main.js) and the per-mode tick/render guards so
+                          // a mid-navigation dialog can't let a round keep advancing or dying
+                          // underneath it. See navigation.js.
   selectedVariant: 'std', // 'std' | 'nm' — chosen on menu for survival
   // sprint/survival shared runtime
   score: 0,
