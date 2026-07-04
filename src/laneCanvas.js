@@ -43,6 +43,7 @@ let _missFlashes = [];  // { startMs }
 let _comboBursts = [];  // { x, y, startMs } — ring burst on combo milestones
 let _beatMs      = 750; // stored from current chart (set via setBeatMs)
 let _failedPct   = null; // null = not failed; 0–100 = failed at this progress %
+let _failedLevel = null; // level number the run ended on, for the fail overlay's text
 
 export const LaneCanvas = {
   init(canvasEl) {
@@ -52,6 +53,7 @@ export const LaneCanvas = {
     _missFlashes = [];
     _comboBursts = [];
     _failedPct   = null;
+    _failedLevel = null;
     LaneCanvas.resize();
   },
 
@@ -93,8 +95,9 @@ export const LaneCanvas = {
     }
   },
 
-  setFailed(progressPct) {
+  setFailed(progressPct, level) {
     _failedPct = progressPct;
+    _failedLevel = level;
   },
 
   // tiles:         array of tile objects from fallingChords.js
@@ -330,11 +333,12 @@ export const LaneCanvas = {
       _ctx.textBaseline = 'middle';
       _ctx.shadowColor = '#f87171';
       _ctx.shadowBlur  = 28;
-      _ctx.fillText(`SONG FAILED at ${Math.round(_failedPct)}%`, w / 2, h / 2 - 18);
+      _ctx.fillText('0 HEARTS — RUN OVER', w / 2, h / 2 - 18);
       _ctx.font        = '16px "Segoe UI", system-ui, sans-serif';
       _ctx.shadowBlur  = 0;
       _ctx.fillStyle   = 'rgba(242,239,232,0.55)';
-      _ctx.fillText('Press any key or tap to see results', w / 2, h / 2 + 20);
+      _ctx.fillText(`Level ${_failedLevel} · ${Math.round(_failedPct)}% through`, w / 2, h / 2 + 20);
+      _ctx.fillText('Press any key or tap to see results', w / 2, h / 2 + 44);
       _ctx.restore();
     }
   },

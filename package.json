@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:low-octave": "node scripts/regression-low-octave.mjs",
-    "test:lifecycle": "node scripts/regression-lifecycle.mjs"
+    "test:lifecycle": "node scripts/regression-lifecycle.mjs",
+    "test:falling-levels": "node scripts/regression-falling-levels.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1",

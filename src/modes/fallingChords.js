@@ -1,9 +1,12 @@
-// Falling Chords game mode — rhythm/timing mode.
+// Falling Chords game mode — a finite, leveled climb (Level 1 → Level 10).
 // Chord tiles fall from the top of a canvas lane; the player must play each
 // chord when it crosses the hit-zone line. Timing determines the rating.
+// A level is a generated event sequence (see ../fallingLevels.js) compiled into the
+// same {bpm, beatsPerBar, totalBeats, events[]} chart shape hand-authored charts used
+// to have — the tile/scheduler/judgment pipeline below is agnostic to where it came from.
 //
 // Implements the GameMode interface used by main.js:
-//   start(chartId), onNotesChanged(), end()
+//   start(startLevel), onNotesChanged(), end(), skipDeath()
 
 import { state } from '../state.js';
 import { ChordEngine } from '../chords.js';
@@ -11,13 +14,15 @@ import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { LaneCanvas } from '../laneCanvas.js';
-import { CHARTS } from '../charts.js';
+import { compileLevel } from '../fallingLevels.js';
+import { Achievements } from '../achievements.js';
 import { Mastery } from '../mastery.js';
 import { setPianoTarget } from '../piano.js';
 
 // ── Timing constants ─────────────────────────────────────────────────────────
 const APPROACH_MS    = 2200;  // must match laneCanvas.js
-const PRE_ROLL_BEATS = 4;     // one bar of count-in at any BPM
+const PRE_ROLL_BEATS         = 4; // one bar of count-in at the very start of a run
+const BREATHER_PRE_ROLL_BEATS = 8; // two bars of count-in between levels — the breather
 const HIT_PERFECT    = 80;    // ±ms for perfect
 const HIT_GOOD       = 160;   // ±ms for good
 const HIT_OK         = 300;   // ±ms for ok
@@ -27,20 +32,19 @@ const HOLD_GRACE_MS  = 250;   // ms before hold end — releasing within this is
 const SCORES     = { perfect: 300, good: 150, ok: 50, miss: 0 };
 const DOWNGRADE  = { perfect: 'good', good: 'ok', ok: 'ok' };
 
-// Health bar
-const HEALTH_MISS    = -18;
-const HEALTH_OK      = 2;
-const HEALTH_GOOD    = 5;
-const HEALTH_PERFECT = 8;
+const LAST_LEVEL = 10;
 
 // Lookahead scheduler
 const LOOKAHEAD_S        = 0.12;  // schedule 120ms ahead
 const SCHEDULER_INTERVAL = 25;    // tick every 25ms
 
+// Death (game-over) sequence timings — mirrors survival.js's DEATH_TIMINGS shape.
+const DEATH_TIMINGS = { deathMs: 300, holdMs: 900, fadeOutMs: 500, fadeInMs: 400 };
+
 // ── Module-level state ───────────────────────────────────────────────────────
 let _rafId              = null;
-let _songStartAudioTime = 0;   // AudioContext.currentTime when beat 1 fires (elapsed = 0)
-let _beatS              = 0;   // beat duration in seconds
+let _songStartAudioTime = 0;   // AudioContext.currentTime when this level's beat 1 fires
+let _beatS              = 0;   // beat duration in seconds, current level
 let _tiles              = [];
 let _chart              = null;
 let _endQueued          = false;
@@ -51,14 +55,9 @@ let _schedulerTimer     = null;
 let _nextClickBeat      = 0;   // next integer beat index to schedule a metronome click for
 let _nextBassEventIdx   = 0;   // next chart event index to schedule a bass note for
 
-// Health
-let _health             = 100;
-let _healthEnabled      = true;
-
-// Fail state
-let _failed             = false;
-let _failPct            = 0;
-let _failTimer          = null;
+// Game-over (death) sequence
+let _deathTimers        = [];
+let _gameOverPct        = 0;
 
 // Latency calibration
 let _inputOffsetMs      = 0;
@@ -69,13 +68,26 @@ let _calibrating        = false;
 let _calibClicks        = [];   // audio times of scheduled calibration clicks
 let _calibPresses       = [];   // audio times of player presses
 
+const PROGRESS_KEY = 'ct_falling_progress_v1';
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function _elapsed()    { return (GameAudio.getCtxTime() - _songStartAudioTime) * 1000; }
 function _adjElapsed() { return _elapsed() - _inputOffsetMs; } // offset-corrected for judgment
 
 function _beatMs()  { return _beatS * 1000; }
 function _audioTimeForBeat(beat) { return _songStartAudioTime + (beat - 1) * _beatS; }
-function _elapsedForBeat(beat)   { return (beat - 1) * _beatMs(); }
+
+function _clearDeathTimers() { _deathTimers.forEach(clearTimeout); _deathTimers = []; }
+
+function _loadHighestLevel() {
+  try { return parseInt(localStorage.getItem(PROGRESS_KEY) || '1', 10) || 1; } catch (_) { return 1; }
+}
+
+function _maybeSaveProgress() {
+  if (state.falling.currentLevel > _loadHighestLevel()) {
+    try { localStorage.setItem(PROGRESS_KEY, String(state.falling.currentLevel)); } catch (_) {}
+  }
+}
 
 // ── Page-visibility pause (suspend/resume AudioContext) ───────────────────────
 function _onVisibilityChange() {
@@ -102,7 +114,7 @@ function _schedulerTick() {
       // Accent on beat 1 of each bar and on the first count-in beat
       const isAccent = _nextClickBeat >= 1
         ? ((_nextClickBeat - 1) % beatsPerBar === 0)
-        : (_nextClickBeat === -(PRE_ROLL_BEATS - 1));
+        : _isFirstPreRollBeat(_nextClickBeat);
       GameAudio.scheduleClick(t, isAccent);
     }
     _nextClickBeat++;
@@ -119,6 +131,12 @@ function _schedulerTick() {
     _nextBassEventIdx++;
   }
 }
+
+// The very first scheduled beat of whichever pre-roll is currently running (either
+// PRE_ROLL_BEATS or BREATHER_PRE_ROLL_BEATS) gets the accent click — tracked via the
+// pre-roll length stashed when the local timeline started, not a hardcoded constant.
+let _preRollBeats = PRE_ROLL_BEATS;
+function _isFirstPreRollBeat(beat) { return beat === -(_preRollBeats - 1); }
 
 // ── Tile construction ─────────────────────────────────────────────────────────
 function _buildTiles(chart) {
@@ -176,20 +194,30 @@ function _candidateTile(adjElapsed) {
   return best;
 }
 
-// ── Health helpers ────────────────────────────────────────────────────────────
-function _updateHealth(delta) {
-  if (!_healthEnabled) return;
-  _health = Math.max(0, Math.min(100, _health + delta));
-  _renderHealthBar();
+// ── Hearts ─────────────────────────────────────────────────────────────────────
+function _renderHeartsHUD(justBroke) {
+  const wrap = document.getElementById('hearts-wrap');
+  if (!wrap) return;
+  wrap.dataset.hearts = String(state.falling.hearts);
+  const glyphs = wrap.querySelectorAll('.heart-glyph');
+  glyphs.forEach((g, i) => {
+    const filled = i < state.falling.hearts;
+    g.classList.toggle('filled', filled);
+    g.classList.toggle('empty', !filled);
+    if (justBroke && i === state.falling.hearts) {
+      g.classList.remove('breaking');
+      void g.offsetWidth; // restart the shatter animation even if triggered twice in a row
+      g.classList.add('breaking');
+    }
+  });
 }
 
-function _renderHealthBar() {
-  const bar  = document.getElementById('health-bar');
-  const wrap = document.getElementById('health-bar-wrap');
-  if (!bar || !wrap) return;
-  bar.style.width = _health + '%';
-  const cls = _health > 50 ? '' : _health > 25 ? 'amber' : 'red';
-  bar.className = 'health-bar' + (cls ? ' ' + cls : '');
+function _loseHeart() {
+  state.falling.hearts = Math.max(0, state.falling.hearts - 1);
+  state.falling.misses++;
+  state.falling.levelMissCount++;
+  _renderHeartsHUD(true);
+  if (state.falling.hearts <= 0 && !state.falling.gameOver) _triggerGameOver();
 }
 
 // ── Miss / hold-complete checking ─────────────────────────────────────────────
@@ -202,15 +230,12 @@ function _checkMisses(elapsed) {
     tile.missed = true;
     state.streak      = 0;
     state.multiplier  = 1;
-    state.falling.misses++;
     state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, result: 'miss', points: 0 });
     Mastery.record(tile.rootPc, tile.typeName, null, false);
     LaneCanvas.flashMiss();
-    _updateHealth(HEALTH_MISS);
     UI.renderFallingHUD();
-
-    // Fail check
-    if (_healthEnabled && _health <= 0 && !_failed) _triggerFail();
+    _loseHeart();
+    if (state.falling.gameOver) return; // a lost heart may have just ended the run
   }
 }
 
@@ -240,8 +265,6 @@ function _checkHoldCompletions(elapsed) {
     const label = tile.holdBroken ? rating.toUpperCase() : 'HOLD!';
     LaneCanvas.flashHit(tile._lastCenterX, tile._lastCenterY, tile.typeName, rating, label);
     LaneCanvas.notifyCombo(state.streak);
-    const healthDelta = { perfect: HEALTH_PERFECT, good: HEALTH_GOOD, ok: HEALTH_OK }[rating] || 0;
-    _updateHealth(healthDelta);
     GameAudio.playSuccessChime(tile.pitchClasses);
     UI.renderFallingHUD();
   }
@@ -260,18 +283,110 @@ function _incRatingCount(rating) {
   else                         state.falling.oks++;
 }
 
-// ── Fail sequence ────────────────────────────────────────────────────────────
-function _triggerFail() {
-  _failed  = true;
-  const songDurationMs = (_chart.totalBeats - 1) * _beatMs();
-  _failPct = Math.min(100, Math.max(0, _elapsed() / songDurationMs * 100));
+// ── Run-result assembly — shared by the victory path and the game-over path ──────
+function _buildRunResult(gameOver) {
+  const f = state.falling;
+  const total = f.perfects + f.goods + f.oks + f.misses;
+  const accuracy = total > 0 ? Math.round(((f.perfects + f.goods + f.oks) / total) * 100) : 0;
+  const fullClear = !gameOver && f.currentLevel >= LAST_LEVEL && f.runStartLevel === 1;
+  let isFirstFullClear = false;
+  let badge = Achievements.getFullClearBadge();
+  if (fullClear) {
+    const rec = Achievements.recordFullClear(state.score, accuracy);
+    isFirstFullClear = rec.isFirst;
+    badge = rec.badge;
+  }
+  return {
+    currentLevel: f.currentLevel,
+    runStartLevel: f.runStartLevel,
+    gameOver,
+    gameOverPct: gameOver ? _gameOverPct : 0,
+    won: !gameOver && f.currentLevel >= LAST_LEVEL,
+    fullClear,
+    isFirstFullClear,
+    badge,
+    score: state.score,
+    accuracy,
+    hearts: f.hearts,
+    perfects: f.perfects, goods: f.goods, oks: f.oks, misses: f.misses,
+    maxCombo: f.maxCombo,
+    results: f.results,
+  };
+}
 
-  LaneCanvas.setFailed(_failPct);
-  state.falling.failed    = true;
-  state.falling.failedPct = _failPct;
+// ── Game-over (death) sequence — mirrors survival.js's _deathTimers/finishDeath shape ──
+function _triggerGameOver() {
+  state.falling.gameOver = true;
+  if (_schedulerTimer) { clearInterval(_schedulerTimer); _schedulerTimer = null; } // stop metronome/bass — the "freeze"
+  _gameOverPct = Math.min(100, Math.max(0, _elapsed() / ((_chart.totalBeats - 1) * _beatMs()) * 100));
+  LaneCanvas.setFailed(_gameOverPct, state.falling.currentLevel);
+  state.screen = 'dying';
 
-  // Allow skipping after 1s, auto-end after 2s
-  _failTimer = setTimeout(() => FallingChordsMode.end(), 2000);
+  const holdEnd = DEATH_TIMINGS.deathMs + DEATH_TIMINGS.holdMs;
+  _deathTimers.push(setTimeout(() => {
+    document.getElementById('game').classList.add('screen-fadeout');
+  }, holdEnd));
+  _deathTimers.push(setTimeout(() => _finishFallingDeath(true), holdEnd + DEATH_TIMINGS.fadeOutMs));
+}
+
+function _finishFallingDeath(withFadeIn) {
+  const runResult = _buildRunResult(true);
+  FallingChordsMode.teardown();
+  state.resultsOwner = 'falling';
+  state.screen = 'results';
+  UI.renderFallingResults(runResult);
+  showScreen('results');
+  if (withFadeIn) {
+    const el = document.getElementById('results');
+    el.classList.add('screen-fadein');
+    _deathTimers.push(setTimeout(() => el.classList.remove('screen-fadein'), DEATH_TIMINGS.fadeInMs + 60));
+  }
+}
+
+// ── Level transition ──────────────────────────────────────────────────────────
+function _startLocalTimeline(chart, preRollBeats) {
+  _chart = chart;
+  _beatS = 60 / chart.bpm;
+  _preRollBeats = preRollBeats;
+  _tiles = _buildTiles(_chart);
+  _endQueued = false;
+  state.falling.levelMissCount = 0;
+  LaneCanvas.setBeatMs(_beatMs());
+  document.getElementById('timer-bar').style.width = '0%'; // per-level progress bar
+
+  _songStartAudioTime = GameAudio.getCtxTime() + preRollBeats * _beatS;
+  _nextClickBeat    = -(preRollBeats - 1);
+  _nextBassEventIdx = 0;
+  _schedulerTick(); // prime immediately
+
+  if (import.meta.env.DEV) {
+    window.__fallingDebug = {
+      getTiles: () => _tiles.map(t => ({ rootPc: t.rootPc, typeName: t.typeName, targetMs: t.targetMs, hit: t.hit, missed: t.missed })),
+      getElapsedMs: () => _elapsed(),
+    };
+  }
+}
+
+function _advanceLevel() {
+  const perfect = state.falling.levelMissCount === 0;
+  if (perfect) state.falling.hearts = Math.min(3, state.falling.hearts + 1);
+
+  if (state.falling.currentLevel >= LAST_LEVEL) {
+    FallingChordsMode.end();
+    return;
+  }
+
+  state.falling.currentLevel++;
+  _maybeSaveProgress();
+  if (perfect) _renderHeartsHUD(false);
+
+  const next = compileLevel(state.falling.currentLevel);
+  _startLocalTimeline(next, BREATHER_PRE_ROLL_BEATS);
+  UI.showLevelBanner(
+    `Level ${next.level} — ${next.poolLabel} · ${next.bpm} BPM`,
+    perfect ? '♥ restored' : null,
+    4 * _beatS * 1000, // roughly the breather's first bar
+  );
 }
 
 // ── rAF loop ─────────────────────────────────────────────────────────────────
@@ -281,31 +396,39 @@ function _animate() {
   const elapsed = _elapsed();
 
   _checkMisses(elapsed);
-  _checkHoldCompletions(elapsed);
 
-  // Song end detection
-  if (!_failed && !_endQueued && _tiles.length > 0) {
-    const allSettled = _tiles.every(t => t.hit || t.missed);
-    const lastTarget = _tiles[_tiles.length - 1].targetMs;
-    if (allSettled && elapsed > lastTarget + MISS_AFTER_MS + 600) {
-      _endQueued = true;
-      setTimeout(() => FallingChordsMode.end(), 600);
+  if (!state.falling.gameOver) {
+    _checkHoldCompletions(elapsed);
+
+    // Level end detection
+    if (!_endQueued && _tiles.length > 0) {
+      const allSettled = _tiles.every(t => t.hit || t.missed);
+      const lastTarget = _tiles[_tiles.length - 1].targetMs;
+      if (allSettled && elapsed > lastTarget + MISS_AFTER_MS + 600) {
+        _endQueued = true;
+        setTimeout(_advanceLevel, 600);
+      }
     }
+
+    // Progress bar (per-level)
+    const songDurationMs = (_chart.totalBeats - 1) * _beatMs();
+    const progress       = Math.min(1, Math.max(0, elapsed / songDurationMs));
+    document.getElementById('timer-bar').style.width = (progress * 100) + '%';
   }
 
-  // Progress bar
-  const songDurationMs = (_chart.totalBeats - 1) * _beatMs();
-  const progress       = Math.min(1, Math.max(0, elapsed / songDurationMs));
-  document.getElementById('timer-bar').style.width = (progress * 100) + '%';
-
+  // Always render — including the frame a miss just triggered game-over on, so the
+  // fail overlay (LaneCanvas.setFailed, called synchronously inside _triggerGameOver)
+  // actually gets painted before the loop stops.
   LaneCanvas.render(_tiles, elapsed);
+  if (state.falling.gameOver) return; // stop the rAF loop — the death sequence owns everything from here
 
   _rafId = requestAnimationFrame(_animate);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 export const FallingChordsMode = {
-  start(chartId) {
+  start(startLevel = 1) {
+    _clearDeathTimers();
     state.mode            = 'falling';
     state.activeMode      = 'falling';
     state.screen          = 'game';
@@ -316,33 +439,20 @@ export const FallingChordsMode = {
     state.waitingForRelease = false;
     state.attempts        = [];
     state.falling = {
-      chartId,
+      runStartLevel: startLevel,
+      currentLevel:  startLevel,
+      hearts:        3,
+      levelMissCount: 0,
       results:   [],
       perfects:  0,
       goods:     0,
       oks:       0,
       misses:    0,
       maxCombo:  0,
-      failed:    false,
-      failedPct: 0,
+      gameOver:  false,
     };
 
-    _chart = CHARTS.find(c => c.id === chartId);
-    if (!_chart) return;
-    _beatS = 60 / _chart.bpm;
-    _tiles = _buildTiles(_chart);
-
-    _endQueued = false;
-    _failed    = false;
-    _failPct   = 0;
-    _failTimer = null;
-
-    // Health
-    _health = 100;
-    try { _healthEnabled = localStorage.getItem('falling_health') !== 'false'; } catch (_) {}
-    _renderHealthBar();
-    const healthWrap = document.getElementById('health-bar-wrap');
-    if (healthWrap) healthWrap.style.display = _healthEnabled ? '' : 'none';
+    _maybeSaveProgress();
 
     // Load latency offset
     try { _inputOffsetMs = parseFloat(localStorage.getItem('falling_offset_ms') || '0') || 0; } catch (_) {}
@@ -352,11 +462,15 @@ export const FallingChordsMode = {
     const canvas = document.getElementById('lane-canvas');
     canvas.style.display = 'block';
     LaneCanvas.init(canvas);
-    LaneCanvas.setBeatMs(_beatMs());
 
     if (_resizeObs) _resizeObs.disconnect();
     _resizeObs = new ResizeObserver(() => LaneCanvas.resize());
     _resizeObs.observe(canvas);
+
+    // Hearts HUD
+    const heartsWrap = document.getElementById('hearts-wrap');
+    if (heartsWrap) heartsWrap.style.display = '';
+    _renderHeartsHUD(false);
 
     // HUD labels
     document.getElementById('hud-label-score').textContent  = 'Score';
@@ -374,31 +488,17 @@ export const FallingChordsMode = {
 
     showScreen('game');
 
-    // Audio clock: songStartAudioTime is PRE_ROLL_BEATS beats from now
-    const preRollS          = PRE_ROLL_BEATS * _beatS;
-    _songStartAudioTime     = GameAudio.getCtxTime() + preRollS;
-
-    // Scheduler initial beat index: -(PRE_ROLL_BEATS - 1) so first click fires at start
-    _nextClickBeat    = -(PRE_ROLL_BEATS - 1);
-    _nextBassEventIdx = 0;
-
     document.addEventListener('visibilitychange', _onVisibilityChange);
     _schedulerTimer = setInterval(_schedulerTick, SCHEDULER_INTERVAL);
-    _schedulerTick(); // prime immediately
 
     if (_rafId) cancelAnimationFrame(_rafId);
     _rafId = requestAnimationFrame(_animate);
+
+    _startLocalTimeline(compileLevel(startLevel), PRE_ROLL_BEATS);
   },
 
   onNotesChanged() {
     if (state.screen !== 'game' || state.activeMode !== 'falling') return;
-
-    // Skip if failed (key press will end the run)
-    if (_failed) {
-      if (_failTimer) clearTimeout(_failTimer);
-      FallingChordsMode.end();
-      return;
-    }
 
     const held    = MidiInput.getHeld();
     const heldPCs = ChordEngine.toPitchClasses(held);
@@ -463,31 +563,40 @@ export const FallingChordsMode = {
       LaneCanvas.flashHit(candidate._lastCenterX, candidate._lastCenterY, candidate.typeName, rating, label);
       LaneCanvas.notifyCombo(sloppy ? 0 : state.streak);
 
-      const healthDelta = { perfect: HEALTH_PERFECT, good: HEALTH_GOOD, ok: HEALTH_OK }[rating];
-      _updateHealth(healthDelta);
-
       GameAudio.playSuccessChime(candidate.pitchClasses);
       UI.renderFallingHUD();
-
-      if (_healthEnabled && _health <= 0 && !_failed) _triggerFail();
     }
   },
 
+  // Natural victory path only (Level 10 cleared) — a lost-hearts run ends via
+  // _triggerGameOver/_finishFallingDeath instead, same "freeze, skippable, results" shape
+  // as Survival's death sequence.
   end() {
+    const runResult = _buildRunResult(false);
     FallingChordsMode.teardown();
     state.screen = 'results';
-    UI.renderFallingResults(_chart);
+    UI.renderFallingResults(runResult);
     showScreen('results');
+    if (runResult.isFirstFullClear) UI.showFullClearCelebration(runResult.score, runResult.accuracy);
+  },
+
+  // Skippable death sequence — called generically by main.js while state.screen==='dying',
+  // same dispatch pattern as SurvivalMode.skipDeath.
+  skipDeath() {
+    if (state.screen !== 'dying') return;
+    _clearDeathTimers();
+    _finishFallingDeath(false);
   },
 
   // Idempotent — safe to call twice, safe to call when not running. This is the one
   // place that owns every long-lived resource the mode creates (rAF loop, the
   // lookahead audio scheduler, the visibilitychange listener, the canvas ResizeObserver)
   // — leaving any of these running after navigating away is exactly how "audio keeps
-  // playing in the background" happened. end() calls this for the resource-cleanup half
-  // of natural completion; navigateTo() calls it directly when the player leaves early.
+  // playing in the background" happened. end()/_finishFallingDeath() call this for the
+  // resource-cleanup half of completion; navigateTo() calls it directly when the player
+  // leaves early.
   teardown() {
-    if (_failTimer) { clearTimeout(_failTimer); _failTimer = null; }
+    _clearDeathTimers();
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     if (_schedulerTimer) { clearInterval(_schedulerTimer); _schedulerTimer = null; }
     if (_resizeObs) { _resizeObs.disconnect(); _resizeObs = null; }
@@ -496,13 +605,17 @@ export const FallingChordsMode = {
 
     document.getElementById('chord-arena').style.display = '';
     document.getElementById('lane-canvas').style.display = 'none';
-    const healthWrap = document.getElementById('health-bar-wrap');
-    if (healthWrap) healthWrap.style.display = 'none';
+    const heartsWrap = document.getElementById('hearts-wrap');
+    if (heartsWrap) heartsWrap.style.display = 'none';
     LaneCanvas.cleanup();
+
+    if (import.meta.env.DEV) delete window.__fallingDebug;
 
     setPianoTarget(new Set());
     state.activeMode = 'none';
   },
+
+  getHighestLevelReached() { return _loadHighestLevel(); },
 
   // ── Calibration ──────────────────────────────────────────────────────────
   startCalibration() {

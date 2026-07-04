@@ -37,6 +37,7 @@
 
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
+import { ChordEngine } from '../src/chords.js';
 
 const NAME_TO_PC = {};
 ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].forEach((n, i) => { NAME_TO_PC[n] = i; });
@@ -159,6 +160,35 @@ async function main() {
       );
     }
 
+    // Presses the next pending Falling tile at (roughly) its target time, using the
+    // DEV-only window.__fallingDebug hook (see fallingChords.js's _startLocalTimeline) to
+    // read randomized chord content and timing that would otherwise be invisible to a
+    // script — Falling has no DOM chord-symbol pips the way Sprint/Survival/Practice do.
+    async function playFallingTileClean() {
+      let tile;
+      for (let i = 0; i < 100; i++) {
+        const tiles = await page.evaluate(() => window.__fallingDebug.getTiles());
+        tile = tiles.find(t => !t.hit && !t.missed);
+        if (tile) break;
+        await page.waitForTimeout(50);
+      }
+      if (!tile) throw new Error('playFallingTileClean: no pending tile found');
+
+      const elapsedNow = await page.evaluate(() => window.__fallingDebug.getElapsedMs());
+      const waitMs = Math.max(0, tile.targetMs - elapsedNow - 30); // press ~30ms early — well inside the perfect window
+      if (waitMs > 0) await page.waitForTimeout(waitMs);
+
+      const chord = ChordEngine.chordForCell(tile.rootPc, tile.typeName);
+      const notes = [...chord.pitchClasses].map(pc => 60 + pc);
+      await sendNoteOn(notes);
+      await page.waitForFunction(
+        (targetMs) => window.__fallingDebug.getTiles().find(t => t.targetMs === targetMs)?.hit,
+        tile.targetMs,
+        { timeout: 1000 },
+      ).catch(() => {}); // best-effort — sendNoteOff runs regardless so no stray held note lingers
+      await sendNoteOff(notes);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TEST 1 — Sprint: navigating away mid-round leaves nothing running
     // ════════════════════════════════════════════════════════════════════════
@@ -249,7 +279,7 @@ async function main() {
     await page.click('[data-mode="falling"]');
     await page.click('#btn-start');
     await page.waitForTimeout(300);
-    await page.click('[data-chart]');
+    await page.click('[data-level="1"]');
     await page.waitForTimeout(300); // still in count-in
     await navAway('home');
     await page.waitForTimeout(100);
@@ -261,7 +291,7 @@ async function main() {
     await page.click('[data-mode="falling"]');
     await page.click('#btn-start');
     await page.waitForTimeout(300);
-    await page.click('[data-chart]');
+    await page.click('[data-level="1"]');
     await page.waitForTimeout(2500); // now mid-play
     assert((await page.$eval('#lane-canvas', el => getComputedStyle(el).display)) !== 'none', 'lane canvas should be visible mid-play (sanity check)');
 
@@ -345,7 +375,7 @@ async function main() {
     await page.click('[data-mode="falling"]');
     await page.click('#btn-start');
     await page.waitForTimeout(300);
-    await page.click('[data-chart]');
+    await page.click('[data-level="1"]');
     await page.waitForTimeout(2200); // past count-in, tiles approaching
     await sendNoteOn([60, 64, 67]);
     await page.waitForTimeout(150);
@@ -650,6 +680,88 @@ async function main() {
     assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'no exit-confirm dialog should appear navigating away from results');
     assert(await page.$eval('#home', el => el.classList.contains('active')), 'navigating from results should go straight to home, no dialog');
     ok('navigating away from a results screen skips the confirmation dialog');
+
+    // ════════════════════════════════════════════════════════════════════════
+    // TEST 12 — Falling Chords leveled climb: hearts, game over, perfect-level
+    // heart restore, mid-breather navigation, and progress persistence.
+    // ════════════════════════════════════════════════════════════════════════
+    console.log('\n[12] Falling Chords: hearts, game over, breather navigation, progress persistence');
+
+    // 12a — a missed tile costs exactly one heart. Level 1 is 70 BPM, beat-1-only,
+    // so tiles land roughly every 3.4s — plenty of time to just not press anything.
+    console.log('[12a] a missed tile costs exactly one heart');
+    await navAway('home');
+    await navAway('test');
+    await page.click('[data-mode="falling"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+    await page.click('[data-level="1"]');
+    await page.waitForTimeout(200);
+    assert((await page.$eval('#hearts-wrap', el => el.dataset.hearts)) === '3', 'should start Level 1 with 3 hearts');
+
+    await page.waitForTimeout(4200); // past the pre-roll + tile 1's window + MISS_AFTER_MS
+    assert((await page.$eval('#hearts-wrap', el => el.dataset.hearts)) === '2', 'missing the first tile should cost exactly one heart');
+    ok('missed tile: hearts 3 -> 2');
+
+    // 12b — 0 hearts triggers game over at the correct position.
+    console.log('[12b] 0 hearts triggers game over');
+    await page.waitForTimeout(3600); // miss tile 2 -> hearts 2 -> 1
+    assert((await page.$eval('#hearts-wrap', el => el.dataset.hearts)) === '1', 'missing a second tile should cost a second heart');
+    await page.waitForTimeout(3600); // miss tile 3 -> hearts 1 -> 0 -> game over triggers
+    await page.waitForTimeout(2000); // let the freeze/hold/fade-out death sequence run to results
+    assert(await page.$eval('#results', el => el.classList.contains('active')), 'reaching 0 hearts should end the run and reach results');
+    assert((await page.textContent('#results-headline')).includes('Run ended at Level 1'), 'results headline should reflect the game-over run');
+    assert((await page.$eval('#lane-canvas', el => getComputedStyle(el).display)) === 'none', 'lane canvas should be torn down after game over');
+    assert((await page.$eval('#chord-arena', el => getComputedStyle(el).display)) !== 'none', 'chord-arena should be restored after game over');
+    ok('0 hearts -> game over -> results, with clean teardown');
+
+    // 12c — a perfect level restores a heart (capped at 3); an imperfect one does not.
+    console.log('[12c] a perfect level restores a heart, capped at 3');
+    await navAway('home');
+    await navAway('test');
+    await page.click('[data-mode="falling"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+    await page.click('[data-level="1"]');
+    await page.waitForTimeout(200);
+
+    await page.waitForTimeout(4200); // miss tile 1 on purpose -> hearts 3 -> 2, Level 1 is no longer perfect
+    assert((await page.$eval('#hearts-wrap', el => el.dataset.hearts)) === '2', 'sanity check: first tile missed on purpose');
+
+    for (let i = 0; i < 7; i++) await playFallingTileClean(); // clear the rest of Level 1 cleanly
+    await page.waitForSelector('.level-banner', { timeout: 5000 }); // Level 1 -> 2 breather banner
+    assert((await page.$eval('#hearts-wrap', el => el.dataset.hearts)) === '2', 'Level 1 had a miss — no heart restore at the Level 1->2 transition');
+    ok('imperfect level (1 miss) does not restore a heart');
+
+    for (let i = 0; i < 16; i++) await playFallingTileClean(); // clear all of Level 2 cleanly
+    await page.waitForSelector('.level-banner', { timeout: 8000 }); // Level 2 -> 3 breather banner
+    assert((await page.$eval('#hearts-wrap', el => el.dataset.hearts)) === '3', 'a perfect Level 2 should restore the lost heart (2 -> 3)');
+    ok('perfect level (0 misses) restores a heart: 2 -> 3');
+
+    // 12d — navigating away mid-breather opens the same exit-confirm dialog as any other
+    // in-run navigation (state.screen is still 'game' during the breather).
+    console.log('[12d] navigate away mid-breather behaves like any other mid-run navigation');
+    assert(await page.$eval('#game', el => el.classList.contains('active')), 'should still be on the game screen during the Level 3 breather');
+    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.waitForTimeout(50);
+    assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none'), 'exit-confirm dialog should appear when navigating away mid-breather');
+    await page.click('#btn-end-session');
+    await page.waitForTimeout(100);
+    assert(await page.$eval('#home', el => el.classList.contains('active')), 'home should be active after ending mid-breather');
+    assert((await page.$eval('#lane-canvas', el => getComputedStyle(el).display)) === 'none', 'lane canvas should be torn down after ending mid-breather');
+    ok('mid-breather navigation opens the exit-confirm dialog and tears down cleanly');
+
+    // 12e — progress (highest level reached) persists across a reload.
+    console.log('[12e] progress persists across reload');
+    await page.reload();
+    await page.waitForSelector('#sidebar-nav', { state: 'attached', timeout: 5000 });
+    await navAway('test');
+    await page.click('[data-mode="falling"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+    assert(!(await page.$eval('[data-level="3"]', el => el.disabled)), 'Level 3 should still be reached (enabled) after a reload');
+    assert(await page.$eval('[data-level="4"]', el => el.disabled), 'Level 4 should still be locked after a reload');
+    ok('highest-level-reached progress persists across a page reload');
 
     assertEqual(pageErrors.length, 0, `No console/page errors expected, got: ${JSON.stringify(pageErrors)}`);
 

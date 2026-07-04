@@ -94,10 +94,6 @@ function finishDeath(withFadeIn) {
   }
 }
 
-export function skipDeath() {
-  if (state.screen !== 'dying') return;
-  finishDeath(false);
-}
 
 function calcWindow(chordsSurvived, variant) {
   const floor = variant === 'nm' ? WINDOW_FLOOR_NM : WINDOW_FLOOR_STD;
@@ -459,5 +455,13 @@ export const SurvivalMode = {
 
     setPianoTarget(new Set());
     state.activeMode = 'none';
+  },
+
+  // Called generically by main.js while state.screen === 'dying' (keyed off state.activeMode,
+  // since teardown() hasn't reset it yet at this point) — same dispatch pattern as
+  // FallingChordsMode.skipDeath.
+  skipDeath() {
+    if (state.screen !== 'dying') return;
+    finishDeath(false);
   },
 };

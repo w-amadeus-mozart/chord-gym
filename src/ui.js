@@ -8,10 +8,16 @@ import { state, SPRINT_DURATION } from './state.js';
 import { ChordEngine } from './chords.js';
 import { setPianoTarget, setPianoReleasing, setKeyLabelMode, getVisibleRange } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
-import { CHARTS } from './charts.js';
+import { FALLING_LEVELS } from './fallingLevels.js';
+import { Achievements } from './achievements.js';
 import { Mastery } from './mastery.js';
 import { PRESETS, describeConfig } from './modes/practice.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
+
+const FALLING_PROGRESS_KEY = 'ct_falling_progress_v1';
+function _highestFallingLevel() {
+  try { return parseInt(localStorage.getItem(FALLING_PROGRESS_KEY) || '1', 10) || 1; } catch (_) { return 1; }
+}
 
 // Chord-object symbol, formatted for the current enharmonic style — use instead
 // of the pool-baked `chord.symbol` (which is always the dual "both" spelling)
@@ -49,7 +55,7 @@ const NAV_MAP = {
   'practice-setup': 'practice',
   'practice-custom': 'practice',
   menu: 'test',
-  'song-select': 'test',
+  'level-select': 'test',
   progress: 'progress',
   settings: 'settings',
 };
@@ -77,6 +83,11 @@ export const UI = {
     document.getElementById('home-stat-streak').textContent = `${streak} day${streak === 1 ? '' : 's'}${streak >= 2 ? ' 🔥' : ''}`;
     document.getElementById('home-stat-reps').textContent = Mastery.todayReps();
     document.getElementById('home-focus-text').textContent = focus.text;
+
+    const badge = Achievements.getFullClearBadge();
+    const badgeEl = document.getElementById('dash-fullclear-badge');
+    badgeEl.style.display = badge ? '' : 'none';
+    if (badge) badgeEl.textContent = `🏆 Full Set Cleared · ${badge.score.toLocaleString()} pts`;
   },
 
   renderChord() {
@@ -155,6 +166,34 @@ export const UI = {
     banner.textContent = label;
     arena.appendChild(banner);
     setTimeout(() => banner.remove(), 1600);
+  },
+
+  // Falling Chords' level-transition banner. #chord-arena is hidden during Falling play
+  // (swapped for the lane canvas), so this appends into .session-main instead — same
+  // append-then-self-remove shape as showUnlockBanner above, just a different host and
+  // a duration tied to the level's own tempo rather than a fixed 1.6s.
+  showLevelBanner(text, subtext, durationMs) {
+    const host = document.querySelector('.session-main');
+    const canvas = document.getElementById('lane-canvas');
+    const banner = document.createElement('div');
+    banner.className = 'level-banner';
+    banner.style.top = (canvas.offsetTop + 14) + 'px'; // anchor to the canvas, not the top of .session-main (HUD/bars/hearts sit above it)
+    banner.style.animationDuration = durationMs + 'ms';
+    banner.innerHTML = `<div>${text}</div>` + (subtext ? `<div class="level-banner-sub">${subtext}</div>` : '');
+    host.appendChild(banner);
+    setTimeout(() => banner.remove(), durationMs);
+  },
+
+  // One-time celebration modal — only shown the first time the full-clear badge is earned.
+  showFullClearCelebration(score, accuracy) {
+    document.getElementById('fullclear-stats').textContent = `Score: ${score.toLocaleString()} · Accuracy: ${accuracy}%`;
+    const markWrap = document.getElementById('fullclear-mark-wrap');
+    markWrap.querySelectorAll('.fullclear-mark').forEach(el => {
+      el.classList.remove('animate');
+      void el.offsetWidth; // restart the staggered bar animation even if shown twice in a session
+      el.classList.add('animate');
+    });
+    document.getElementById('fullclear-modal-overlay').style.display = '';
   },
 
   renderNoteIndicators(heldNotes, targetPCs) {
@@ -396,10 +435,11 @@ export const UI = {
         return `<div class="hs-row"><span>${label}</span><span class="hs-val">${hs ? hs + ' chords' : '—'}</span></div>`;
       }).join('');
     } else if (state.mode === 'falling') {
-      hsList.innerHTML = CHARTS.map(chart => {
-        const hs = localStorage.getItem('falling_hs_' + chart.id);
-        return `<div class="hs-row"><span>${chart.title}</span><span class="hs-val">${hs ? parseInt(hs).toLocaleString() : '—'}</span></div>`;
-      }).join('');
+      const badge = Achievements.getFullClearBadge();
+      hsList.innerHTML = [
+        ['Highest level reached', `Level ${_highestFallingLevel()}`],
+        ['Full clear', badge ? `${badge.score.toLocaleString()} pts · ${badge.accuracy}% acc` : '—'],
+      ].map(([l, v]) => `<div class="hs-row"><span>${l}</span><span class="hs-val">${v}</span></div>`).join('');
     } else {
       hsList.innerHTML = ChordEngine.DIFFICULTY_POOLS.map((d, i) => {
         const hs = localStorage.getItem('chordSprint_hs_' + i);
@@ -421,30 +461,27 @@ export const UI = {
 
   // ── Falling Chords ────────────────────────────────────────────────────────
 
-  renderSongSelect() {
-    const grid  = document.getElementById('song-grid');
-    const STARS = ['', '★', '★★', '★★★', '★★★★'];
-    grid.innerHTML = CHARTS.map(chart => {
-      const hs   = localStorage.getItem('falling_hs_'   + chart.id);
-      const rank = localStorage.getItem('falling_rank_' + chart.id);
-      const RANK_COLORS = { S: '#4ade80', A: '#22d3ee', B: '#7c6fff', C: '#fbbf24', D: '#94a3b8', F: '#f87171' };
-      const rankBadge = rank
-        ? `<span class="song-rank" style="color:${RANK_COLORS[rank] || '#94a3b8'}">${rank}</span>`
-        : '';
-      return `<button class="song-card" data-chart="${chart.id}">
-        <div class="song-card-top">
-          <span class="song-title">${chart.title}</span>
-          <span class="song-stars">${STARS[chart.difficulty] || ''}</span>
-        </div>
-        <div class="song-sub">${chart.subtitle}</div>
-        <div class="song-meta">
-          <span class="song-bpm">${chart.bpm} BPM</span>
-          <span class="song-chords">${chart.events.length} chords</span>
-          ${hs   ? `<span class="song-hs">Best: ${parseInt(hs).toLocaleString()}</span>` : ''}
-          ${rankBadge}
-        </div>
-      </button>`;
+  renderLevelSelect() {
+    const highest = _highestFallingLevel();
+    const grid = document.getElementById('level-strip');
+    grid.innerHTML = FALLING_LEVELS.map(def => {
+      const reached = def.level <= highest;
+      return reached
+        ? `<button class="level-node reached" data-level="${def.level}">
+             <span class="level-node-num">Lv ${def.level}</span>
+             <span class="level-node-pool">${def.poolLabel}</span>
+             <span class="level-node-bpm">${def.bpm} BPM</span>
+           </button>`
+        : `<button class="level-node locked" data-level="${def.level}" disabled>
+             <span class="level-node-num">Lv ${def.level}</span>
+             <span class="level-node-pool">${def.poolLabel} 🔒</span>
+           </button>`;
     }).join('');
+
+    const badge = Achievements.getFullClearBadge();
+    const badgeEl = document.getElementById('level-select-badge');
+    badgeEl.style.display = badge ? '' : 'none';
+    if (badge) badgeEl.textContent = `🏆 Full Set Cleared · ${badge.score.toLocaleString()} pts · ${badge.accuracy}% acc`;
   },
 
   renderFallingHUD() {
@@ -460,69 +497,58 @@ export const UI = {
     document.getElementById('hud-chords').textContent = total > 0 ? acc + '%' : '—';
   },
 
-  renderFallingResults(chart) {
+  // runResult — see fallingChords.js's _buildRunResult() for the exact shape.
+  renderFallingResults(runResult) {
     document.getElementById('btn-results-home').style.display = 'none';
     document.getElementById('btn-results-progress').style.display = 'none';
     document.getElementById('btn-play-again').textContent = 'Play Again';
     document.getElementById('btn-change-level').textContent = 'Change Level';
     document.getElementById('mastery-deltas').style.display = 'none';
 
-    const f      = state.falling;
-    const total  = f.results.length;
-    const hits   = f.perfects + f.goods + f.oks;
-    const acc    = total > 0 ? Math.round((hits / total) * 100) : 0;
+    const r = runResult;
+    const total = r.results.length;
 
-    // ── Letter rank ──────────────────────────────────────────────────────
+    // ── Letter rank — same weighted formula the old per-chart results used ──
     let rank = 'D';
-    if (f.failed) {
+    if (r.gameOver) {
       rank = 'F';
     } else if (total > 0) {
-      const weighted = (f.perfects * 1 + f.goods * 0.6 + f.oks * 0.3) / total;
+      const weighted = (r.perfects * 1 + r.goods * 0.6 + r.oks * 0.3) / total;
       if      (weighted >= 0.95) rank = 'S';
       else if (weighted >= 0.85) rank = 'A';
       else if (weighted >= 0.70) rank = 'B';
       else if (weighted >= 0.50) rank = 'C';
       else                        rank = 'D';
     }
-
-    // Persist best rank (S > A > B > C > D > F)
-    const RANK_ORDER = ['F', 'D', 'C', 'B', 'A', 'S'];
-    const rankKey    = 'falling_rank_' + chart.id;
-    const prevRank   = localStorage.getItem(rankKey);
-    const prevRankIdx = prevRank ? RANK_ORDER.indexOf(prevRank) : -1;
-    const newRankIdx  = RANK_ORDER.indexOf(rank);
-    if (newRankIdx > prevRankIdx) localStorage.setItem(rankKey, rank);
-
     const RANK_COLORS = { S: '#4ade80', A: '#22d3ee', B: '#7c6fff', C: '#fbbf24', D: '#94a3b8', F: '#f87171' };
-    const rankColor   = RANK_COLORS[rank] || '#94a3b8';
+    const rankColor = RANK_COLORS[rank] || '#94a3b8';
 
-    const headline = f.failed
-      ? `${chart.title} — Failed at ${Math.round(f.failedPct)}%`
-      : `${chart.title} — Complete!`;
-    document.getElementById('results-headline').textContent  = headline;
+    const headline = r.won
+      ? 'THE FINAL SET — CLEARED'
+      : r.gameOver
+        ? `Run ended at Level ${r.currentLevel} · ${Math.round(r.gameOverPct)}% through`
+        : `Level ${r.currentLevel} — Complete!`;
+    document.getElementById('results-headline').textContent = headline;
+
     document.getElementById('results-subheader').style.display = 'block';
-    document.getElementById('results-subheader').innerHTML  =
+    const clearTag = r.won
+      ? (r.fullClear ? 'Full Clear · Level 1 → 10' : `Partial · started at Level ${r.runStartLevel}`)
+      : '';
+    document.getElementById('results-subheader').innerHTML =
       `<span class="mode-tag">Falling Chords</span>` +
-      `<div class="tier-reached" style="color:var(--cyan)">${chart.bpm} BPM · ${chart.events.length} chords</div>` +
+      (clearTag ? `<div class="tier-reached" style="color:var(--cyan)">${clearTag}</div>` : '') +
       `<div class="falling-rank-display" style="color:${rankColor}; font-size:72px; font-weight:900; line-height:1; margin-top:8px; text-shadow:0 0 40px ${rankColor}88">${rank}</div>`;
 
-    // High score per chart
-    const hsKey  = 'falling_hs_' + chart.id;
-    const prevHS = parseInt(localStorage.getItem(hsKey) || '0', 10);
-    const newHS  = !f.failed && state.score > prevHS;
-    if (newHS) localStorage.setItem(hsKey, state.score);
-    document.getElementById('new-hs-badge').style.display = newHS ? 'inline-block' : 'none';
-
+    document.getElementById('new-hs-badge').style.display = r.isFirstFullClear ? 'inline-block' : 'none';
     document.getElementById('weak-spot').style.display = 'none';
 
-    // Stats grid
     document.getElementById('stats-grid').innerHTML = [
-      ['Score',      f.failed ? '—' : state.score.toLocaleString()],
-      ['Accuracy',   acc + '%'],
-      ['Perfects',   f.perfects],
-      ['Goods',      f.goods],
-      ['OKs / Miss', f.oks + ' / ' + f.misses],
-      ['Best Combo', f.maxCombo],
+      ['Score',        r.gameOver ? '—' : r.score.toLocaleString()],
+      ['Accuracy',     r.accuracy + '%'],
+      ['Hearts left',  '♥'.repeat(r.hearts) + '♡'.repeat(3 - r.hearts)],
+      ['Perfects',     r.perfects],
+      ['Goods',        r.goods],
+      ['OKs / Miss',   r.oks + ' / ' + r.misses],
     ].map(([l, v]) =>
       `<div class="stat-card"><div class="sc-label">${l}</div><div class="sc-val">${v}</div></div>`
     ).join('');
@@ -530,18 +556,18 @@ export const UI = {
     // Per-chord table
     document.querySelector('.per-chord-table thead tr').innerHTML =
       '<th>Chord</th><th>Rating</th><th>Points</th>';
-    document.getElementById('per-chord-tbody').innerHTML = f.results.map(r => {
-      const cls   = r.result === 'miss' ? 'falling-miss' : 'falling-' + r.result;
-      const label = r.result === 'perfect' ? '✦ Perfect'
-                  : r.result === 'good'    ? '◆ Good'
-                  : r.result === 'ok'      ? '◇ OK'
-                  :                          '✗ Miss';
-      const holdTag  = r.hold   ? ' <span class="hold-badge">HOLD</span>' : '';
-      const sloppyTag= r.sloppy ? ' <span class="sloppy-tag">~</span>'    : '';
+    document.getElementById('per-chord-tbody').innerHTML = r.results.map(res => {
+      const cls   = res.result === 'miss' ? 'falling-miss' : 'falling-' + res.result;
+      const label = res.result === 'perfect' ? '✦ Perfect'
+                  : res.result === 'good'    ? '◆ Good'
+                  : res.result === 'ok'      ? '◇ OK'
+                  :                            '✗ Miss';
+      const holdTag  = res.hold   ? ' <span class="hold-badge">HOLD</span>' : '';
+      const sloppyTag= res.sloppy ? ' <span class="sloppy-tag">~</span>'    : '';
       return `<tr>
-        <td><strong>${formatSymbol(r.rootPc, r.typeSymbol)}</strong>${holdTag}</td>
+        <td><strong>${formatSymbol(res.rootPc, res.typeSymbol)}</strong>${holdTag}</td>
         <td><span class="${cls}">${label}</span>${sloppyTag}</td>
-        <td>${r.points > 0 ? '+' + r.points : '—'}</td>
+        <td>${res.points > 0 ? '+' + res.points : '—'}</td>
       </tr>`;
     }).join('');
   },
@@ -777,7 +803,7 @@ export const UI = {
 
     // Change START button label depending on mode
     document.getElementById('btn-start').textContent =
-      isFalling ? '▶ SELECT SONG' : '▶ START';
+      isFalling ? '▶ SELECT LEVEL' : '▶ START';
 
     UI.renderHSPanel();
   },

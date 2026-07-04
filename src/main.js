@@ -12,10 +12,14 @@ import { navigateTo } from './navigation.js';
 import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode, getIdleLabelMode, refreshKeyLabels } from './piano.js';
 import { setEnharmonicStyle } from './notation.js';
 import { SprintMode } from './modes/sprint.js';
-import { SurvivalMode, skipDeath } from './modes/survival.js';
+import { SurvivalMode } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
 import { Progress } from './progress.js';
+
+// The only two modes with a skippable "dying" freeze sequence — keyed off state.activeMode,
+// since each mode's own teardown() (which resets activeMode) hasn't run yet at that point.
+const DEATH_MODES = { survival: SurvivalMode, falling: FallingChordsMode };
 
 // ── MIDI status bar ──────────────────────────────────────
 function updateMidiStatus() {
@@ -62,7 +66,7 @@ MidiInput.on((type) => {
     flashMidiActivity();
     if (state.calibrating) return; // suppress game logic during calibration
     if (state.screen === 'dying') {
-      skipDeath();
+      DEATH_MODES[state.activeMode]?.skipDeath();
       return;
     }
     if (state.screen === 'game' && !state.confirmingExit) {
@@ -162,7 +166,7 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 const pressedKeys = new Set();
 document.addEventListener('keydown', e => {
   if (e.repeat) return;
-  if (state.screen === 'dying') { skipDeath(); return; }
+  if (state.screen === 'dying') { DEATH_MODES[state.activeMode]?.skipDeath(); return; }
   const key = e.key.toLowerCase();
   if (KEY_MAP[key] !== undefined && !pressedKeys.has(key)) {
     pressedKeys.add(key);
@@ -179,7 +183,7 @@ document.addEventListener('keyup', e => {
 
 // ── Click anywhere during dying state skips to results ───
 document.addEventListener('click', () => {
-  if (state.screen === 'dying') skipDeath();
+  if (state.screen === 'dying') DEATH_MODES[state.activeMode]?.skipDeath();
 });
 
 // ── Page visibility — pause timer and response/window clock ─────
@@ -388,15 +392,15 @@ document.getElementById('btn-hint').addEventListener('click', () => PracticeMode
 document.getElementById('auto-hint-toggle').addEventListener('change', e => PracticeMode.setAutoHint(e.target.checked));
 document.getElementById('btn-end-practice').addEventListener('click', () => PracticeMode.end());
 
-// ── Song-select setup (backing toggle, health toggle, calibration) ────────
-function openSongSelect() {
-  navigateTo('song-select');
-  UI.renderSongSelect();
+// ── Level-select setup (backing toggle, calibration) ──────
+function openLevelSelect() {
+  navigateTo('level-select');
+  UI.renderLevelSelect();
 
-  // Wire song card clicks (re-wired each visit so rank/HS badges refresh)
-  document.getElementById('song-grid').addEventListener('click', e => {
-    const card = e.target.closest('[data-chart]');
-    if (card) FallingChordsMode.start(card.dataset.chart);
+  // Wire level-node clicks (re-wired each visit so reached/locked state refreshes)
+  document.getElementById('level-strip').addEventListener('click', e => {
+    const node = e.target.closest('[data-level]');
+    if (node && !node.disabled) FallingChordsMode.start(parseInt(node.dataset.level, 10));
   }, { once: true });
 
   // Sync backing buttons to stored level
@@ -404,12 +408,6 @@ function openSongSelect() {
   document.querySelectorAll('.song-opt-btn[data-level]').forEach(btn => {
     btn.classList.toggle('selected', btn.dataset.level === storedLevel);
   });
-
-  // Sync health toggle
-  const healthToggle = document.getElementById('health-toggle');
-  try {
-    healthToggle.checked = localStorage.getItem('falling_health') !== 'false';
-  } catch (_) {}
 
   _syncCalibrationTitle();
 }
@@ -419,7 +417,7 @@ function startGame() {
   if (state.mode === 'survival') {
     SurvivalMode.start(state.selectedVariant);
   } else if (state.mode === 'falling') {
-    openSongSelect();
+    openLevelSelect();
   } else {
     SprintMode.start(state.difficulty);
   }
@@ -429,7 +427,7 @@ function replayGame() {
   if (state.mode === 'survival') {
     SurvivalMode.start(state.survival.variant);
   } else if (state.mode === 'falling') {
-    FallingChordsMode.start(state.falling.chartId);
+    FallingChordsMode.start(state.falling.runStartLevel);
   } else if (state.mode === 'practice') {
     PracticeMode.start(state.practice.config);
   } else {
@@ -440,14 +438,14 @@ function replayGame() {
 document.getElementById('btn-start').addEventListener('click', startGame);
 document.getElementById('btn-play-again').addEventListener('click', replayGame);
 
-document.getElementById('btn-back-from-songs').addEventListener('click', () => {
+document.getElementById('btn-back-from-levels').addEventListener('click', () => {
   navigateTo('menu');
   UI.renderMenu();
 });
 
 document.getElementById('btn-change-level').addEventListener('click', () => {
   if (state.mode === 'falling') {
-    openSongSelect();
+    openLevelSelect();
   } else if (state.mode === 'practice') {
     openPracticeSetup();
   } else {
@@ -472,12 +470,7 @@ document.getElementById('backing-selector').addEventListener('click', e => {
     b.classList.toggle('selected', b === btn));
 });
 
-// ── Health toggle ─────────────────────────────────────────
-document.getElementById('health-toggle').addEventListener('change', e => {
-  try { localStorage.setItem('falling_health', e.target.checked ? 'true' : 'false'); } catch (_) {}
-});
-
-// ── Calibration — entry points on both the Falling song-select screen and Settings ──
+// ── Calibration — entry points on both the Falling level-select screen and Settings ──
 function _syncCalibrationTitle() {
   const offset = FallingChordsMode.getInputOffsetMs();
   const title = Math.abs(offset) >= 1
@@ -570,6 +563,11 @@ function shouldShowWelcome() {
 document.getElementById('btn-welcome-go').addEventListener('click', () => {
   try { localStorage.setItem(WELCOMED_KEY, 'true'); } catch (_) {}
   document.getElementById('welcome-overlay').style.display = 'none';
+});
+
+// ── Falling Chords full-clear celebration modal ───────────
+document.getElementById('btn-fullclear-dismiss').addEventListener('click', () => {
+  document.getElementById('fullclear-modal-overlay').style.display = 'none';
 });
 
 // ── Init ─────────────────────────────────────────────────

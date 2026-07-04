@@ -4,7 +4,7 @@
 export const SPRINT_DURATION = 60; // seconds — change here for 30/90/120s variants
 
 export const state = {
-  screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'practice-custom' | 'song-select' | 'game' | 'results' | 'dying'
+  screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'practice-custom' | 'level-select' | 'game' | 'results' | 'dying'
   calibrating: false,     // true while timing calibration is running
   difficulty: 0,          // 0–5
   mode: 'sprint',         // 'sprint' | 'survival' | 'falling' | 'practice' — menu selection / results-screen context; NOT cleared on teardown
@@ -38,9 +38,13 @@ export const state = {
   pausedAt: 0,
   // per-round history
   attempts: [],             // { rootPc, typeSymbol, responseMs, clean, points } (+ windowSec for survival)
-  // falling-chords runtime (reset at start of each song)
+  // falling-chords runtime (reset at the start of each run — see FallingChordsMode.start())
   falling: {
-    chartId:  '',
+    runStartLevel:  1,    // level the current run began at — a full-clear badge only counts if this is 1
+    currentLevel:   1,    // level currently being played
+    hearts:         3,    // 0-3, whole-run life system
+    levelMissCount: 0,    // misses in the level in progress — 0 at level-end means "perfect", restores a heart
+    gameOver:       false,
     results:  [],   // { rootPc, typeSymbol, result: 'perfect'|'good'|'ok'|'miss', points }
     perfects: 0,
     goods:    0,

@@ -122,6 +122,8 @@
         </div>
       </div>
 
+      <div class="dash-badge" id="dash-fullclear-badge" style="display:none"></div>
+
       <div class="focus-card">
         <h4>Today's Focus</h4>
         <p class="focus-card-text" id="home-focus-text">—</p>
@@ -254,13 +256,14 @@
   <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
 </div>
 
-<!-- ══════════ SONG SELECT SCREEN ══════════ -->
-<div id="song-select" class="screen">
+<!-- ══════════ LEVEL SELECT SCREEN ══════════ -->
+<div id="level-select" class="screen">
   <div class="song-select-header">
     <h2 class="song-select-title">Falling Chords</h2>
     <p class="song-select-sub">Hit each chord as it crosses the line. Timing earns Perfect / Good / OK.</p>
   </div>
-  <div class="song-grid" id="song-grid"></div>
+  <div class="level-select-badge" id="level-select-badge" style="display:none"></div>
+  <div class="level-strip" id="level-strip"></div>
 
   <!-- Pre-game options -->
   <div class="song-options">
@@ -271,12 +274,6 @@
         <button class="song-opt-btn" data-level="click">Click only</button>
         <button class="song-opt-btn" data-level="off">Off</button>
       </div>
-    </div>
-    <div class="song-option-group">
-      <label class="health-toggle-label">
-        <input type="checkbox" id="health-toggle" checked>
-        Health bar
-      </label>
     </div>
     <button class="song-opt-secondary" id="btn-calibrate">⏱ Calibrate timing</button>
   </div>
@@ -295,7 +292,7 @@
     </div>
   </div>
 
-  <button class="btn-secondary" id="btn-back-from-songs">← Back to Menu</button>
+  <button class="btn-secondary" id="btn-back-from-levels">← Back to Menu</button>
 </div>
 
 <!-- ══════════ GAME SCREEN ══════════ -->
@@ -336,12 +333,11 @@
       <div class="timer-bar-wrap" id="survival-window-bar-wrap" style="display:none">
         <div class="timer-bar survival-window-bar" id="survival-window-bar"></div>
       </div>
-      <!-- Health bar — falling mode only, hidden during sprint/survival -->
-      <div class="health-bar-wrap" id="health-bar-wrap" style="display:none">
-        <span class="health-label">HP</span>
-        <div class="health-track">
-          <div class="health-bar" id="health-bar"></div>
-        </div>
+      <!-- Hearts — Falling Chords' whole-run life system, hidden during sprint/survival/practice -->
+      <div class="hearts-wrap" id="hearts-wrap" style="display:none" data-hearts="3">
+        <span class="heart-glyph filled"></span>
+        <span class="heart-glyph filled"></span>
+        <span class="heart-glyph filled"></span>
       </div>
 
       <!-- Falling Chords lane — hidden unless mode === 'falling' -->
@@ -568,6 +564,31 @@
       <button class="btn-primary" id="btn-keep-playing">Keep playing</button>
       <button class="btn-secondary" id="btn-end-session">End session</button>
     </div>
+  </div>
+</div>
+
+<!-- Falling Chords full-clear celebration — one-time on first Level 1 -> 10 clear -->
+<div class="cell-modal-overlay" id="fullclear-modal-overlay" style="display:none">
+  <div class="cell-modal fullclear-modal">
+    <div class="fullclear-mark-wrap" id="fullclear-mark-wrap">
+      <svg viewBox="0 0 512 512" width="96" height="96" class="fullclear-mark">
+        <defs>
+          <mask id="fullclear-notches">
+            <rect width="512" height="512" fill="white"/>
+            <rect x="184" y="252" width="36" height="136" rx="18" fill="black"/>
+            <rect x="292" y="252" width="36" height="136" rx="18" fill="black"/>
+          </mask>
+        </defs>
+        <g mask="url(#fullclear-notches)">
+          <path d="M104 306 L194 278 L194 420 L104 420 Z" fill="#F2EFE8"/>
+          <path d="M211 222 L301 194 L301 420 L211 420 Z" fill="#DFA33E"/>
+          <path d="M318 138 L408 110 L408 420 L318 420 Z" fill="#F2EFE8"/>
+        </g>
+      </svg>
+    </div>
+    <h3>You beat ChordGym!</h3>
+    <p id="fullclear-stats"></p>
+    <button class="btn-primary" id="btn-fullclear-dismiss">Nice!</button>
   </div>
 </div>
 
