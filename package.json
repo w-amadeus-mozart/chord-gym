@@ -11,10 +11,16 @@
     "preview": "vite preview",
     "test:low-octave": "node scripts/regression-low-octave.mjs",
     "test:lifecycle": "node scripts/regression-lifecycle.mjs",
-    "test:falling-levels": "node scripts/regression-falling-levels.mjs"
+    "test:falling-levels": "node scripts/regression-falling-levels.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/cli": "^2.11.4",
     "playwright": "^1.61.1",
+    "sharp": "^0.35.3",
     "vite": "^6.0.0"
   }
 }
