@@ -516,17 +516,17 @@ body {
   transform: translateY(2px);
   color: #1a1000; font-weight: 800;
 }
-.white-key.wrong-active { background: var(--red); box-shadow: 0 0 22px rgba(248,113,113,0.85); transform: translateY(2px); }
+.white-key.wrong-active { background: var(--red); box-shadow: 0 0 22px rgba(248,113,113,0.85); transform: translateY(2px); color: #fff; font-weight: 800; }
 .black-key.active {
   background: linear-gradient(180deg, var(--accent2), var(--accent));
   box-shadow: 0 0 22px rgba(223,163,62,0.95), 0 0 44px rgba(223,163,62,0.45);
   transform: translateY(1px);
-  color: var(--amber); font-weight: 800;
+  color: #1a1000; font-weight: 800;
 }
-.black-key.wrong-active { background: var(--red); box-shadow: 0 0 18px rgba(248,113,113,0.85); transform: translateY(1px); }
-.white-key.releasing { background: #8888a0; box-shadow: none; }
-.black-key.releasing { background: #44445a; box-shadow: none; }
-.white-key.hint { box-shadow: 0 0 0 3px var(--amber) inset, 0 0 16px rgba(251,191,36,0.6); color: var(--amber); font-weight: 800; }
+.black-key.wrong-active { background: var(--red); box-shadow: 0 0 18px rgba(248,113,113,0.85); transform: translateY(1px); color: #fff; font-weight: 800; }
+.white-key.releasing { background: #8888a0; box-shadow: none; color: #2a2a35; }
+.black-key.releasing { background: #44445a; box-shadow: none; color: #ccc; }
+.white-key.hint { box-shadow: 0 0 0 3px var(--amber) inset, 0 0 16px rgba(251,191,36,0.6); color: #1a1000; font-weight: 800; }
 .black-key.hint { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 14px rgba(251,191,36,0.6); color: var(--amber); font-weight: 800; }
 
 .kb-edge-arrow {

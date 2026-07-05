@@ -6,7 +6,7 @@
 
 import { state, SPRINT_DURATION } from './state.js';
 import { ChordEngine } from './chords.js';
-import { setPianoTarget, setPianoReleasing, setKeyLabelMode, getVisibleRange } from './piano.js';
+import { setPianoTarget, setPianoReleasing, setKeyLabelMode, getVisibleRange, getRestingLabelMode } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
 import { FALLING_LEVELS } from './fallingLevels.js';
 import { Achievements } from './achievements.js';
@@ -272,7 +272,7 @@ export const UI = {
         container.appendChild(pip);
       }
     }
-    setKeyLabelMode(hintLevel >= 2 ? 'notes' : 'letters');
+    setKeyLabelMode(hintLevel >= 2 ? 'notes' : getRestingLabelMode());
     let hintNotes = null;
     if (hintLevel >= 2) {
       const { start, end } = getVisibleRange();

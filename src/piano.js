@@ -262,6 +262,15 @@ export function setIdleLabelMode(mode) {
 
 export function getIdleLabelMode() { return _idleLabelMode; }
 
+// What labels should read when nothing is overriding them (Practice's hint flow
+// calls this instead of hardcoding 'letters' — same resolution buildPiano() uses,
+// so the Settings/ABC "show note names" preference survives a Practice session
+// instead of being silently forced back to 'letters' key-by-key, which used to
+// blank every label outright (the sized keyboard never assigns data-letter).
+export function getRestingLabelMode() {
+  return MidiInput.getDeviceNames().length > 0 ? _idleLabelMode : 'letters';
+}
+
 // Re-renders key captions in place (e.g. after the enharmonic style changes)
 // without touching label mode itself.
 export function refreshKeyLabels() { _applyLabelMode(); }
