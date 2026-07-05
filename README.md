@@ -55,6 +55,30 @@ Scores and mastery data are stored in `localStorage` per origin. Moving the depl
 
 ---
 
+## Desktop builds
+
+ChordGym also ships as a native desktop app (macOS + Windows) via [Tauri](https://tauri.app), with a native MIDI bridge and a Lemon Squeezy license-key gate. Desktop always builds the FULL edition (never the demo).
+
+**Prerequisites:** [Rust](https://www.rust-lang.org/tools/install) (stable toolchain) in addition to the Node setup above.
+
+```bash
+npm run tauri:dev      # launch the desktop app against the Vite dev server
+npm run tauri:build    # produce a local, unsigned installer for your current OS
+```
+
+### Cutting a release
+
+Installers are built by CI, not locally:
+
+1. Bump the version in `package.json`, then run `npm run version:sync` to propagate it into `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Commit the result.
+2. Tag and push: `git tag v0.9.1 && git push origin v0.9.1`
+3. The `.github/workflows/release.yml` workflow builds a macOS universal `.dmg` and a Windows NSIS `.exe`, and attaches both to a **draft** GitHub Release named after the tag. Nothing is auto-published — promote the draft manually once you've smoke-tested the artifacts.
+4. `npm run version:check` runs as part of that workflow and fails the build if the synced files drifted from `package.json` — run step 1 before tagging, not after.
+
+**Unsigned builds:** signing/notarization is deferred (pending Apple Developer approval — see the `TODO(signing)` blocks in `release.yml`). The macOS `.dmg` from CI is unsigned, so Gatekeeper will block a normal double-click open; testers need to **right-click → Open** the app once to bypass it. The Windows `.exe` is also unsigned, so SmartScreen will show a warning — click "More info" → "Run anyway." Both are acceptable for pre-launch testing; this note should come down once signing lands.
+
+---
+
 ## Architecture
 
 | File | Responsibility |

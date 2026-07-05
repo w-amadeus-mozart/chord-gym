@@ -1,0 +1,116 @@
+name: Release desktop installers
+
+# Separate trigger from deploy.yml (which runs on push to main) — this only
+# fires on version tags or a manual dispatch, so it never competes with or
+# blocks the Pages deploy.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Fails the run if package.json's version wasn't synced into
+      # src-tauri/tauri.conf.json / src-tauri/Cargo.toml before tagging.
+      - run: npm run version:check
+
+      # Desktop always ships the FULL edition — VITE_DEMO must never be set
+      # in this pipeline (the demo build is web-only, via build:demo).
+      - name: Assert full edition (no VITE_DEMO)
+        run: |
+          if [ -n "$VITE_DEMO" ]; then
+            echo "VITE_DEMO is set in the release pipeline — desktop must build the FULL edition." >&2
+            exit 1
+          fi
+          echo "OK — VITE_DEMO is unset, building FULL edition."
+
+  build:
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Universal binary (arm64 + x86_64) in one .dmg. `--bundles` pins the
+          # output to exactly the installer formats this workflow promises
+          # (tauri.conf.json's bundle.targets: "all" would otherwise also
+          # produce a bare .app on mac and an .msi alongside the .exe on Windows).
+          - platform: 'macos-latest'
+            args: '--bundles dmg --target universal-apple-darwin'
+          - platform: 'windows-latest'
+            args: '--bundles nsis'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - run: npm ci
+
+      # --- macOS signing + notarization (deferred until Apple Developer approval lands) ---
+      # TODO(signing): once approved, add these secrets in repo Settings → Secrets → Actions,
+      # uncomment the "import Apple Developer Certificate" step below and the env block on
+      # the tauri-action step, and drop the `if: matrix.platform != 'macos-latest'` guard isn't
+      # needed — tauri-action just no-ops signing when these vars are unset.
+      #
+      # - name: import Apple Developer Certificate
+      #   if: matrix.platform == 'macos-latest'
+      #   env:
+      #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}           # base64 .p12 export of the Developer ID Application cert, from Apple Developer > Certificates
+      #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }} # password set when exporting the .p12
+      #     KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}           # arbitrary — password for the temporary CI keychain
+      #   run: |
+      #     echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+      #     security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+      #     security default-keychain -s build.keychain
+      #     security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+      #     security set-keychain-settings -t 3600 -u build.keychain
+      #     security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      # --- Windows signing (optional, non-blocking — unsigned .exe triggers a SmartScreen
+      # warning that's acceptable at launch; revisit post-launch if it hurts conversion) ---
+      # TODO(signing): if/when a code-signing cert is acquired, add a signtool step here
+      # using secrets.WINDOWS_CERTIFICATE / secrets.WINDOWS_CERTIFICATE_PASSWORD.
+
+      - name: build and publish
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # TODO(signing): macOS notarization — uncomment once Apple Developer approval lands.
+          # APPLE_ID: ${{ secrets.APPLE_ID }}                       # Apple ID email used for the Developer account
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}           # app-specific password, generated at appleid.apple.com
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}             # found in Apple Developer > Membership
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }} # e.g. "Developer ID Application: Name (TEAMID)"
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'ChordGym ${{ github.ref_name }}'
+          releaseBody: 'Unsigned pre-launch build. See README "Desktop builds" for the macOS right-click → Open note.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
