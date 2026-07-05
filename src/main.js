@@ -17,6 +17,60 @@ import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
 import { Progress } from './progress.js';
 import { IS_DEMO, UPGRADE_URL } from './edition.js';
+import { IS_DESKTOP } from './platform.js';
+import * as License from './license.js';
+
+// ── License gate (desktop only) — runs before the rest of the app wires up. Shows a
+// blank covering background immediately (no flash of the app shell while we check the
+// Tauri store), then either hides straight away (already activated) or renders the
+// activate form. showLicenseGateForm is also called from the Settings "Deactivate this
+// device" handler below, so a deactivation drops straight back to the gate with no
+// relaunch needed. See chordgym-tauri-license-spec.md, Phase B.
+function showLicenseGateForm() {
+  document.getElementById('license-gate').style.display = 'flex';
+  document.getElementById('license-gate-box').style.display = 'flex';
+  document.getElementById('license-gate-error').style.display = 'none';
+  const input = document.getElementById('license-key-input');
+  input.value = '';
+  input.focus();
+}
+function hideLicenseGate() {
+  document.getElementById('license-gate').style.display = 'none';
+}
+if (IS_DESKTOP) {
+  const errorEl = document.getElementById('license-gate-error');
+  const input = document.getElementById('license-key-input');
+  const activateBtn = document.getElementById('btn-license-activate');
+  document.getElementById('license-buy-link').href = License.LICENSE_BUY_URL;
+
+  document.getElementById('license-gate').style.display = 'flex'; // covers the app shell immediately while the store loads
+
+  async function handleActivate() {
+    activateBtn.disabled = true;
+    activateBtn.textContent = 'Activating…';
+    errorEl.style.display = 'none';
+    const result = await License.activate(input.value);
+    if (result.ok) {
+      hideLicenseGate();
+    } else {
+      errorEl.textContent = result.message;
+      errorEl.style.display = 'block';
+      activateBtn.disabled = false;
+      activateBtn.textContent = 'Activate ChordGym';
+    }
+  }
+  activateBtn.addEventListener('click', handleActivate);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') handleActivate(); });
+
+  License.hasActivation().then(activated => {
+    if (activated) {
+      hideLicenseGate();
+      License.revalidate(); // best-effort, fire-and-forget — never blocks launch
+    } else {
+      showLicenseGateForm();
+    }
+  });
+}
 
 // The only two modes with a skippable "dying" freeze sequence — keyed off state.activeMode,
 // since each mode's own teardown() (which resets activeMode) hasn't run yet at that point.
@@ -599,6 +653,36 @@ renderHome();
 updateMidiStatus();
 _syncCalibrationTitle();
 if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.display = '';
+
+// ── Desktop-only chrome (Settings license panel) ──────────
+if (IS_DESKTOP) {
+  document.body.classList.add('is-desktop');
+  const statusEl = document.getElementById('license-settings-status');
+  const deactivateBtn = document.getElementById('btn-license-deactivate');
+
+  async function refreshLicenseSettingsStatus() {
+    const record = await License.getActivation();
+    statusEl.textContent = record ? `Activated as ${record.instanceName}` : '';
+    statusEl.style.color = '';
+  }
+  refreshLicenseSettingsStatus();
+
+  deactivateBtn.addEventListener('click', async () => {
+    deactivateBtn.disabled = true;
+    deactivateBtn.textContent = 'Deactivating…';
+    const result = await License.deactivate();
+    deactivateBtn.disabled = false;
+    deactivateBtn.textContent = 'Deactivate this device';
+    if (result.ok) {
+      await refreshLicenseSettingsStatus();
+      goHome();
+      showLicenseGateForm();
+    } else {
+      statusEl.textContent = result.message;
+      statusEl.style.color = 'var(--red)';
+    }
+  });
+}
 
 // ── Demo edition gating ────────────────────────────────────
 // All demo-only DOM mutation lives here — one block, one grep target. The chord-set

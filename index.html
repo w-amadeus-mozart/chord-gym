@@ -23,6 +23,23 @@
 </head>
 <body>
 
+<!-- ══════════ LICENSE GATE (desktop only) ══════════
+     Shown before the rest of the app on a fresh desktop install. Fixed + top z-index so
+     it covers the app shell regardless of DOM order; src/main.js toggles display and
+     swaps in the checking/form/error sub-states. Inert and never shown on web. -->
+<div class="license-gate" id="license-gate" style="display:none">
+  <div class="license-gate-box" id="license-gate-box" style="display:none">
+    <img src="/chordgym-mark.svg" alt="" class="license-gate-mark">
+    <h2>Activate ChordGym</h2>
+    <p class="license-gate-sub">Enter the license key from your Lemon Squeezy receipt email.</p>
+    <input type="text" id="license-key-input" class="license-key-input" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocorrect="off" spellcheck="false">
+    <p class="license-gate-error" id="license-gate-error" style="display:none"></p>
+    <button class="btn-primary" id="btn-license-activate">Activate ChordGym</button>
+    <p class="license-gate-buy">Don't have a key yet? <a id="license-buy-link" href="#" target="_blank" rel="noopener">Buy a license</a></p>
+    <p class="license-gate-hint">Purchased? Your key was emailed by Lemon Squeezy.</p>
+  </div>
+</div>
+
 <!-- Animated aurora background (CSS-driven, behind all screens) -->
 <div class="bg-aurora" aria-hidden="true"></div>
 
@@ -531,6 +548,15 @@
     <div class="settings-btn-row">
       <span class="mixer-label">Timing offset</span>
       <button class="song-opt-secondary" id="btn-calibrate-settings">⏱ Calibrate timing</button>
+    </div>
+  </div>
+
+  <div class="settings-panel desktop-only" id="settings-panel-license">
+    <h4>License</h4>
+    <p class="license-settings-desc">Move ChordGym to another machine within your activation limit.</p>
+    <div class="settings-btn-row">
+      <span class="mixer-label" id="license-settings-status"></span>
+      <button class="song-opt-secondary" id="btn-license-deactivate">Deactivate this device</button>
     </div>
   </div>
 
