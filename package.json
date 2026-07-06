@@ -1,6 +1,6 @@
 {
   "name": "chord-gym",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Browser-based MIDI chord recognition game",
   "type": "module",
   "scripts": {
