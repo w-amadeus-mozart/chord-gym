@@ -20,6 +20,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_store::Builder::new().build())
     .plugin(tauri_plugin_os::init())
+    .plugin(tauri_plugin_process::init())
     .invoke_handler(tauri::generate_handler![license_bypass_enabled])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -29,6 +30,8 @@ pub fn run() {
             .build(),
         )?;
       }
+      #[cfg(desktop)]
+      app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
       midi::start(app.handle().clone());
       Ok(())
     })

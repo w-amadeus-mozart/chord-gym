@@ -57,7 +57,7 @@ Scores and mastery data are stored in `localStorage` per origin. Moving the depl
 
 ## Desktop builds
 
-ChordGym also ships as a native desktop app (macOS + Windows) via [Tauri](https://tauri.app), with a native MIDI bridge and a Lemon Squeezy license-key gate. Desktop always builds the FULL edition (never the demo).
+ChordGym also ships as a native desktop app (macOS + Windows) via [Tauri](https://tauri.app), with a native MIDI bridge, a Lemon Squeezy license-key gate, and an in-app auto-updater. Desktop always builds the FULL edition (never the demo).
 
 **Prerequisites:** [Rust](https://www.rust-lang.org/tools/install) (stable toolchain) in addition to the Node setup above.
 
@@ -72,10 +72,17 @@ Installers are built by CI, not locally:
 
 1. Bump the version in `package.json`, then run `npm run version:sync` to propagate it into `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Commit the result.
 2. Tag and push: `git tag v0.9.1 && git push origin v0.9.1`
-3. The `.github/workflows/release.yml` workflow builds a macOS universal `.dmg` and a Windows NSIS `.exe`, and attaches both to a **draft** GitHub Release named after the tag. Nothing is auto-published — promote the draft manually once you've smoke-tested the artifacts.
+3. The `.github/workflows/release.yml` workflow builds a macOS universal `.dmg` and a Windows NSIS `.exe` (both signed with the updater key so installed apps can verify them), and attaches both — plus `latest.json` — to a **draft** GitHub Release named after the tag. Nothing is auto-published yet.
 4. `npm run version:check` runs as part of that workflow and fails the build if the synced files drifted from `package.json` — run step 1 before tagging, not after.
+5. Smoke-test the draft's artifacts, then **publish the release**. This is the ship action — publishing (not tagging, not the CI build finishing) is what makes the update visible to every installed copy of ChordGym, since the updater's endpoint is GitHub's `/releases/latest/download/latest.json`, which only ever resolves to the newest **published, non-prerelease** release. A draft or a pre-release is invisible to installed apps.
 
-**Unsigned builds:** signing/notarization is deferred (pending Apple Developer approval — see the `TODO(signing)` blocks in `release.yml`). The macOS `.dmg` from CI is unsigned, so Gatekeeper will block a normal double-click open; testers need to **right-click → Open** the app once to bypass it. The Windows `.exe` is also unsigned, so SmartScreen will show a warning — click "More info" → "Run anyway." Both are acceptable for pre-launch testing; this note should come down once signing lands.
+**Release notes matter now:** the GitHub release body is what installed apps show in the update banner (first line) and the "What's new" expandable (full body) — write it for end users, not just as a changelog entry.
+
+**Unsigned app builds:** app code-signing/notarization is still deferred (pending Apple Developer approval — see the `TODO(signing)` blocks in `release.yml`), separate from the updater's own artifact signing above. The macOS `.dmg` from CI is unsigned, so Gatekeeper will block a normal double-click open; testers need to **right-click → Open** the app once to bypass it. The Windows `.exe` is also unsigned, so SmartScreen will show a warning — click "More info" → "Run anyway." Both are acceptable for pre-launch testing; this note should come down once signing lands.
+
+### Auto-updates
+
+Desktop builds check for updates automatically after launch (never blocking startup; offline is a silent no-op) and expose a manual **Check for updates** button in Settings. Updates are signed with a dedicated Tauri updater keypair (`~/.chordgym/updater-signing.key` on the maintainer's machine, never committed) — the public half is pinned into `tauri.conf.json`, the private half + password live only in the `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` GitHub repo secrets used by `release.yml`. If that key is ever lost, no installed copy of ChordGym can be updated again — replacing it requires manual reinstalls for every user.
 
 ---
 

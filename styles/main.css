@@ -1387,3 +1387,30 @@ body.is-desktop .desktop-only { display: block; }
 /* ── License panel in Settings (desktop only) ── */
 .license-settings-desc { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 #license-settings-status { width: auto; font-size: 12px; }
+
+/* ══════════ Update banner (desktop only) ══════════ */
+.update-banner {
+  position: fixed; right: 22px; bottom: 22px; z-index: 900;
+  width: 340px; max-width: calc(100vw - 44px);
+  background: var(--surface-1); border: 1px solid var(--glass-border); border-radius: var(--radius-card);
+  padding: 16px 18px 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+}
+.update-banner-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.update-banner-text { font-size: 13px; color: var(--text); font-weight: 600; line-height: 1.4; }
+.update-banner-whats-new {
+  background: none; border: none; color: var(--accent); font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; text-decoration: underline; flex-shrink: 0;
+}
+.update-banner-notes {
+  font-size: 12px; color: var(--text-dim); line-height: 1.5; white-space: pre-line;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+}
+.update-banner-error { font-size: 12px; color: var(--red); margin-top: 8px; }
+.update-banner-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.update-banner-primary { padding: 8px 18px; font-size: 13px; border-radius: 8px; box-shadow: none; }
+.update-banner-primary:hover { transform: none; box-shadow: 0 0 18px rgba(223,163,62,0.4); }
+.update-banner-progress {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12px; color: var(--text-dim); margin-top: 12px;
+}
+#btn-update-restart { padding: 6px 16px; font-size: 12px; border-radius: 8px; box-shadow: none; }

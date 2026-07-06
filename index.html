@@ -40,6 +40,26 @@
   </div>
 </div>
 
+<!-- ══════════ UPDATE BANNER (desktop only) ══════════
+     Hidden until src/main.js finds an update (fire-and-forget check, never blocks launch).
+     Dismissible via "Later" (in-memory only — quiet until next launch, no storage needed). -->
+<div class="update-banner" id="update-banner" style="display:none">
+  <div class="update-banner-row">
+    <span class="update-banner-text" id="update-banner-text"></span>
+    <button class="update-banner-whats-new" id="btn-update-whats-new">What's new</button>
+  </div>
+  <p class="update-banner-notes" id="update-banner-notes" style="display:none"></p>
+  <p class="update-banner-error" id="update-banner-error" style="display:none"></p>
+  <div class="update-banner-actions" id="update-banner-actions">
+    <button class="song-opt-secondary" id="btn-update-later">Later</button>
+    <button class="btn-primary update-banner-primary" id="btn-update-now">Update now</button>
+  </div>
+  <div class="update-banner-progress" id="update-banner-progress" style="display:none">
+    <span id="update-banner-progress-text">Downloading…</span>
+    <button class="btn-primary update-banner-primary" id="btn-update-restart" style="display:none">Restart now</button>
+  </div>
+</div>
+
 <!-- Animated aurora background (CSS-driven, behind all screens) -->
 <div class="bg-aurora" aria-hidden="true"></div>
 
@@ -558,6 +578,15 @@
       <span class="mixer-label" id="license-settings-status"></span>
       <button class="song-opt-secondary" id="btn-license-deactivate">Deactivate this device</button>
     </div>
+  </div>
+
+  <div class="settings-panel desktop-only" id="settings-panel-updates">
+    <h4>Updates</h4>
+    <div class="settings-btn-row">
+      <span class="mixer-label" id="update-settings-version"></span>
+      <button class="song-opt-secondary" id="btn-check-updates">Check for updates</button>
+    </div>
+    <p class="license-settings-desc" id="update-settings-result" style="display:none"></p>
   </div>
 
   <div class="settings-panel">

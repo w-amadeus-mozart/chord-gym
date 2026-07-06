@@ -8,6 +8,8 @@
   "permissions": [
     "core:default",
     "store:default",
-    "os:allow-hostname"
+    "os:allow-hostname",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

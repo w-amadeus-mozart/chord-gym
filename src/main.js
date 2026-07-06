@@ -19,6 +19,7 @@ import { Progress } from './progress.js';
 import { IS_DEMO, UPGRADE_URL } from './edition.js';
 import { IS_DESKTOP } from './platform.js';
 import * as License from './license.js';
+import * as Updater from './updater.js';
 
 // ── License gate (desktop only) — runs before the rest of the app wires up. Shows a
 // blank covering background immediately (no flash of the app shell while we check the
@@ -682,6 +683,97 @@ if (IS_DESKTOP) {
       statusEl.style.color = 'var(--red)';
     }
   });
+
+  // ── Update banner + Settings "Updates" panel ──────────────
+  // "Later" is an in-memory flag only — a fresh launch is a fresh page load, so "quiet
+  // until next launch" needs no persistence. Never shown until after the app is already
+  // interactive (same fire-and-forget manners as License.revalidate above).
+  const updateBanner = document.getElementById('update-banner');
+  const updateBannerText = document.getElementById('update-banner-text');
+  const updateBannerNotes = document.getElementById('update-banner-notes');
+  const updateBannerError = document.getElementById('update-banner-error');
+  const updateBannerActions = document.getElementById('update-banner-actions');
+  const updateBannerProgress = document.getElementById('update-banner-progress');
+  const updateBannerProgressText = document.getElementById('update-banner-progress-text');
+  const whatsNewBtn = document.getElementById('btn-update-whats-new');
+  const laterBtn = document.getElementById('btn-update-later');
+  const updateNowBtn = document.getElementById('btn-update-now');
+  const restartBtn = document.getElementById('btn-update-restart');
+  const updateVersionEl = document.getElementById('update-settings-version');
+  const checkUpdatesBtn = document.getElementById('btn-check-updates');
+  const updateResultEl = document.getElementById('update-settings-result');
+
+  updateVersionEl.textContent = `ChordGym ${Updater.APP_VERSION}`;
+
+  let dismissedVersion = null;
+  let pendingUpdate = null;
+
+  function renderBanner(update) {
+    pendingUpdate = update;
+    const { firstLine, full } = Updater.splitReleaseNotes(update.body);
+    updateBannerText.textContent = `ChordGym ${update.version} is available${firstLine ? ' — ' + firstLine : ''}`;
+    updateBannerNotes.textContent = full;
+    updateBannerNotes.style.display = 'none';
+    updateBannerError.style.display = 'none';
+    updateBannerProgress.style.display = 'none';
+    restartBtn.style.display = 'none';
+    updateBannerActions.style.display = 'flex';
+    updateBanner.style.display = 'block';
+  }
+
+  whatsNewBtn.addEventListener('click', () => {
+    updateBannerNotes.style.display = updateBannerNotes.style.display === 'none' ? 'block' : 'none';
+  });
+
+  laterBtn.addEventListener('click', () => {
+    if (pendingUpdate) dismissedVersion = pendingUpdate.version;
+    updateBanner.style.display = 'none';
+  });
+
+  restartBtn.addEventListener('click', () => Updater.relaunchApp());
+
+  updateNowBtn.addEventListener('click', async () => {
+    if (!pendingUpdate) return;
+    updateBannerActions.style.display = 'none';
+    updateBannerError.style.display = 'none';
+    updateBannerProgressText.textContent = 'Downloading…';
+    updateBannerProgress.style.display = 'flex';
+    try {
+      await Updater.downloadAndInstall(pendingUpdate, event => {
+        if (event.event === 'Finished') {
+          updateBannerProgressText.textContent = 'Installed — restart to finish';
+          restartBtn.style.display = 'block';
+        }
+      });
+    } catch (_) {
+      updateBannerProgress.style.display = 'none';
+      updateBannerError.textContent = "Couldn't install the update — try again later.";
+      updateBannerError.style.display = 'block';
+      updateBannerActions.style.display = 'flex';
+    }
+  });
+
+  async function checkForUpdate({ manual } = {}) {
+    if (manual) {
+      checkUpdatesBtn.disabled = true;
+      checkUpdatesBtn.textContent = 'Checking…';
+      updateResultEl.style.display = 'none';
+    }
+    const update = await Updater.checkForUpdate();
+    if (manual) {
+      checkUpdatesBtn.disabled = false;
+      checkUpdatesBtn.textContent = 'Check for updates';
+      updateResultEl.style.color = '';
+      updateResultEl.textContent = update ? `ChordGym ${update.version} is available.` : "You're up to date.";
+      updateResultEl.style.display = 'block';
+    }
+    if (update && update.version !== dismissedVersion) {
+      renderBanner(update);
+    }
+  }
+
+  checkUpdatesBtn.addEventListener('click', () => checkForUpdate({ manual: true }));
+  checkForUpdate(); // fire-and-forget — never blocks launch, offline = silent skip
 }
 
 // ── Demo edition gating ────────────────────────────────────

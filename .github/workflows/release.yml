@@ -100,6 +100,11 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater artifact signing (tauri-plugin-updater) — separate from Apple/Windows
+          # code-signing below. Read automatically by the Tauri CLI bundler because
+          # tauri.conf.json sets bundle.createUpdaterArtifacts: true.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # TODO(signing): macOS notarization — uncomment once Apple Developer approval lands.
           # APPLE_ID: ${{ secrets.APPLE_ID }}                       # Apple ID email used for the Developer account
           # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}           # app-specific password, generated at appleid.apple.com
