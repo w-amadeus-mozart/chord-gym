@@ -45,12 +45,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Universal binary (arm64 + x86_64) in one .dmg. `--bundles` pins the
-          # output to exactly the installer formats this workflow promises
-          # (tauri.conf.json's bundle.targets: "all" would otherwise also
-          # produce a bare .app on mac and an .msi alongside the .exe on Windows).
+          # Universal binary (arm64 + x86_64) in one .dmg, for manual downloads. `app` is
+          # also required here (not just dmg) — the updater's signed .app.tar.gz payload
+          # is only produced alongside an `app` bundle; without it, latest.json silently
+          # omits macOS entirely and Mac installs can never self-update.
           - platform: 'macos-latest'
-            args: '--bundles dmg --target universal-apple-darwin'
+            args: '--bundles dmg,app --target universal-apple-darwin'
           - platform: 'windows-latest'
             args: '--bundles nsis'
 
