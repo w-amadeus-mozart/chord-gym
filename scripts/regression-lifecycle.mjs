@@ -348,6 +348,31 @@ async function main() {
       ok(`${label}: ${count} active key(s)`);
     }
 
+    // A held note's gold highlight must persist for as long as it's physically held —
+    // driven purely by the held-notes Set, never a timer — until the actual note-off
+    // event. Checks both the class and the computed accent glow (box-shadow carries the
+    // "223, 163, 62" accent rgb only on .active/.black-key.active) at 1s/2s/3s so a
+    // regression that re-triggers a keyframe animation ending, or any other timer-driven
+    // fade/re-render clobbering the highlight early, gets caught even if the classList
+    // alone still looked right for one frame.
+    async function checkPersistence(label, note) {
+      for (const t of [1000, 2000, 3000]) {
+        await page.waitForTimeout(1000);
+        const info = await page.evaluate((n) => {
+          const el = document.querySelector(`.white-key[data-note="${n}"], .black-key[data-note="${n}"]`);
+          if (!el) return null;
+          const cs = getComputedStyle(el);
+          return { classes: el.className, boxShadow: cs.boxShadow };
+        }, note);
+        assert(info, `${label}: key for note ${note} not found in DOM at t=${t}ms`);
+        assert(info.classes.includes('active') && !info.classes.includes('wrong-active'),
+          `${label}: active class should still persist at t=${t}ms while the key is physically held, got classes="${info.classes}"`);
+        assert(info.boxShadow.includes('223, 163, 62'),
+          `${label}: computed accent glow should still persist at t=${t}ms, got boxShadow="${info.boxShadow}"`);
+      }
+      ok(`${label}: active class + computed glow persisted at 1s/2s/3s while held`);
+    }
+
     await navAway('home');
     await navAway('test');
     await page.click('[data-mode="sprint"]');
@@ -357,7 +382,44 @@ async function main() {
     let note = 60 + pcs[0];
     await sendNoteOn([note]);
     await checkHighlight('Sprint');
+    await checkPersistence('Sprint', note);
     await sendNoteOff([note]);
+
+    // ── Regression: a completed match must not clobber the release-gate visual on
+    // still-held keys. onChordMatched() advances state.currentChord and calls
+    // UI.renderChord() *before* the player has released — renderChord() re-targets the
+    // keyboard against the brand-new chord, so notes still down from the match just
+    // scored used to get re-evaluated against it and flash wrong-active (or lose their
+    // highlight) instead of holding the neutral "releasing" grey until note-off. Confirm
+    // the held (still-down) keys read 'releasing' — not 'wrong-active' or unstyled — and
+    // that this holds for 3+ seconds, not just the first frame after the match.
+    console.log('\n[6b] Sprint: release-gate visual survives a match while keys stay held');
+    await navAway('test');
+    await page.click('[data-mode="sprint"]');
+    await page.click('#btn-start');
+    await page.waitForTimeout(200);
+    pcs = await targetPcs();
+    let matchNotes = pcs.map(pc => 60 + pc);
+    const scoreBefore = await page.$eval('#hud-score', el => el.textContent);
+    await sendNoteOn(matchNotes);
+    await page.waitForFunction(
+      (prev) => document.getElementById('hud-score').textContent !== prev,
+      scoreBefore,
+      { timeout: 2000 },
+    );
+    for (const t of [0, 1000, 2000, 3000]) {
+      if (t > 0) await page.waitForTimeout(1000);
+      const classes = await page.evaluate((ns) => ns.map(n => {
+        const el = document.querySelector(`.white-key[data-note="${n}"], .black-key[data-note="${n}"]`);
+        return el ? el.className : null;
+      }), matchNotes);
+      for (const c of classes) {
+        assert(c && c.includes('releasing'), `Sprint release-gate: at t=${t}ms expected a held key to still read 'releasing', got "${c}"`);
+        assert(!c.includes('wrong-active'), `Sprint release-gate: at t=${t}ms a held key incorrectly flashed wrong-active against the NEXT chord's target: "${c}"`);
+      }
+    }
+    ok('Sprint: held (unreleased) match keys stayed in the neutral releasing state for 3s, never flashed wrong-active against the next chord');
+    await sendNoteOff(matchNotes);
 
     await navAway('test');
     await page.click('[data-mode="survival"]');

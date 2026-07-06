@@ -126,6 +126,14 @@ export const SprintMode = {
 
     UI.renderChord();
     UI.renderHUD();
+
+    // renderChord() → renderNoteIndicators() just called setPianoTarget() against the
+    // NEW chord, which clears piano.js's internal release-gate flag — so notes still
+    // physically held from the match we just scored get re-evaluated against the next
+    // chord and flash wrong-active (or lose their highlight) instead of holding the
+    // neutral "releasing" grey until note-off, per spec. Re-assert the gate now so the
+    // still-down keys stay correctly greyed in this same frame.
+    UI.renderNoteIndicatorsReleasing(MidiInput.getHeld());
   },
 
   end() {

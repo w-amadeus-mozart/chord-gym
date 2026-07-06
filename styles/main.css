@@ -508,7 +508,11 @@ body {
 }
 .piano-wrap.compact .white-key { width: 32px; font-size: 10px; }
 .piano-wrap.compact .black-key { width: 22px; }
-.piano-wrap.sized .white-key { flex: 1 1 0; min-width: 16px; font-size: 9px; }
+/* Spec calls for scaling key width down before falling back to the horizontal scrollbar.
+   16px hit its floor well inside common desktop window widths (e.g. every 88-key layout
+   at 1366x768/1280x800 — among the most common laptop resolutions — was scrolling instead
+   of shrinking further), so the floor is lower here to actually honor "prefer scaling". */
+.piano-wrap.sized .white-key { flex: 1 1 0; min-width: 10px; font-size: 9px; }
 
 .white-key.active {
   background: linear-gradient(180deg, var(--accent2), var(--accent));
