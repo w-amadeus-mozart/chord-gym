@@ -15,8 +15,12 @@ permissions:
 jobs:
   check-version:
     runs-on: ubuntu-latest
+    outputs:
+      release_notes: ${{ steps.notes.outputs.notes }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed so the tag's own annotation message (not just the commit) is available below
 
       - uses: actions/setup-node@v4
         with:
@@ -38,6 +42,24 @@ jobs:
             exit 1
           fi
           echo "OK — VITE_DEMO is unset, building FULL edition."
+
+      # The release body here becomes latest.json's "notes" field, which the in-app updater
+      # shows verbatim — and that file is generated once, at build time, and never touched
+      # again. Editing the GitHub release description after the fact does NOT update it. So
+      # notes must come from the tag itself: `git tag -a vX.Y.Z -m "..."` (an ANNOTATED tag),
+      # not a lightweight `git tag vX.Y.Z`, or this falls back to a placeholder.
+      - name: Extract release notes from the tag annotation
+        id: notes
+        run: |
+          NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          if [ -z "$NOTES" ]; then
+            NOTES="No release notes were provided for this tag. Next time, use an annotated tag: git tag -a $GITHUB_REF_NAME -m \"what changed\"."
+          fi
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            echo "$NOTES"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: check-version
@@ -115,7 +137,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'ChordGym ${{ github.ref_name }}'
-          releaseBody: 'Unsigned pre-launch build. See README "Desktop builds" for the macOS right-click → Open note.'
+          releaseBody: ${{ needs.check-version.outputs.release_notes }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

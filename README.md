@@ -71,12 +71,12 @@ npm run tauri:build    # produce a local, unsigned installer for your current OS
 Installers are built by CI, not locally:
 
 1. Bump the version in `package.json`, then run `npm run version:sync` to propagate it into `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Commit the result.
-2. Tag and push: `git tag v0.9.1 && git push origin v0.9.1`
+2. Tag with an **annotated tag** (not a plain `git tag`) and push: `git tag -a v0.9.1 -m "What's new in this release, written for end users" && git push origin v0.9.1`
 3. The `.github/workflows/release.yml` workflow builds a macOS universal `.dmg` and a Windows NSIS `.exe` (both signed with the updater key so installed apps can verify them), and attaches both — plus `latest.json` — to a **draft** GitHub Release named after the tag. Nothing is auto-published yet.
 4. `npm run version:check` runs as part of that workflow and fails the build if the synced files drifted from `package.json` — run step 1 before tagging, not after.
 5. Smoke-test the draft's artifacts, then **publish the release**. This is the ship action — publishing (not tagging, not the CI build finishing) is what makes the update visible to every installed copy of ChordGym, since the updater's endpoint is GitHub's `/releases/latest/download/latest.json`, which only ever resolves to the newest **published, non-prerelease** release. A draft or a pre-release is invisible to installed apps.
 
-**Release notes matter now:** the GitHub release body is what installed apps show in the update banner (first line) and the "What's new" expandable (full body) — write it for end users, not just as a changelog entry.
+**Release notes matter now, and they must be written *before* tagging:** the workflow copies the tag's own annotation message into both the GitHub release body and `latest.json`'s `notes` field, which the in-app updater shows verbatim (first line in the banner, full text in "What's new"). `latest.json` is generated once, at CI build time, and never touched again — editing the release description on GitHub afterward changes the web page but **not** what installed apps see. If you tag without `-m` (a lightweight tag), the release ships with a generic "no release notes provided" placeholder instead.
 
 **Unsigned app builds:** app code-signing/notarization is still deferred (pending Apple Developer approval — see the `TODO(signing)` blocks in `release.yml`), separate from the updater's own artifact signing above. The macOS `.dmg` from CI is unsigned, so Gatekeeper will block a normal double-click open; testers need to **right-click → Open** the app once to bypass it. The Windows `.exe` is also unsigned, so SmartScreen will show a warning — click "More info" → "Run anyway." Both are acceptable for pre-launch testing; this note should come down once signing lands.
 
