@@ -14,7 +14,9 @@ export const RECENCY_BASE = 0.7;     // recencyFactor range is [0.7, 1.0]
 export const W_ACCURACY = 0.55;
 export const W_SPEED    = 0.45;
 
-function cellKey(rootPc, typeName) { return rootPc + '|' + typeName; }
+function cellKey(rootPc, typeName, bassPc = null) {
+  return rootPc + '|' + typeName + (bassPc != null ? '|' + bassPc : '');
+}
 
 function load() {
   try {
@@ -29,8 +31,8 @@ function save(data) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (_) {}
 }
 
-function getCell(data, rootPc, typeName) {
-  const key = cellKey(rootPc, typeName);
+function getCell(data, rootPc, typeName, bassPc = null) {
+  const key = cellKey(rootPc, typeName, bassPc);
   return data[key] || { attempts: 0, clean: 0, totalResponseMs: 0, last10: [], lastSeenTs: 0 };
 }
 
@@ -66,10 +68,10 @@ function logActivity(clean) {
   saveActivity(activity);
 }
 
-export function record(rootPc, typeName, responseMs, clean) {
+export function record(rootPc, typeName, responseMs, clean, bassPc = null) {
   const data = load();
-  const key  = cellKey(rootPc, typeName);
-  const cell = getCell(data, rootPc, typeName);
+  const key  = cellKey(rootPc, typeName, bassPc);
+  const cell = getCell(data, rootPc, typeName, bassPc);
 
   cell.attempts++;
   if (clean) cell.clean++;
@@ -96,9 +98,9 @@ function speedScoreForMs(ms) {
   return 1 - (ms - SPEED_FLOOR_MS) / (SPEED_CEIL_MS - SPEED_FLOOR_MS);
 }
 
-export function masteryScore(rootPc, typeName) {
+export function masteryScore(rootPc, typeName, bassPc = null) {
   const data = load();
-  const cell = getCell(data, rootPc, typeName);
+  const cell = getCell(data, rootPc, typeName, bassPc);
   if (cell.last10.length === 0) return 0;
 
   const accuracy = cell.last10.filter(e => e.clean).length / cell.last10.length;
@@ -117,11 +119,11 @@ export function masteryScore(rootPc, typeName) {
 // as [{rootPc, typeName, score}], sorted ascending by score.
 export function weakest(n, pool) {
   const data = load();
-  const qualified = pool.filter(({ rootPc, typeName }) =>
-    getCell(data, rootPc, typeName).attempts >= MIN_ATTEMPTS_FOR_WEAK
+  const qualified = pool.filter(({ rootPc, typeName, bassPc }) =>
+    getCell(data, rootPc, typeName, bassPc).attempts >= MIN_ATTEMPTS_FOR_WEAK
   );
   return qualified
-    .map(({ rootPc, typeName }) => ({ rootPc, typeName, score: masteryScore(rootPc, typeName) }))
+    .map(({ rootPc, typeName, bassPc }) => ({ rootPc, typeName, bassPc, score: masteryScore(rootPc, typeName, bassPc) }))
     .sort((a, b) => a.score - b.score)
     .slice(0, n);
 }
@@ -130,8 +132,9 @@ export function weakest(n, pool) {
 export function allCells() {
   const data = load();
   return Object.keys(data).map(key => {
-    const [rootPcStr, typeName] = key.split('|');
-    return { rootPc: parseInt(rootPcStr, 10), typeName, attempts: data[key].attempts };
+    const [rootPcStr, typeName, bassPcStr] = key.split('|');
+    const bassPc = bassPcStr != null ? parseInt(bassPcStr, 10) : null;
+    return { rootPc: parseInt(rootPcStr, 10), typeName, bassPc, attempts: data[key].attempts };
   });
 }
 
@@ -146,8 +149,9 @@ export function averageMastery() {
   const qualified = Object.entries(data).filter(([, cell]) => cell.attempts >= MIN_ATTEMPTS_FOR_WEAK);
   if (!qualified.length) return null;
   const sum = qualified.reduce((s, [key]) => {
-    const [rootPcStr, typeName] = key.split('|');
-    return s + masteryScore(parseInt(rootPcStr, 10), typeName);
+    const [rootPcStr, typeName, bassPcStr] = key.split('|');
+    const bassPc = bassPcStr != null ? parseInt(bassPcStr, 10) : null;
+    return s + masteryScore(parseInt(rootPcStr, 10), typeName, bassPc);
   }, 0);
   return Math.round(sum / qualified.length);
 }
@@ -186,9 +190,9 @@ export function streakDays() {
 }
 
 // Full honest breakdown for one cell — used by the Progress heatmap and drill-in panel.
-export function cellDetail(rootPc, typeName) {
+export function cellDetail(rootPc, typeName, bassPc = null) {
   const data = load();
-  const cell = getCell(data, rootPc, typeName);
+  const cell = getCell(data, rootPc, typeName, bassPc);
   const last10 = cell.last10;
 
   const accuracyPct = last10.length ? Math.round(100 * last10.filter(e => e.clean).length / last10.length) : null;
@@ -206,7 +210,7 @@ export function cellDetail(rootPc, typeName) {
     last10,
     lastSeenTs: cell.lastSeenTs || null,
     daysSinceLastSeen,
-    score: masteryScore(rootPc, typeName),
+    score: masteryScore(rootPc, typeName, bassPc),
     accuracyPct,
     medianMs,
     recencyFactor,

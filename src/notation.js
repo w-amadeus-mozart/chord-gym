@@ -36,7 +36,9 @@ export function formatRoot(pc, style, { compact = false } = {}) {
   return compact ? ROOTS_FLAT[pc] : ROOTS[pc]; // 'both'
 }
 
-// Convenience: full chord symbol (root + quality) for the given/current style.
-export function formatSymbol(rootPc, typeSymbol, style = _style) {
-  return formatRoot(rootPc, style) + typeSymbol;
+// Convenience: full chord symbol (root + quality, optionally slash bass).
+export function formatSymbol(rootPc, typeSymbol, style = _style, bassPc = null) {
+  const root = formatRoot(rootPc, style);
+  const bass = bassPc != null && bassPc !== rootPc ? '/' + formatRoot(bassPc, style) : '';
+  return root + typeSymbol + bass;
 }

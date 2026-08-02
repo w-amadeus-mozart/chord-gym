@@ -73,6 +73,13 @@ export function describeConfig(config) {
     return `Root family · ${formatRoot(config.rootFamilyRoot, getEnharmonicStyle())}` +
       (config.rootFamilyShuffle ? ' · Shuffle' : '');
   }
+  if (config.what === 'slashFamily') {
+    return `Slash family · ${formatRoot(config.rootFamilyRoot, getEnharmonicStyle())}` +
+      (config.rootFamilyShuffle ? ' · Shuffle' : '');
+  }
+  if (config.what === 'slash') {
+    return `Slash chords · ${ROOT_GROUPS[config.where]?.length || 12} roots`;
+  }
   const orderLabel = ORDER_LABELS[config.order] || config.order;
   const preset = PRESETS.find(p => p.id === config.presetId);
   if (preset) return `${preset.label} · ${orderLabel}`;
@@ -191,13 +198,13 @@ function _pickNext(lastSymbol) {
   if (_config.what === 'weakSpots' || _config.what === 'cells') {
     return ChordEngine.pickChord(_pool, lastSymbol);
   }
-  if (_config.what === 'rootFamily') {
+  if (_config.what === 'rootFamily' || _config.what === 'slashFamily') {
     if (_config.rootFamilyShuffle) return ChordEngine.pickChord(_rootFamilyPool, lastSymbol);
     const chord = _rootFamilyPool[_rootFamilyIdx % _rootFamilyPool.length];
     _rootFamilyIdx++;
     return chord;
   }
-  // byQuality
+  // byQuality / slash
   if (_config.order === 'chromatic' && _chromaticSequence.length) {
     _chromaticIdx = (_chromaticIdx + 1) % _chromaticSequence.length;
     return _chromaticSequence[_chromaticIdx];
@@ -212,7 +219,7 @@ function _pickNext(lastSymbol) {
 }
 
 function _showNextChord() {
-  document.getElementById('chord-display').textContent = formatSymbol(_currentChord.rootPc, _currentChord.type.symbol);
+  document.getElementById('chord-display').textContent = formatSymbol(_currentChord.rootPc, _currentChord.type.symbol, undefined, _currentChord.bassPc);
   document.getElementById('hint-notice').style.display = 'none';
   UI.renderPracticeHUD();
   _armAutoHint();
@@ -223,8 +230,8 @@ function _onMatch() {
   const responseMs = performance.now() - _attemptStart;
   const clean = !_attemptDirty && _hintLevel === 0;
 
-  Mastery.record(_currentChord.rootPc, _currentChord.type.name, responseMs, clean);
-  _touchedCells.add(_currentChord.rootPc + '|' + _currentChord.type.name);
+  Mastery.record(_currentChord.rootPc, _currentChord.type.name, responseMs, clean, _currentChord.bassPc);
+  _touchedCells.add(_currentChord.rootPc + '|' + _currentChord.type.name + (_currentChord.bassPc != null ? '|' + _currentChord.bassPc : ''));
 
   state.practice.reps++;
   if (clean) state.practice.cleanCount++;
@@ -234,6 +241,7 @@ function _onMatch() {
     rootPc: _currentChord.rootPc,
     typeName: _currentChord.type.name,
     typeSymbol: _currentChord.type.symbol,
+    bassPc: _currentChord.bassPc ?? null,
     responseMs,
     clean,
     hinted: _hintLevel > 0,
@@ -276,7 +284,7 @@ export const PracticeMode = {
       const weak = Mastery.weakest(8, _allCells());
       _pool = weak.map(w => ChordEngine.chordForCell(w.rootPc, w.typeName));
     } else if (_config.what === 'cells') {
-      _pool = (_config.cells || []).map(c => ChordEngine.chordForCell(c.rootPc, c.typeName)).filter(Boolean);
+      _pool = (_config.cells || []).map(c => ChordEngine.chordForCell(c.rootPc, c.typeName, c.bassPc)).filter(Boolean);
     } else if (_config.what === 'rootFamily') {
       const built = ChordEngine.buildCustomPool([_config.rootFamilyRoot], _config.qualities);
       _rootFamilyPool = PRACTICE_QUALITY_ORDER
@@ -284,6 +292,16 @@ export const PracticeMode = {
         .map(name => built.find(c => c.type.name === name))
         .filter(Boolean);
       _pool = _rootFamilyPool;
+    } else if (_config.what === 'slashFamily') {
+      _rootFamilyPool = ChordEngine.buildSlashPool([_config.rootFamilyRoot], _config.qualities);
+      _pool = _rootFamilyPool;
+    } else if (_config.what === 'slash') {
+      let roots = ROOT_GROUPS[_config.where] || ROOT_GROUPS.all12;
+      if (IS_DEMO) {
+        const demoRoots = roots.filter(pc => DEMO_CHORDS.includes(pc));
+        roots = demoRoots.length ? demoRoots : DEMO_CHORDS;
+      }
+      _pool = ChordEngine.buildSlashPool(roots, _config.qualities);
     } else {
       let roots = ROOT_GROUPS[_config.where] || ROOT_GROUPS.all12;
       if (IS_DEMO) {
@@ -302,8 +320,8 @@ export const PracticeMode = {
 
     _beforeScores = new Map();
     for (const c of _pool) {
-      const key = c.rootPc + '|' + c.type.name;
-      if (!_beforeScores.has(key)) _beforeScores.set(key, Mastery.masteryScore(c.rootPc, c.type.name));
+      const key = c.rootPc + '|' + c.type.name + (c.bassPc != null ? '|' + c.bassPc : '');
+      if (!_beforeScores.has(key)) _beforeScores.set(key, Mastery.masteryScore(c.rootPc, c.type.name, c.bassPc));
     }
 
     state.practice.reps = 0;
@@ -399,12 +417,13 @@ export const PracticeMode = {
     const slowest = [...results].sort((a, b) => b.responseMs - a.responseMs).slice(0, 3);
 
     const deltas = [..._touchedCells].map(key => {
-      const [rootPcStr, typeName] = key.split('|');
+      const [rootPcStr, typeName, bassPcStr] = key.split('|');
       const rootPc = parseInt(rootPcStr, 10);
+      const bassPc = bassPcStr != null ? parseInt(bassPcStr, 10) : null;
       const before = _beforeScores.get(key) ?? 0;
-      const after  = Mastery.masteryScore(rootPc, typeName);
-      const typeSymbol = ChordEngine.chordForCell(rootPc, typeName).type.symbol;
-      return { rootPc, typeName, typeSymbol, before, after };
+      const after  = Mastery.masteryScore(rootPc, typeName, bassPc);
+      const chord = ChordEngine.chordForCell(rootPc, typeName, bassPc);
+      return { rootPc, typeName, bassPc, typeSymbol: chord?.type.symbol || '', before, after };
     }).sort((a, b) => Math.abs(b.after - b.before) - Math.abs(a.after - a.before));
 
     UI.renderPracticeResults({

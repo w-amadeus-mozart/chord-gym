@@ -66,14 +66,53 @@ export function buildCustomPool(rootPcs, typeNames) {
   return pool;
 }
 
-// Build a single chord for an arbitrary (rootPc, typeName) pair — used to turn
+// Build all slash-chord variants for a root set and selected qualities.
+// Each slash chord is represented as a standard root-quality chord with an
+// alternate bass pitch class, so the matching engine can treat C/Bb as the
+// full pitch-class set {C, E, G, Bb} rather than just the C-major triad.
+export function buildSlashPool(rootPcs, typeNames) {
+  const types = CHORD_TYPES.filter(t => typeNames.includes(t.name));
+  const pool = [];
+  for (const rootPc of rootPcs) {
+    for (const type of types) {
+      for (const bassPc of ROOTS.map((_, pc) => pc).filter(pc => pc !== rootPc)) {
+        const root = ROOTS[rootPc];
+        const bass = ROOTS[bassPc];
+        const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
+        pitchClasses.add(bassPc);
+        pool.push({
+          root,
+          rootPc,
+          bass,
+          bassPc,
+          type,
+          symbol: root + type.symbol + '/' + bass,
+          pitchClasses,
+        });
+      }
+    }
+  }
+  return pool;
+}
+
+// Build a single chord for an arbitrary (rootPc, typeName[, bassPc]) pair — used to turn
 // Mastery.weakest() results back into playable chords.
-export function chordForCell(rootPc, typeName) {
+export function chordForCell(rootPc, typeName, bassPc = null) {
   const type = CHORD_TYPES.find(t => t.name === typeName);
   if (!type) return null;
   const root = ROOTS[rootPc];
   const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
-  return { root, rootPc, type, symbol: root + type.symbol, pitchClasses };
+  if (bassPc != null && bassPc !== rootPc) pitchClasses.add(bassPc);
+  const bass = bassPc != null ? ROOTS[bassPc] : null;
+  return {
+    root,
+    rootPc,
+    type,
+    bass,
+    bassPc,
+    symbol: root + type.symbol + (bass ? '/' + bass : ''),
+    pitchClasses,
+  };
 }
 
 // Pick a random chord that isn't the last one played
@@ -104,7 +143,7 @@ export function toPitchClasses(noteSet) {
 // among placements that fit, the one closest to MIDI 60 (middle C). Ties favor the lower
 // octave. Used by Practice hint level 2 to highlight one specific voicing instead of every
 // instance of the target pitch classes.
-export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 71) {
+export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 71, bassPc = null) {
   const maxIv = Math.max(...intervals);
   const candidate = 60 + rootPc;      // 60..71
   const alt = candidate - 12;         // 48..59
@@ -120,12 +159,14 @@ export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 
   } else {
     rootMidi = (60 - alt) <= (candidate - 60) ? alt : candidate;
   }
-  return intervals.map(iv => rootMidi + iv);
+  const notes = intervals.map(iv => rootMidi + iv);
+  if (bassPc != null && bassPc !== rootPc) notes.push(60 + bassPc);
+  return notes;
 }
 
 // Convenience object — keeps call sites identical to the original IIFE style
 export const ChordEngine = {
   ROOTS, CHORD_TYPES, DIFFICULTY_POOLS,
-  buildPool, buildCustomPool, chordForCell, pickChord, isMatch, toPitchClasses,
+  buildPool, buildCustomPool, buildSlashPool, chordForCell, pickChord, isMatch, toPitchClasses,
   voiceNearMiddleC,
 };

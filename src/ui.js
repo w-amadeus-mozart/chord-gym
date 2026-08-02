@@ -34,7 +34,7 @@ function _highestFallingLevel() {
 // of the pool-baked `chord.symbol` (which is always the dual "both" spelling)
 // anywhere a chord is shown to the player.
 function _symbolOf(chord) {
-  return chord ? formatSymbol(chord.rootPc, chord.type.symbol) : '—';
+  return chord ? formatSymbol(chord.rootPc, chord.type.symbol, undefined, chord.bassPc) : '—';
 }
 
 // All 132 root×quality cells — used by the weak-spots preset card.
@@ -704,18 +704,24 @@ export const UI = {
         ['flat', 'Flat keys'],
         ['all12', 'All 12 roots'],
         ['singleRoot', 'Single root family'],
+        ['slashChords', 'Slash chords'],
+        ['slashFamily', 'Single slash family'],
         ['exactChords', 'Exact chords'],
       ];
-      const isSingleRoot = draft.what === 'rootFamily';
+      const isSingleRoot = draft.what === 'rootFamily' || draft.what === 'slashFamily';
       document.getElementById('practice-scope-grid').innerHTML = SCOPE_OPTIONS.map(([val, label]) => {
         if (IS_DEMO && !DEMO_UNLOCKED_SCOPES.has(val)) {
           return `<button class="practice-choice-btn locked" data-locked-scope="${val}">🔒 ${label}</button>`;
         }
         const selected = val === 'singleRoot'
-          ? isSingleRoot
-          : val === 'exactChords'
-            ? draft.what === 'cells'
-            : (!isSingleRoot && draft.where === val);
+          ? draft.what === 'rootFamily'
+          : val === 'slashFamily'
+            ? draft.what === 'slashFamily'
+            : val === 'slashChords'
+              ? draft.what === 'slash'
+              : val === 'exactChords'
+                ? draft.what === 'cells'
+                : (!isSingleRoot && draft.where === val);
         return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-scope="${val}">${label}</button>`;
       }).join('');
 
@@ -829,7 +835,7 @@ export const UI = {
     document.querySelector('.per-chord-table thead tr').innerHTML =
       '<th>Chord</th><th>Response</th><th>Hinted</th><th>Quality</th>';
     document.getElementById('per-chord-tbody').innerHTML = summary.sessionResults.map(r => `<tr>
-      <td><strong>${formatSymbol(r.rootPc, r.typeSymbol)}</strong></td>
+      <td><strong>${formatSymbol(r.rootPc, r.typeSymbol, undefined, r.bassPc)}</strong></td>
       <td>${(r.responseMs / 1000).toFixed(2)}s</td>
       <td>${r.hinted ? 'Yes' : '—'}</td>
       <td>${r.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Assisted</span>'}</td>

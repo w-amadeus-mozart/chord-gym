@@ -418,6 +418,11 @@ document.getElementById('practice-custom').addEventListener('click', e => {
     const val = scopeBtn.dataset.scope;
     if (val === 'singleRoot') {
       draft.what = 'rootFamily';
+    } else if (val === 'slashFamily') {
+      draft.what = 'slashFamily';
+    } else if (val === 'slashChords') {
+      draft.what = 'slash';
+      draft.where = 'all12';
     } else if (val === 'exactChords') {
       draft.what = 'cells';
       draft.cells = draft.cells || [];
