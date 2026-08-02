@@ -674,20 +674,22 @@ export const UI = {
     const draft = state.practice.setupDraft;
     if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
     const isCells = draft.what === 'cells';
+    const visibleQualityNames = draft.qualities.length
+      ? draft.qualities
+      : ChordEngine.CHORD_TYPES.map(t => t.name);
 
-    // Quality checkboxes — shared by byQuality and rootFamily
-    document.getElementById('practice-quality-section').style.display = isCells ? 'none' : '';
-    if (!isCells) {
-      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t => {
-        if (IS_DEMO && t.name !== 'Major') {
-          return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
-        }
-        return `<label class="quality-checkbox">
-          <input type="checkbox" data-quality="${t.name}"${draft.qualities.includes(t.name) ? ' checked' : ''}>
-          ${t.name}
-        </label>`;
-      }).join('');
-    }
+    // Quality checkboxes — shared by byQuality/rootFamily and also used as a compact
+    // display filter while building an exact chord list.
+    document.getElementById('practice-quality-section').style.display = '';
+    document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t => {
+      if (IS_DEMO && t.name !== 'Major') {
+        return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
+      }
+      return `<label class="quality-checkbox">
+        <input type="checkbox" data-quality="${t.name}"${visibleQualityNames.includes(t.name) ? ' checked' : ''}>
+        ${t.name}
+      </label>`;
+    }).join('');
 
     // Root scope — shape groups / sharp / flat / all12 / single-root family / exact chords
     document.getElementById('practice-scope-section').style.display = isCells ? 'none' : '';
@@ -733,9 +735,10 @@ export const UI = {
     // Exact-chord picker — a friendly explicit cell selector for custom practice.
     document.getElementById('practice-cells-section').style.display = isCells ? '' : 'none';
     if (isCells) {
+      const visibleTypes = ChordEngine.CHORD_TYPES.filter(t => visibleQualityNames.includes(t.name));
       const cellsGrid = document.getElementById('exact-cells-grid');
       cellsGrid.innerHTML = ChordEngine.ROOTS.flatMap((root, rootPc) =>
-        ChordEngine.CHORD_TYPES.map(type => {
+        visibleTypes.map(type => {
           const isSelected = (draft.cells || []).some(cell => cell.rootPc === rootPc && cell.typeName === type.name);
           return `<button class="exact-cell-btn${isSelected ? ' selected' : ''}" data-cell="${rootPc}|${type.name}">${root} ${type.name}</button>`;
         })
@@ -752,8 +755,10 @@ export const UI = {
           return chord ? _symbolOf(chord) : null;
         })
         .filter(Boolean);
-      document.getElementById('cells-panel-msg').textContent = draft.cellsLabel
-        || `Selected ${chips.length} chord${chips.length !== 1 ? 's' : ''}`;
+      const summary = draft.cellsLabel || (chips.length
+        ? `Selected ${chips.length} chord${chips.length !== 1 ? 's' : ''} — ${chips.slice(0, 6).join(' • ')}${chips.length > 6 ? ' …' : ''}`
+        : 'No exact chords selected yet — choose a few from the grid above.');
+      document.getElementById('cells-panel-msg').textContent = summary;
       document.getElementById('cells-panel-chips').innerHTML =
         chips.map(s => `<span class="cell-chip">${s}</span>`).join('');
     }
@@ -766,6 +771,14 @@ export const UI = {
         `<button class="practice-choice-btn${draft.order === val ? ' selected' : ''}" data-order="${val}">${label}</button>`
       ).join('');
     }
+
+    document.querySelectorAll('[data-quick-quality]').forEach(btn => {
+      const quick = btn.dataset.quickQuality;
+      const active = quick === 'all'
+        ? visibleQualityNames.length === ChordEngine.CHORD_TYPES.length
+        : visibleQualityNames.length === 1 && visibleQualityNames[0] === quick;
+      btn.classList.toggle('selected', active);
+    });
 
     const startBtn = document.getElementById('btn-start-practice-custom');
     const noQualities = !isCells && draft.qualities.length === 0;

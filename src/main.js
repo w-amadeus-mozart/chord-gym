@@ -429,6 +429,18 @@ document.getElementById('practice-custom').addEventListener('click', e => {
     return;
   }
 
+  const quickQualityBtn = e.target.closest('[data-quick-quality]');
+  if (quickQualityBtn) {
+    const quick = quickQualityBtn.dataset.quickQuality;
+    if (quick === 'all') {
+      draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
+    } else {
+      draft.qualities = [quick];
+    }
+    UI.renderPracticeCustom();
+    return;
+  }
+
   const cellBtn = e.target.closest('[data-cell]');
   if (cellBtn) {
     const [rootPcStr, typeName] = cellBtn.dataset.cell.split('|');
