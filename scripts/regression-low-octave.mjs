@@ -8,8 +8,8 @@
 //
 // Run with:  npm run test:low-octave
 
-import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
+import { createServer } from 'vite';
 
 const NAME_TO_PC = {};
 ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].forEach((n, i) => { NAME_TO_PC[n] = i; });
@@ -31,28 +31,22 @@ function assert(cond, msg) {
 }
 
 async function startDevServer() {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('npx', ['vite'], { cwd: new URL('..', import.meta.url).pathname, stdio: ['ignore', 'pipe', 'pipe'] });
-    let output = '';
-    const onData = (data) => {
-      output += data.toString();
-      const match = output.match(/Local:\s+http:\/\/localhost:(\d+)/);
-      if (match) {
-        proc.stdout.off('data', onData);
-        resolve({ proc, port: match[1] });
-      }
-    };
-    proc.stdout.on('data', onData);
-    proc.stderr.on('data', d => { output += d.toString(); });
-    proc.on('error', reject);
-    setTimeout(() => reject(new Error('vite dev server did not start within 20s:\n' + output)), 20000);
+  const server = await createServer({
+    configFile: false,
+    root: process.cwd(),
+    base: '/chord-gym/',
+    server: { host: '127.0.0.1', port: 0 },
+    optimizeDeps: { noDiscovery: true },
   });
+  await server.listen();
+  const url = server.resolvedUrls?.local?.[0] ?? server.resolvedUrls?.network?.[0];
+  if (!url) throw new Error('vite dev server did not expose a local URL');
+  return { proc: server, baseUrl: url };
 }
 
 async function main() {
   console.log('Starting dev server...');
-  const { proc, port } = await startDevServer();
-  const baseUrl = `http://localhost:${port}/chord-gym/`;
+  const { proc, baseUrl } = await startDevServer();
 
   const browser = await chromium.launch();
   try {
@@ -73,7 +67,8 @@ async function main() {
     });
 
     console.log(`Loading ${baseUrl} ...`);
-    await page.goto(baseUrl);
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#btn-connect-midi', { state: 'attached', timeout: 5000 });
     const welcomeBtn = await page.$('#btn-welcome-go');
     if (welcomeBtn) await welcomeBtn.click();
 
@@ -147,7 +142,7 @@ async function main() {
     console.log('\nAll low-octave regression checks passed.');
   } finally {
     await browser.close();
-    proc.kill();
+    await proc.close();
   }
 }
 
