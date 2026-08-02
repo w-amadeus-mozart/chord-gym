@@ -418,10 +418,46 @@ document.getElementById('practice-custom').addEventListener('click', e => {
     const val = scopeBtn.dataset.scope;
     if (val === 'singleRoot') {
       draft.what = 'rootFamily';
+    } else if (val === 'exactChords') {
+      draft.what = 'cells';
+      draft.cells = draft.cells || [];
     } else {
       draft.what = 'byQuality';
       draft.where = val;
     }
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const cellBtn = e.target.closest('[data-cell]');
+  if (cellBtn) {
+    const [rootPcStr, typeName] = cellBtn.dataset.cell.split('|');
+    const rootPc = parseInt(rootPcStr, 10);
+    const idx = draft.cells.findIndex(c => c.rootPc === rootPc && c.typeName === typeName);
+    if (idx >= 0) {
+      draft.cells.splice(idx, 1);
+    } else {
+      draft.cells.push({ rootPc, typeName });
+    }
+    draft.what = 'cells';
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const selectAllBtn = e.target.closest('#btn-cells-select-all');
+  if (selectAllBtn) {
+    draft.what = 'cells';
+    draft.cells = ChordEngine.CHORD_TYPES.flatMap(type =>
+      ChordEngine.ROOTS.map((_, rootPc) => ({ rootPc, typeName: type.name }))
+    );
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const clearBtn = e.target.closest('#btn-cells-clear');
+  if (clearBtn) {
+    draft.what = 'cells';
+    draft.cells = [];
     UI.renderPracticeCustom();
     return;
   }

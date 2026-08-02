@@ -689,7 +689,7 @@ export const UI = {
       }).join('');
     }
 
-    // Root scope — shape groups / sharp / flat / all12 / single-root family
+    // Root scope — shape groups / sharp / flat / all12 / single-root family / exact chords
     document.getElementById('practice-scope-section').style.display = isCells ? 'none' : '';
     if (!isCells) {
       const SCOPE_OPTIONS = [
@@ -702,13 +702,18 @@ export const UI = {
         ['flat', 'Flat keys'],
         ['all12', 'All 12 roots'],
         ['singleRoot', 'Single root family'],
+        ['exactChords', 'Exact chords'],
       ];
       const isSingleRoot = draft.what === 'rootFamily';
       document.getElementById('practice-scope-grid').innerHTML = SCOPE_OPTIONS.map(([val, label]) => {
         if (IS_DEMO && !DEMO_UNLOCKED_SCOPES.has(val)) {
           return `<button class="practice-choice-btn locked" data-locked-scope="${val}">🔒 ${label}</button>`;
         }
-        const selected = val === 'singleRoot' ? isSingleRoot : (!isSingleRoot && draft.where === val);
+        const selected = val === 'singleRoot'
+          ? isSingleRoot
+          : val === 'exactChords'
+            ? draft.what === 'cells'
+            : (!isSingleRoot && draft.where === val);
         return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-scope="${val}">${label}</button>`;
       }).join('');
 
@@ -725,6 +730,18 @@ export const UI = {
       }
     }
 
+    // Exact-chord picker — a friendly explicit cell selector for custom practice.
+    document.getElementById('practice-cells-section').style.display = isCells ? '' : 'none';
+    if (isCells) {
+      const cellsGrid = document.getElementById('exact-cells-grid');
+      cellsGrid.innerHTML = ChordEngine.ROOTS.flatMap((root, rootPc) =>
+        ChordEngine.CHORD_TYPES.map(type => {
+          const isSelected = (draft.cells || []).some(cell => cell.rootPc === rootPc && cell.typeName === type.name);
+          return `<button class="exact-cell-btn${isSelected ? ' selected' : ''}" data-cell="${rootPc}|${type.name}">${root} ${type.name}</button>`;
+        })
+      ).join('');
+    }
+
     // Cells panel — deep-linked from Progress (single cell or an explicit recommendation list)
     const cellsPanel = document.getElementById('cells-panel');
     cellsPanel.style.display = isCells ? '' : 'none';
@@ -736,7 +753,7 @@ export const UI = {
         })
         .filter(Boolean);
       document.getElementById('cells-panel-msg').textContent = draft.cellsLabel
-        || `Practicing ${chips.length} chord${chips.length !== 1 ? 's' : ''}, in rotation.`;
+        || `Selected ${chips.length} chord${chips.length !== 1 ? 's' : ''}`;
       document.getElementById('cells-panel-chips').innerHTML =
         chips.map(s => `<span class="cell-chip">${s}</span>`).join('');
     }

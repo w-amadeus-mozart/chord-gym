@@ -82,6 +82,8 @@ export const state = {
       rootFamilyShuffle: false,
       where: 'group1',              // 'group1'..'group5' | 'sharp' | 'flat' | 'all12'
       order: 'random',              // 'random' | 'chromatic' | 'fifths' | 'fourths'
+      cells: [],                    // exact chord selection for custom practice: [{ rootPc, typeName }]
+      cellsLabel: null,             // optional label to describe an explicit cell list
       presetId: null,               // preset card id ('major'|...|'weakSpots'|'custom') or null if never configured
     },
   },

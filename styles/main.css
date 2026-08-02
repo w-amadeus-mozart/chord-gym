@@ -1038,6 +1038,21 @@ body {
 
 .root-family-panel { display: flex; flex-direction: column; gap: 12px; }
 .root-picker-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+.practice-cells-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.exact-cells-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px; padding: 12px 14px; border-radius: 12px;
+  background: var(--surface-1); border: 1px solid var(--border);
+}
+.exact-cell-btn {
+  padding: 9px 12px; border-radius: 10px; font-size: 12px; font-weight: 700;
+  background: rgba(34,36,44,0.8); border: 1px solid var(--glass-border);
+  color: var(--text-dim); cursor: pointer; text-align: left;
+}
+.exact-cell-btn.selected {
+  border-color: var(--accent); background: rgba(223,163,62,0.15); color: var(--accent);
+}
+.exact-cell-btn:hover:not(.selected) { border-color: rgba(223,163,62,0.35); color: var(--text); }
 .shuffle-toggle-label {
   display: flex; align-items: center; gap: 6px;
   font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer;
