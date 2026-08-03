@@ -156,6 +156,7 @@ function _buildTiles(chart) {
       rootPc:       ev.rootPc,
       typeName:     ev.typeName,
       typeSymbol:   type.symbol,
+      type,
       bassPc:       ev.bassPc ?? null,
       pitchClasses,
       hit:          false,
@@ -531,10 +532,7 @@ export const FallingChordsMode = {
       candidate._sloppy = true;
     }
 
-    const matchOpts = candidate.bassPc != null
-      ? { bassPc: candidate.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
-      : undefined;
-    if (!ChordEngine.isMatch(heldPCs, candidate.pitchClasses, matchOpts)) return;
+    if (!ChordEngine.isMatch(heldPCs, candidate.pitchClasses, ChordEngine.matchOptsFor(candidate, held))) return;
 
     const rating = _ratingFor(adjElapsed, candidate);
     if (!rating) return;

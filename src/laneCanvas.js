@@ -11,6 +11,15 @@ const FLASH_DURATION_MS = 380;
 // Reduce motion: skip pulse/scale/burst animations
 const _reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// The extended registry can produce long symbols ("Cmaj9#11") or, on an ambiguous root
+// in 'both' mode, very long ones ("C#/Dbmaj9#11") — shrink the tile font rather than let
+// it overflow the fixed-width tile (canvas text has no wrap/clip of its own).
+function _tileFont(symbol) {
+  if (symbol.length > 10) return 'bold 13px "Segoe UI", system-ui, sans-serif';
+  if (symbol.length > 7)  return 'bold 15px "Segoe UI", system-ui, sans-serif';
+  return 'bold 18px "Segoe UI", system-ui, sans-serif';
+}
+
 // Per-type accent colors
 const TYPE_COLORS = {
   'Major':            '#7c6fff',
@@ -211,10 +220,11 @@ export const LaneCanvas = {
         _ctx.fillStyle   = '#F2EFE8';
       }
 
-      _ctx.font          = 'bold 18px "Segoe UI", system-ui, sans-serif';
+      const label = formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle(), tile.bassPc);
+      _ctx.font          = _tileFont(label);
       _ctx.textAlign     = 'center';
       _ctx.textBaseline  = 'middle';
-      _ctx.fillText(formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle(), tile.bassPc), tileLeft + tileW / 2, tileTop + TILE_H / 2);
+      _ctx.fillText(label, tileLeft + tileW / 2, tileTop + TILE_H / 2);
       _ctx.restore();
     }
 
@@ -414,10 +424,11 @@ function _drawHoldHead(tile, tileLeft, tileW, centerY, color) {
   _ctx.shadowBlur  = tile.holdBroken ? 0 : 14;
   _ctx.stroke();
   _ctx.fillStyle   = '#F2EFE8';
-  _ctx.font        = 'bold 18px "Segoe UI", system-ui, sans-serif';
+  const holdLabel = formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle());
+  _ctx.font        = _tileFont(holdLabel);
   _ctx.textAlign   = 'center';
   _ctx.textBaseline = 'middle';
-  _ctx.fillText(formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle()), tileLeft + tileW / 2, tileTop + TILE_H / 2);
+  _ctx.fillText(holdLabel, tileLeft + tileW / 2, tileTop + TILE_H / 2);
   _ctx.restore();
 }
 

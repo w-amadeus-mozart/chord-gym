@@ -13,6 +13,7 @@
     "test:lifecycle": "node scripts/regression-lifecycle.mjs",
     "test:falling-levels": "node scripts/regression-falling-levels.mjs",
     "test:slash-chords": "node scripts/regression-slash-chords.mjs",
+    "test:extended-chords": "node scripts/regression-extended-chords.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

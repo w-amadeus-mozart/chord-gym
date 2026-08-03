@@ -78,10 +78,7 @@ export const SprintMode = {
 
     UI.renderNoteIndicators(held, target);
 
-    const matchOpts = state.currentChord.bassPc != null
-      ? { bassPc: state.currentChord.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
-      : undefined;
-    if (ChordEngine.isMatch(heldPCs, target, matchOpts)) {
+    if (ChordEngine.isMatch(heldPCs, target, ChordEngine.matchOptsFor(state.currentChord, held))) {
       SprintMode.onChordMatched();
     }
   },

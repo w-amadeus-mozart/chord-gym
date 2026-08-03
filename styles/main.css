@@ -375,8 +375,13 @@ body {
   font-size: 100px; font-weight: 900; letter-spacing: -3px;
   line-height: 1; user-select: none;
   text-shadow: 0 0 50px rgba(223,163,62,0.4);
-  transition: color 0.1s, text-shadow 0.1s;
+  transition: color 0.1s, text-shadow 0.1s, font-size 0.1s;
+  max-width: 100%; overflow-wrap: break-word; text-align: center;
 }
+/* The extended registry can produce long symbols (e.g. "Cmaj9#11") or, on an ambiguous
+   root in 'both' mode, very long ones ("C#/Dbmaj9#11") — shrink rather than clip/overflow. */
+#chord-display.chord-display-long  { font-size: 64px; letter-spacing: -1.5px; }
+#chord-display.chord-display-xlong { font-size: 44px; letter-spacing: -1px; }
 #chord-display.match { animation: chordMatch 0.4s ease; }
 @keyframes chordMatch {
   0%   { transform: scale(1);    color: var(--text);  text-shadow: 0 0 50px rgba(223,163,62,0.4); }
@@ -388,6 +393,12 @@ body {
   0%   { color: var(--text); }
   50%  { color: var(--red); text-shadow: 0 0 50px rgba(248,113,113,0.9); }
   100% { color: var(--text); }
+}
+
+.root-position-hint {
+  display: inline-block; margin: 4px auto 0; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--accent); background: rgba(223,163,62,0.12); border: 1px solid rgba(223,163,62,0.35);
 }
 
 /* Note pips */
@@ -1026,15 +1037,34 @@ body {
 
 /* ── Custom screen controls ── */
 .quality-checkbox-grid {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.quality-checkbox-inner-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
-  padding: 12px 14px; border-radius: 12px;
-  background: var(--surface-1); border: 1px solid var(--border);
 }
 .quality-checkbox {
   display: flex; align-items: center; gap: 6px;
   font-size: 13px; color: var(--text); cursor: pointer;
 }
 .quality-checkbox input { accent-color: var(--accent); cursor: pointer; }
+
+/* Collapsible quality group (Custom screen) / row group (heatmap) */
+.quality-group {
+  border-radius: 12px; background: var(--surface-1); border: 1px solid var(--border);
+  overflow: hidden;
+}
+.quality-group-header {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 14px; background: transparent; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--text); text-align: left;
+}
+.quality-group-header:hover { background: rgba(255,255,255,0.03); }
+.quality-group-chevron { color: var(--text-dim); font-size: 11px; width: 10px; }
+.quality-group-label { flex: 1; }
+.quality-group-count { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.quality-group-body { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.quality-group-actions { display: flex; gap: 8px; }
+.quality-group-actions .quality-shortcut { padding: 4px 9px; font-size: 11px; }
 .quality-shortcuts {
   display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;
 }
@@ -1222,6 +1252,17 @@ body {
 .heatmap-cell.cell-red   { background: rgba(248,113,113, var(--cell-alpha, 0.3)); border-color: rgba(248,113,113,0.55); }
 .heatmap-cell.cell-amber { background: rgba(251,191,36,  var(--cell-alpha, 0.3)); border-color: rgba(251,191,36,0.55); }
 .heatmap-cell.cell-green { background: rgba(74,222,128,  var(--cell-alpha, 0.3)); border-color: rgba(74,222,128,0.55); }
+
+.heatmap-group-header {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
+  margin-top: 6px; padding: 7px 10px; border-radius: 6px;
+  background: rgba(34,36,44,0.6); border: 1px solid var(--glass-border);
+  font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer; text-align: left;
+}
+.heatmap-group-header:hover { border-color: var(--accent); }
+.heatmap-group-header .quality-group-chevron { color: var(--text-dim); font-size: 11px; width: 10px; }
+.heatmap-group-header .quality-group-label { flex: 1; }
+.heatmap-group-header .quality-group-count { font-size: 11px; font-weight: 800; color: var(--text-dim); }
 
 .heatmap-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); }
 .legend-item { display: flex; align-items: center; gap: 6px; }

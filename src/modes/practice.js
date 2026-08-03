@@ -8,7 +8,7 @@ import { state } from '../state.js';
 import { ChordEngine } from '../chords.js';
 import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
-import { UI, showScreen } from '../ui.js';
+import { UI, showScreen, setChordDisplayText } from '../ui.js';
 import { Mastery } from '../mastery.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from '../notation.js';
 import { setPianoTarget } from '../piano.js';
@@ -50,6 +50,14 @@ export const PRESETS = [
   { id: 'sus',          label: 'Sus',           qualities: ['Sus2', 'Sus4'] },
   { id: 'sevenths',     label: 'Sevenths',      qualities: ['Dominant 7th', 'Major 7th', 'Minor 7th'] },
   { id: 'advanced7ths', label: 'Advanced 7ths', qualities: ['Half-dim (m7b5)', 'Diminished 7th'] },
+  { id: 'sixths',       label: 'Sixths & Adds', qualities: [...ChordEngine.QUALITY_GROUPS.find(g => g.id === 'sixths').typeNames] },
+  // Extensions folds in the Lydian (#11) family on the landing page for a single one-tap
+  // card — it's still available as its own separate group inside Custom for finer control.
+  { id: 'extensions',   label: 'Extensions',    qualities: [
+      ...ChordEngine.QUALITY_GROUPS.find(g => g.id === 'extensions').typeNames,
+      ...ChordEngine.QUALITY_GROUPS.find(g => g.id === 'lydian').typeNames,
+    ] },
+  { id: 'altered',      label: 'Altered Dominants', qualities: [...ChordEngine.QUALITY_GROUPS.find(g => g.id === 'altered').typeNames] },
 ];
 
 function _allCells() {
@@ -225,7 +233,8 @@ function _pickNext(lastSymbol) {
 }
 
 function _showNextChord() {
-  document.getElementById('chord-display').textContent = formatSymbol(_currentChord.rootPc, _currentChord.type.symbol, undefined, _currentChord.bassPc);
+  setChordDisplayText(formatSymbol(_currentChord.rootPc, _currentChord.type.symbol, undefined, _currentChord.bassPc));
+  document.getElementById('root-position-hint').style.display = _currentChord.type.requiresRootPosition ? '' : 'none';
   document.getElementById('hint-notice').style.display = 'none';
   UI.renderPracticeHUD();
   _armAutoHint();
@@ -392,10 +401,7 @@ export const PracticeMode = {
 
     UI.renderPracticeNoteIndicators(held, _currentChord, _hintLevel);
 
-    const matchOpts = _currentChord.bassPc != null
-      ? { bassPc: _currentChord.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
-      : undefined;
-    if (ChordEngine.isMatch(heldPCs, target, matchOpts)) _onMatch();
+    if (ChordEngine.isMatch(heldPCs, target, ChordEngine.matchOptsFor(_currentChord, held))) _onMatch();
   },
 
   useHint() {

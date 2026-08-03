@@ -289,10 +289,7 @@ export const SurvivalMode = {
 
     UI.renderNoteIndicators(held, target);
 
-    const matchOpts = state.currentChord.bassPc != null
-      ? { bassPc: state.currentChord.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
-      : undefined;
-    if (ChordEngine.isMatch(heldPCs, target, matchOpts)) {
+    if (ChordEngine.isMatch(heldPCs, target, ChordEngine.matchOptsFor(state.currentChord, held))) {
       // Re-check at exact moment of match
       if (performance.now() >= state.survival.windowDeadline) {
         SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol, bassPc: state.currentChord.bassPc ?? null });

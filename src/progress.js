@@ -13,13 +13,13 @@ import { ROOT_GROUPS, CIRCLE_FIFTHS, applyPrefillToDraft } from './modes/practic
 import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
 import { IS_DEMO, DEMO_CHORDS } from './edition.js';
 
-// Heatmap row order — distinct from CHORD_TYPES' registry order (spec-defined pedagogical order).
-const ROW_QUALITIES = [
-  'Major', 'Minor', 'Diminished', 'Augmented', 'Sus2', 'Sus4',
-  'Dominant 7th', 'Major 7th', 'Minor 7th', 'Half-dim (m7b5)', 'Diminished 7th',
-];
 const CHROMATIC = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const SPARSE_THRESHOLD = 20;
+
+// A group needs at least this many qualified (>=MIN_ATTEMPTS_FOR_WEAK) cells before any of
+// its member qualities can drive a "weak quality" recommendation — otherwise a single
+// stray attempt at, say, a 13th chord could outrank a genuinely weak, well-sampled triad.
+const GROUP_REC_MIN_QUALIFIED = 6;
 
 // Broad key regions for the "weak region" recommendation — reuses Practice's
 // own sharp/flat/all-white vocabulary so the language stays consistent app-wide.
@@ -42,6 +42,9 @@ let _order = 'fifths';
 let _lastRecommendations = [];
 let _pendingCellPrefill = null;
 let _pendingDrilldownPrefill = null;
+// Which QUALITY_GROUPS heatmap sections are expanded — independent of the Custom screen's
+// own expand state (UI.toggleQualityGroup), seeded from each group's defaultExpanded.
+let _expandedHeatmapGroups = new Set(ChordEngine.QUALITY_GROUPS.filter(g => g.defaultExpanded).map(g => g.id));
 
 // ── Small formatters ────────────────────────────────────────────────────────
 
@@ -82,6 +85,39 @@ function _cellTooltip(rootPc, typeName, d) {
   return `${symbol} — score ${d.score} (${d.attempts} attempts)`;
 }
 
+// Average score across a group's qualified (>=MIN_ATTEMPTS_FOR_WEAK) cells — null if none
+// qualify yet. Shown in each collapsible section's header, expanded or not.
+function _groupAverageScore(group) {
+  const scores = [];
+  for (const typeName of group.typeNames) {
+    for (let rootPc = 0; rootPc < 12; rootPc++) {
+      const d = Mastery.cellDetail(rootPc, typeName);
+      if (d.attempts >= MIN_ATTEMPTS_FOR_WEAK) scores.push(d.score);
+    }
+  }
+  return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+}
+
+function _groupQualifiedCount(groupId) {
+  const group = ChordEngine.QUALITY_GROUPS.find(g => g.id === groupId);
+  if (!group) return 0;
+  let count = 0;
+  for (const typeName of group.typeNames) {
+    for (let rootPc = 0; rootPc < 12; rootPc++) {
+      if (Mastery.cellDetail(rootPc, typeName).attempts >= MIN_ATTEMPTS_FOR_WEAK) count++;
+    }
+  }
+  return count;
+}
+
+function _groupIdForQuality(typeName) {
+  return ChordEngine.QUALITY_GROUPS.find(g => g.typeNames.includes(typeName))?.id ?? null;
+}
+
+// The grid is now ~30 rows × 12 columns if fully expanded — too much to render as one
+// block, so it's collapsible sections matching QUALITY_GROUPS (see chords.js). Column
+// headers render once at the top; each section is a spanning header row (grid-column:
+// 1/-1) followed by its member rows only while expanded. Triads/Sevenths open by default.
 function _renderHeatmap() {
   const cols = _cols();
   let html = `<div class="heatmap-corner"></div>`;
@@ -90,20 +126,33 @@ function _renderHeatmap() {
     const locked = IS_DEMO && !DEMO_CHORDS.includes(rootPc);
     html += `<button class="heatmap-col-header${locked ? ' locked' : ''}" data-root-header="${rootPc}" title="${locked ? 'Full app only' : `Practice ${rootLabel} across all qualities`}">${locked ? '🔒' : rootLabel}</button>`;
   }
-  for (const typeName of ROW_QUALITIES) {
-    const rowLocked = IS_DEMO && typeName !== 'Major';
-    html += `<button class="heatmap-row-header${rowLocked ? ' locked' : ''}" data-quality-header="${typeName}" title="${rowLocked ? 'Full app only' : `Practice ${typeName} across all roots`}">${rowLocked ? '🔒 ' + typeName : typeName}</button>`;
-    for (const rootPc of cols) {
-      if (rowLocked || (IS_DEMO && !DEMO_CHORDS.includes(rootPc))) {
-        html += `<button class="heatmap-cell cell-locked" title="Full app only">🔒</button>`;
-        continue;
+
+  for (const group of ChordEngine.QUALITY_GROUPS) {
+    const expanded = _expandedHeatmapGroups.has(group.id);
+    const groupAvg = _groupAverageScore(group);
+    html += `<button class="heatmap-group-header" data-heatmap-group-toggle="${group.id}">
+      <span class="quality-group-chevron">${expanded ? '▾' : '▸'}</span>
+      <span class="quality-group-label">${group.label}</span>
+      <span class="quality-group-count"${groupAvg != null ? ` style="color:${_scoreColor(groupAvg)}"` : ''}>${groupAvg != null ? groupAvg : '—'}</span>
+    </button>`;
+    if (!expanded) continue;
+
+    for (const typeName of group.typeNames) {
+      const rowLocked = IS_DEMO && typeName !== 'Major';
+      html += `<button class="heatmap-row-header${rowLocked ? ' locked' : ''}" data-quality-header="${typeName}" title="${rowLocked ? 'Full app only' : `Practice ${typeName} across all roots`}">${rowLocked ? '🔒 ' + typeName : typeName}</button>`;
+      for (const rootPc of cols) {
+        if (rowLocked || (IS_DEMO && !DEMO_CHORDS.includes(rootPc))) {
+          html += `<button class="heatmap-cell cell-locked" title="Full app only">🔒</button>`;
+          continue;
+        }
+        const d = Mastery.cellDetail(rootPc, typeName);
+        const { className, style } = _cellStyle(d);
+        const label = d.attempts >= MIN_ATTEMPTS_FOR_WEAK ? d.score : '';
+        html += `<button class="heatmap-cell ${className}" style="${style || ''}" data-root="${rootPc}" data-quality="${typeName}" title="${_cellTooltip(rootPc, typeName, d)}">${label}</button>`;
       }
-      const d = Mastery.cellDetail(rootPc, typeName);
-      const { className, style } = _cellStyle(d);
-      const label = d.attempts >= MIN_ATTEMPTS_FOR_WEAK ? d.score : '';
-      html += `<button class="heatmap-cell ${className}" style="${style || ''}" data-root="${rootPc}" data-quality="${typeName}" title="${_cellTooltip(rootPc, typeName, d)}">${label}</button>`;
     }
   }
+
   const grid = document.getElementById('heatmap-grid');
   grid.innerHTML = html;
   grid.style.gridTemplateColumns = `92px repeat(${cols.length}, minmax(34px, 1fr))`;
@@ -267,6 +316,11 @@ function _ruleWeakQuality(qualified, overallAvg) {
   let worst = null, worstAvg = Infinity;
   for (const [q, scores] of Object.entries(byQuality)) {
     if (scores.length < 3) continue;
+    // A quality's own GROUP must also have enough overall data before it can drive a
+    // recommendation — otherwise a single stray attempt at a rare 13th chord could
+    // outrank a genuinely weak, well-sampled triad.
+    const groupId = _groupIdForQuality(q);
+    if (groupId && _groupQualifiedCount(groupId) < GROUP_REC_MIN_QUALIFIED) continue;
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
     if (avg < worstAvg) { worstAvg = avg; worst = q; }
   }
@@ -401,6 +455,14 @@ export const Progress = {
     });
 
     document.getElementById('heatmap-grid').addEventListener('click', e => {
+      const groupToggle = e.target.closest('[data-heatmap-group-toggle]');
+      if (groupToggle) {
+        const id = groupToggle.dataset.heatmapGroupToggle;
+        if (_expandedHeatmapGroups.has(id)) _expandedHeatmapGroups.delete(id);
+        else _expandedHeatmapGroups.add(id);
+        _renderHeatmap();
+        return;
+      }
       const cell = e.target.closest('button.heatmap-cell');
       if (cell) {
         if (cell.classList.contains('cell-locked')) { UI.openUpgradePanel(); return; }

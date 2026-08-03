@@ -190,11 +190,12 @@ console.log('\n[5] Slash chords reach the game modes: Sprint Level 7, Survival t
   assert(pool7.some(c => c.bassPc != null), 'Level 7 pool actually contains slash-chord objects');
   assert(pool7.filter(c => c.bassPc == null).length === 132, 'Level 7 pool still has all 132 plain chords');
 
-  // Survival: the ladder's final tier unlocks slash chords via a flag, not a CHORD_TYPES name.
+  // Survival: some tier unlocks slash chords via a flag, not a CHORD_TYPES name. (Not
+  // necessarily the LAST tier — later passes may append more tiers after it.)
   const { UNLOCK_LADDER } = await import('../src/unlockLadder.js');
-  const lastTier = UNLOCK_LADDER[UNLOCK_LADDER.length - 1];
-  assert(lastTier.addSlash === true, 'the final Survival unlock tier is flagged addSlash');
-  assert(typeof lastTier.at === 'number' && typeof lastTier.hint === 'string' && typeof lastTier.reached === 'string',
+  const slashTier = UNLOCK_LADDER.find(t => t.addSlash);
+  assert(slashTier, 'some Survival unlock tier is flagged addSlash');
+  assert(typeof slashTier.at === 'number' && typeof slashTier.hint === 'string' && typeof slashTier.reached === 'string',
     'the slash tier has the same shape (at/hint/reached/label) as every other tier — required by ui.js\'s generic rendering');
 
   // Falling: Level 11 is bonus content past STORY_LEVEL_COUNT, and compiles with slash events.

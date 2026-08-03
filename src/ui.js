@@ -37,7 +37,19 @@ function _symbolOf(chord) {
   return chord ? formatSymbol(chord.rootPc, chord.type.symbol, undefined, chord.bassPc) : '—';
 }
 
-// All 132 root×quality cells — used by the weak-spots preset card.
+// The extended registry can produce long symbols on an ambiguous root in 'both' mode
+// (e.g. "C#/Dbmaj9#11", 12 chars) — #chord-display's font-size is a fixed 100px, so
+// without this a long symbol would overflow the arena. Sets the text and a length-based
+// sizing class shared by every #chord-display call site (see styles/main.css). Exported
+// since Practice's own runtime (src/modes/practice.js) sets this element directly too.
+export function setChordDisplayText(text) {
+  const el = document.getElementById('chord-display');
+  el.textContent = text;
+  el.classList.toggle('chord-display-long', text.length > 7);
+  el.classList.toggle('chord-display-xlong', text.length > 10);
+}
+
+// Every root×quality cell in the registry — used by the weak-spots preset card.
 function _allCells() {
   const cells = [];
   for (let rootPc = 0; rootPc < ChordEngine.ROOTS.length; rootPc++) {
@@ -90,6 +102,16 @@ const SCOPE_OPTIONS = [
 // caption so it disappears the moment the user makes their own choice.
 let _showLastSessionCaption = false;
 
+// Which QUALITY_GROUPS sections are expanded — ephemeral UI state (not part of the
+// persisted draft), lazily seeded from each group's defaultExpanded on first render.
+// Shared shape/helper reused by both the Custom screen's quality picker and the
+// Progress heatmap's row groups (each gets its own Set, seeded independently).
+function _seedExpandedGroups() {
+  return new Set(ChordEngine.QUALITY_GROUPS.filter(g => g.defaultExpanded).map(g => g.id));
+}
+let _expandedQualityGroups = null; // Custom screen
+
+
 // Maps a screen id to the sidebar pillar it belongs to. 'game'/'results'/'dying'
 // are shared by Practice and the Test games, so those resolve via state.mode.
 const NAV_MAP = {
@@ -133,7 +155,9 @@ export const UI = {
   },
 
   renderChord() {
-    document.getElementById('chord-display').textContent = _symbolOf(state.currentChord);
+    setChordDisplayText(_symbolOf(state.currentChord));
+    document.getElementById('root-position-hint').style.display =
+      state.currentChord?.type?.requiresRootPosition ? '' : 'none';
     UI.renderNoteIndicators(new Set(), state.currentChord?.pitchClasses ?? new Set());
   },
 
@@ -737,21 +761,48 @@ export const UI = {
     }).join('');
 
     // Quality checkboxes — Standard's quality picker, reused by Exact picks as a filter.
+    // Grouped into collapsible sections (QUALITY_GROUPS) since the full registry is ~36
+    // types — a flat grid doesn't hold that. Triads/Sevenths open by default.
     document.getElementById('practice-quality-section').style.display = (isStandard || isCells) ? '' : 'none';
     if (isStandard || isCells) {
-      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t => {
-        if (IS_DEMO && t.name !== 'Major') {
-          return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
-        }
-        return `<label class="quality-checkbox">
-          <input type="checkbox" data-quality="${t.name}"${visibleQualityNames.includes(t.name) ? ' checked' : ''}>
-          ${t.name}
-        </label>`;
+      if (!_expandedQualityGroups) _expandedQualityGroups = _seedExpandedGroups();
+      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.QUALITY_GROUPS.map(group => {
+        const groupTypes = ChordEngine.CHORD_TYPES.filter(t => group.typeNames.includes(t.name));
+        const lockedCount = IS_DEMO ? groupTypes.filter(t => t.name !== 'Major').length : 0;
+        const selectedCount = groupTypes.filter(t => visibleQualityNames.includes(t.name)).length;
+        const expanded = _expandedQualityGroups.has(group.id);
+        const rows = groupTypes.map(t => {
+          if (IS_DEMO && t.name !== 'Major') {
+            return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
+          }
+          return `<label class="quality-checkbox">
+            <input type="checkbox" data-quality="${t.name}"${visibleQualityNames.includes(t.name) ? ' checked' : ''}>
+            ${t.name}
+          </label>`;
+        }).join('');
+        return `<div class="quality-group${expanded ? ' expanded' : ''}">
+          <button class="quality-group-header" type="button" data-group-toggle="${group.id}">
+            <span class="quality-group-chevron">${expanded ? '▾' : '▸'}</span>
+            <span class="quality-group-label">${group.label}</span>
+            <span class="quality-group-count">${selectedCount}/${groupTypes.length}${lockedCount ? ' 🔒' : ''}</span>
+          </button>
+          <div class="quality-group-body" style="display:${expanded ? '' : 'none'}">
+            <div class="quality-group-actions">
+              <button class="quality-shortcut" type="button" data-select-group="${group.id}">Select all</button>
+              <button class="quality-shortcut" type="button" data-clear-group="${group.id}">Clear</button>
+            </div>
+            <div class="quality-checkbox-inner-grid">${rows}</div>
+          </div>
+        </div>`;
       }).join('');
       document.querySelectorAll('[data-quick-quality]').forEach(btn => {
         const quick = btn.dataset.quickQuality;
-        const active = quick === 'all'
-          ? visibleQualityNames.length === ChordEngine.CHORD_TYPES.length
+        const triadNames = ChordEngine.QUALITY_GROUPS.find(g => g.id === 'triads').typeNames;
+        const seventhNames = ChordEngine.QUALITY_GROUPS.find(g => g.id === 'sevenths').typeNames;
+        const sameSet = (names) => names.length === visibleQualityNames.length && names.every(n => visibleQualityNames.includes(n));
+        const active = quick === 'all' ? visibleQualityNames.length === ChordEngine.CHORD_TYPES.length
+          : quick === 'triads' ? sameSet(triadNames)
+          : quick === 'sevenths' ? sameSet(seventhNames)
           : visibleQualityNames.length === 1 && visibleQualityNames[0] === quick;
         btn.classList.toggle('selected', active);
       });
@@ -874,6 +925,14 @@ export const UI = {
     startBtn.disabled = noQualities || cellsBlocked;
   },
 
+  // Expand/collapse one QUALITY_GROUPS section on the Custom screen.
+  toggleQualityGroup(groupId) {
+    if (!_expandedQualityGroups) _expandedQualityGroups = _seedExpandedGroups();
+    if (_expandedQualityGroups.has(groupId)) _expandedQualityGroups.delete(groupId);
+    else _expandedQualityGroups.add(groupId);
+    UI.renderPracticeCustom();
+  },
+
   renderPracticeResults(summary) {
     document.getElementById('results-headline').textContent = 'Practice session complete';
     document.getElementById('new-hs-badge').style.display = 'none';
@@ -981,11 +1040,12 @@ export const UI = {
   // Demo-only upgrade panel — one component, reused by every locked-feature entry
   // point (Survival/Falling cards, locked Progress heatmap cells/headers).
   openUpgradePanel(teaseLine = '') {
+    const totalChords = ChordEngine.ROOTS.length * ChordEngine.CHORD_TYPES.length;
     document.getElementById('upgrade-modal').innerHTML = `
       ${teaseLine ? `<p class="upgrade-tease">${teaseLine}</p>` : ''}
       <h3>Unlock the full ChordGym</h3>
       <ul class="upgrade-features">
-        <li>All 132 chords — every root × every quality</li>
+        <li>All ${totalChords} chords — every root × every quality</li>
         <li>Survival &amp; Falling Chords modes</li>
         <li>Full mastery heatmap</li>
         <li>Desktop app for Mac &amp; Windows</li>

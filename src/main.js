@@ -16,7 +16,7 @@ import { SurvivalMode } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
 import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
 import { Progress } from './progress.js';
-import { IS_DEMO, UPGRADE_URL } from './edition.js';
+import { IS_DEMO, DEMO_CHORDS, UPGRADE_URL } from './edition.js';
 import { IS_DESKTOP } from './platform.js';
 import * as License from './license.js';
 import * as Updater from './updater.js';
@@ -480,9 +480,34 @@ document.getElementById('practice-custom').addEventListener('click', e => {
     const quick = quickQualityBtn.dataset.quickQuality;
     if (quick === 'all') {
       draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
+    } else if (quick === 'triads' || quick === 'sevenths') {
+      draft.qualities = [...ChordEngine.QUALITY_GROUPS.find(g => g.id === quick).typeNames];
     } else {
       draft.qualities = [quick];
     }
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const groupToggleBtn = e.target.closest('[data-group-toggle]');
+  if (groupToggleBtn) {
+    UI.toggleQualityGroup(groupToggleBtn.dataset.groupToggle);
+    return;
+  }
+
+  const selectGroupBtn = e.target.closest('[data-select-group]');
+  if (selectGroupBtn) {
+    const group = ChordEngine.QUALITY_GROUPS.find(g => g.id === selectGroupBtn.dataset.selectGroup);
+    const toAdd = group.typeNames.filter(n => IS_DEMO ? n === 'Major' : true);
+    draft.qualities = [...new Set([...draft.qualities, ...toAdd])];
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const clearGroupBtn = e.target.closest('[data-clear-group]');
+  if (clearGroupBtn) {
+    const group = ChordEngine.QUALITY_GROUPS.find(g => g.id === clearGroupBtn.dataset.clearGroup);
+    draft.qualities = draft.qualities.filter(n => !group.typeNames.includes(n));
     UI.renderPracticeCustom();
     return;
   }
@@ -884,6 +909,8 @@ if (IS_DEMO) {
   document.body.classList.add('is-demo');
   document.title = 'ChordGym Demo';
   document.getElementById('dash-demo-cta').href = UPGRADE_URL;
+  const totalChords = ChordEngine.ROOTS.length * ChordEngine.CHORD_TYPES.length;
+  document.getElementById('dash-demo-count').textContent = `${DEMO_CHORDS.length} of ${totalChords} chords.`;
   document.querySelectorAll('.mode-btn[data-mode="survival"], .mode-btn[data-mode="falling"]').forEach(btn => {
     btn.classList.add('locked');
     btn.querySelector('.mode-btn-desc').textContent = DEMO_LOCK_TEASE[btn.dataset.mode];

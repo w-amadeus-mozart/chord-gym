@@ -6,7 +6,18 @@ import { IS_DEMO, DEMO_CHORDS } from './edition.js';
 
 export const ROOTS = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'];
 
-// Data-driven chord type registry — add a new type by appending one entry
+// Data-driven chord type registry — add a new type by appending one entry.
+//
+// requiresRootPosition: true marks a type whose pitch-class set is identical (at some
+// other root) to a different type's — e.g. C6 {0,4,7,9} vs Am7 {0,4,7,9}. Octave-agnostic
+// pitch-class matching can't tell those apart, so both sides of a colliding pair require
+// the lowest held note to actually be the stated root (see isMatch/matchOptsFor). This is
+// the full, programmatically-audited set (every pair of types checked at every rotation) —
+// note it's not just the newly-added types: Minor 7th and Half-dim also need it now, since
+// they collide with the new Major 6th / Minor 6th. (Diminished 7th, Augmented, and the new
+// 7b5 are self-symmetric under rotation — that's a different, pre-existing, accepted
+// category: any voicing of those already sounds ambiguous about "which note is the root"
+// with no fix possible, so they're left alone.)
 export const CHORD_TYPES = [
   { name: 'Major',           symbol: '',      intervals: [0,4,7]       },
   { name: 'Minor',           symbol: 'm',     intervals: [0,3,7]       },
@@ -14,11 +25,66 @@ export const CHORD_TYPES = [
   { name: 'Augmented',       symbol: 'aug',   intervals: [0,4,8]       },
   { name: 'Dominant 7th',    symbol: '7',     intervals: [0,4,7,10]    },
   { name: 'Major 7th',       symbol: 'maj7',  intervals: [0,4,7,11]    },
-  { name: 'Minor 7th',       symbol: 'm7',    intervals: [0,3,7,10]    },
-  { name: 'Half-dim (m7b5)', symbol: 'm7b5',  intervals: [0,3,6,10]    },
+  { name: 'Minor 7th',       symbol: 'm7',    intervals: [0,3,7,10],   requiresRootPosition: true }, // collides with Major 6th
+  { name: 'Half-dim (m7b5)', symbol: 'm7b5',  intervals: [0,3,6,10],   requiresRootPosition: true }, // collides with Minor 6th
   { name: 'Diminished 7th',  symbol: 'dim7',  intervals: [0,3,6,9]     },
   { name: 'Sus2',            symbol: 'sus2',  intervals: [0,2,7]       },
   { name: 'Sus4',            symbol: 'sus4',  intervals: [0,5,7]       },
+
+  // ── Sixths & added notes ──
+  { name: 'Major 6th',       symbol: '6',     intervals: [0,4,7,9],    requiresRootPosition: true }, // collides with Minor 7th
+  { name: 'Minor 6th',       symbol: 'm6',    intervals: [0,3,7,9],    requiresRootPosition: true }, // collides with Half-dim
+  { name: 'Add 9',           symbol: 'add9',  intervals: [0,2,4,7]     },
+  { name: 'Minor Add 9',     symbol: 'madd9', intervals: [0,2,3,7]     },
+  { name: 'Six-Nine',        symbol: '6/9',   intervals: [0,2,4,7,9],  requiresRootPosition: true }, // collides with Dominant 11th
+  { name: 'Minor Six-Nine',  symbol: 'm6/9',  intervals: [0,2,3,7,9]   },
+
+  // ── Ninths ──
+  { name: 'Dominant 9th',    symbol: '9',     intervals: [0,2,4,7,10]  },
+  { name: 'Major 9th',       symbol: 'maj9',  intervals: [0,2,4,7,11]  },
+  { name: 'Minor 9th',       symbol: 'm9',    intervals: [0,2,3,7,10]  },
+  { name: 'Minor-Major 7th', symbol: 'mMaj7', intervals: [0,3,7,11]    },
+  { name: 'Minor-Major 9th', symbol: 'mMaj9', intervals: [0,2,3,7,11]  },
+
+  // ── Lydian (#11) family ──
+  { name: 'Add #11',         symbol: 'add#11',   intervals: [0,4,6,7]     },
+  { name: 'Major 7 #11',     symbol: 'maj7#11',  intervals: [0,4,6,7,11]  },
+  { name: 'Dominant 7 #11',  symbol: '7#11',     intervals: [0,4,6,7,10]  },
+  { name: 'Major 9 #11',     symbol: 'maj9#11',  intervals: [0,2,4,6,7,11] },
+
+  // ── Elevenths & thirteenths (conventional omissions — see notes) ──
+  // Dominant 11th: 3rd omitted (clashes with the 11th — why 11-chords are so often
+  // written as a slash, e.g. Bb/C or Gm7/C, instead of a literal 5-note stack).
+  { name: 'Dominant 11th',   symbol: '11',    intervals: [0,2,5,7,10],   requiresRootPosition: true }, // collides with Six-Nine
+  { name: 'Minor 11th',      symbol: 'm11',   intervals: [0,2,3,5,7,10] }, // 6 notes — no clash, 3rd kept
+  { name: 'Dominant 13th',   symbol: '13',    intervals: [0,2,4,9,10]  }, // 5th omitted
+  { name: 'Major 13th',      symbol: 'maj13', intervals: [0,2,4,9,11]  }, // 5th omitted
+  { name: 'Minor 13th',      symbol: 'm13',   intervals: [0,2,3,9,10]  }, // 5th AND 11th omitted — see report
+
+  // ── Altered dominants ──
+  { name: '7b9',             symbol: '7b9',    intervals: [0,1,4,7,10]  },
+  { name: '7#9',              symbol: '7#9',    intervals: [0,3,4,7,10]  },
+  { name: '7#5 (Aug7)',       symbol: '7#5',    intervals: [0,4,8,10]    },
+  { name: '7b5',              symbol: '7b5',    intervals: [0,4,6,10]    },
+  { name: '7#5#9 (Alt)',      symbol: '7#5#9',  intervals: [0,3,4,8,10]  },
+];
+
+// Custom screen / heatmap taxonomy — every CHORD_TYPES name must appear in exactly one
+// group. Order here is display order; `defaultExpanded` drives the Custom screen's and
+// heatmap's collapsed-by-default state.
+export const QUALITY_GROUPS = [
+  { id: 'triads',    label: 'Triads',             defaultExpanded: true,
+    typeNames: ['Major', 'Minor', 'Diminished', 'Augmented', 'Sus2', 'Sus4'] },
+  { id: 'sevenths',  label: 'Sevenths',           defaultExpanded: true,
+    typeNames: ['Dominant 7th', 'Major 7th', 'Minor 7th', 'Half-dim (m7b5)', 'Diminished 7th', 'Minor-Major 7th'] },
+  { id: 'sixths',    label: 'Sixths & Adds',      defaultExpanded: false,
+    typeNames: ['Major 6th', 'Minor 6th', 'Add 9', 'Minor Add 9', 'Six-Nine', 'Minor Six-Nine'] },
+  { id: 'extensions', label: 'Extensions',        defaultExpanded: false,
+    typeNames: ['Dominant 9th', 'Major 9th', 'Minor 9th', 'Minor-Major 9th', 'Dominant 11th', 'Minor 11th', 'Dominant 13th', 'Major 13th', 'Minor 13th'] },
+  { id: 'lydian',    label: 'Lydian (#11)',       defaultExpanded: false,
+    typeNames: ['Add #11', 'Major 7 #11', 'Dominant 7 #11', 'Major 9 #11'] },
+  { id: 'altered',   label: 'Altered Dominants',  defaultExpanded: false,
+    typeNames: ['7b9', '7#9', '7#5 (Aug7)', '7b5', '7#5#9 (Alt)'] },
 ];
 
 // Difficulty pools (indices into CHORD_TYPES)
@@ -30,6 +96,7 @@ export const DIFFICULTY_POOLS = [
   { label: 'Level 5', desc: '+ Dominant, major & minor 7ths',  typeIndices: [0,1,2,3,4,5,6]           },
   { label: 'Level 6', desc: 'Everything',                      typeIndices: [0,1,2,3,4,5,6,7,8,9,10] },
   { label: 'Level 7', desc: 'Everything + Slash chords',       typeIndices: [0,1,2,3,4,5,6,7,8,9,10], includeSlash: true },
+  { label: 'Level 8', desc: 'Everything (full registry)',      typeIndices: CHORD_TYPES.map((_, i) => i), includeSlash: true },
 ];
 
 // Build full chord list for a difficulty level
@@ -159,6 +226,19 @@ export function isMatch(heldPitchClasses, targetPitchClasses, opts = {}) {
   return true;
 }
 
+// Resolve the isMatch() opts for a given chord + currently-held MIDI notes — shared by
+// every mode (Practice/Sprint/Survival/Falling) so the "which bass is required, if any"
+// logic lives in exactly one place. A chord needs a specific bass in two cases: it's an
+// actual slash chord (chord.bassPc set), or its type is flagged requiresRootPosition
+// (pitch-class-identical to some other type at a different root — see CHORD_TYPES).
+export function matchOptsFor(chord, heldNoteSet) {
+  const requiredBassPc = chord.bassPc != null ? chord.bassPc
+    : chord.type?.requiresRootPosition ? chord.rootPc
+    : null;
+  if (requiredBassPc == null) return undefined;
+  return { bassPc: requiredBassPc, lowestPc: lowestPitchClass(heldNoteSet) };
+}
+
 // Derive pitch classes from MIDI note set
 export function toPitchClasses(noteSet) {
   const pcs = new Set();
@@ -201,7 +281,7 @@ export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 
 
 // Convenience object — keeps call sites identical to the original IIFE style
 export const ChordEngine = {
-  ROOTS, CHORD_TYPES, DIFFICULTY_POOLS,
+  ROOTS, CHORD_TYPES, QUALITY_GROUPS, DIFFICULTY_POOLS,
   buildPool, buildCustomPool, buildSlashPool, slashChordsFor, chordForCell, pickChord,
-  isMatch, toPitchClasses, lowestPitchClass, voiceNearMiddleC,
+  isMatch, matchOptsFor, toPitchClasses, lowestPitchClass, voiceNearMiddleC,
 };

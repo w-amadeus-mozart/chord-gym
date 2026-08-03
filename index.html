@@ -107,7 +107,7 @@
         <div class="dash-hero-text">
           <h1 class="dash-title">Train your chords<span class="dash-title-dot">.</span></h1>
           <p class="dash-tagline">Find your weak spots. Prove your speed.</p>
-          <p class="dash-demo-line">Demo version — 6 of 132 chords. <a id="dash-demo-cta" href="#" target="_blank" rel="noopener">Get the full app</a></p>
+          <p class="dash-demo-line">Demo version — <span id="dash-demo-count"></span> <a id="dash-demo-cta" href="#" target="_blank" rel="noopener">Get the full app</a></p>
         </div>
         <div class="dash-hero-art" aria-hidden="true">
           <div class="dash-hero-bars">
@@ -224,12 +224,14 @@
   <!-- STANDARD mode ── quality checkboxes are also reused by Exact picks as a filter -->
   <div class="practice-setup-section" id="practice-quality-section">
     <h4 class="practice-setup-label">Quality</h4>
-    <div class="quality-checkbox-grid" id="quality-checkbox-grid"></div>
     <div class="quality-shortcuts">
       <button class="quality-shortcut" type="button" data-quick-quality="Major">Major only</button>
       <button class="quality-shortcut" type="button" data-quick-quality="Minor">Minor only</button>
+      <button class="quality-shortcut" type="button" data-quick-quality="triads">All triads</button>
+      <button class="quality-shortcut" type="button" data-quick-quality="sevenths">All sevenths</button>
       <button class="quality-shortcut" type="button" data-quick-quality="all">All qualities</button>
     </div>
+    <div class="quality-checkbox-grid" id="quality-checkbox-grid"></div>
   </div>
 
   <div class="practice-setup-section" id="practice-scope-section">
@@ -423,6 +425,7 @@
       <div class="chord-arena" id="chord-arena">
         <div class="streak-fire" id="streak-fire"></div>
         <div id="chord-display">—</div>
+        <div class="root-position-hint" id="root-position-hint" style="display:none">Root position</div>
         <div class="note-indicators" id="note-indicators"></div>
         <div class="arena-dots" aria-hidden="true"><span></span><span></span><span></span></div>
         <div id="death-overlay"></div>
