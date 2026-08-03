@@ -8,7 +8,7 @@ import { state, SPRINT_DURATION } from './state.js';
 import { ChordEngine } from './chords.js';
 import { setPianoTarget, setPianoReleasing, setKeyLabelMode, getVisibleRange, getRestingLabelMode } from './piano.js';
 import { UNLOCK_LADDER } from './unlockLadder.js';
-import { FALLING_LEVELS } from './fallingLevels.js';
+import { FALLING_LEVELS, STORY_LEVEL_COUNT } from './fallingLevels.js';
 import { Achievements } from './achievements.js';
 import { Mastery } from './mastery.js';
 import { PRESETS, describeConfig, ROOT_GROUPS } from './modes/practice.js';
@@ -359,7 +359,7 @@ export const UI = {
     const wsEl = document.getElementById('weak-spot');
     if (slowest) {
       wsEl.style.display = 'block';
-      wsEl.innerHTML = `Your weak spot: <span>${formatSymbol(slowest.rootPc, slowest.typeSymbol)}</span> — ${(slowest.responseMs / 1000).toFixed(1)}s response`;
+      wsEl.innerHTML = `Your weak spot: <span>${formatSymbol(slowest.rootPc, slowest.typeSymbol, undefined, slowest.bassPc)}</span> — ${(slowest.responseMs / 1000).toFixed(1)}s response`;
     } else {
       wsEl.style.display = 'none';
     }
@@ -385,7 +385,7 @@ export const UI = {
       subEl.style.display = 'block';
       let deathMsg = '';
       if (deathReason) {
-        const deathChordSymbol = formatSymbol(deathReason.rootPc, deathReason.typeSymbol);
+        const deathChordSymbol = formatSymbol(deathReason.rootPc, deathReason.typeSymbol, undefined, deathReason.bassPc);
         deathMsg = deathReason.type === 'expiry'
           ? `Window expired on <strong>${deathChordSymbol}</strong>`
           : `Wrong note on <strong>${deathChordSymbol}</strong> — you played <strong>${formatRoot(deathReason.wrongPc, getEnharmonicStyle())}</strong>`;
@@ -422,7 +422,7 @@ export const UI = {
           ? `<span class="unlock-badge">★ ${unlockLabel.replace(' unlocked', '')}</span>`
           : '';
         return `<tr${isSlowest ? ' class="slowest"' : ''}>
-          <td><strong>${formatSymbol(a.rootPc, a.typeSymbol)}</strong>${unlockBadge}</td>
+          <td><strong>${formatSymbol(a.rootPc, a.typeSymbol, undefined, a.bassPc)}</strong>${unlockBadge}</td>
           <td>${(a.responseMs / 1000).toFixed(2)}s</td>
           <td>${a.windowSec != null ? a.windowSec.toFixed(1) + 's' : '—'}</td>
           <td>${a.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Corrected</span>'}</td>
@@ -460,7 +460,7 @@ export const UI = {
       document.getElementById('per-chord-tbody').innerHTML = attempts.map(a => {
         const isSlowest = a === slowest;
         return `<tr${isSlowest ? ' class="slowest"' : ''}>
-          <td><strong>${formatSymbol(a.rootPc, a.typeSymbol)}</strong></td>
+          <td><strong>${formatSymbol(a.rootPc, a.typeSymbol, undefined, a.bassPc)}</strong></td>
           <td>${(a.responseMs / 1000).toFixed(2)}s</td>
           <td>${a.clean ? '<span class="clean-badge">✓ Clean</span>' : '<span class="dirty-badge">~ Corrected</span>'}</td>
           <td>+${a.points}</td>
@@ -508,9 +508,13 @@ export const UI = {
 
   renderLevelSelect() {
     const highest = _highestFallingLevel();
+    // Bonus levels beyond the main climb (Level 11+) don't unlock by sequential
+    // progress — they unlock once you've full-cleared the story, same spirit as a
+    // New Game+ bonus stage rather than diluting the Level 10 climax.
+    const fullCleared = !!Achievements.getFullClearBadge();
     const grid = document.getElementById('level-strip');
     grid.innerHTML = FALLING_LEVELS.map(def => {
-      const reached = def.level <= highest;
+      const reached = def.level <= STORY_LEVEL_COUNT ? def.level <= highest : fullCleared;
       return reached
         ? `<button class="level-node reached" data-level="${def.level}">
              <span class="level-node-num">Lv ${def.level}</span>
@@ -610,7 +614,7 @@ export const UI = {
       const holdTag  = res.hold   ? ' <span class="hold-badge">HOLD</span>' : '';
       const sloppyTag= res.sloppy ? ' <span class="sloppy-tag">~</span>'    : '';
       return `<tr>
-        <td><strong>${formatSymbol(res.rootPc, res.typeSymbol)}</strong>${holdTag}</td>
+        <td><strong>${formatSymbol(res.rootPc, res.typeSymbol, undefined, res.bassPc)}</strong>${holdTag}</td>
         <td><span class="${cls}">${label}</span>${sloppyTag}</td>
         <td>${res.points > 0 ? '+' + res.points : '—'}</td>
       </tr>`;

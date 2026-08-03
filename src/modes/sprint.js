@@ -78,7 +78,10 @@ export const SprintMode = {
 
     UI.renderNoteIndicators(held, target);
 
-    if (ChordEngine.isMatch(heldPCs, target)) {
+    const matchOpts = state.currentChord.bassPc != null
+      ? { bassPc: state.currentChord.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
+      : undefined;
+    if (ChordEngine.isMatch(heldPCs, target, matchOpts)) {
       SprintMode.onChordMatched();
     }
   },
@@ -109,9 +112,10 @@ export const SprintMode = {
     state.attempts.push({
       rootPc: state.currentChord.rootPc,
       typeSymbol: state.currentChord.type.symbol,
+      bassPc: state.currentChord.bassPc ?? null,
       responseMs, clean, points,
     });
-    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean);
+    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean, state.currentChord.bassPc);
 
     // Visual flash + audio chime
     UI.flashMatch(points);

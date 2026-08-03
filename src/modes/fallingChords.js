@@ -14,7 +14,7 @@ import { MidiInput } from '../midi.js';
 import { GameAudio } from '../audio.js';
 import { UI, showScreen } from '../ui.js';
 import { LaneCanvas } from '../laneCanvas.js';
-import { compileLevel } from '../fallingLevels.js';
+import { compileLevel, STORY_LEVEL_COUNT } from '../fallingLevels.js';
 import { Achievements } from '../achievements.js';
 import { Mastery } from '../mastery.js';
 import { setPianoTarget } from '../piano.js';
@@ -32,7 +32,7 @@ const HOLD_GRACE_MS  = 250;   // ms before hold end — releasing within this is
 const SCORES     = { perfect: 300, good: 150, ok: 50, miss: 0 };
 const DOWNGRADE  = { perfect: 'good', good: 'ok', ok: 'ok' };
 
-const LAST_LEVEL = 10;
+const LAST_LEVEL = STORY_LEVEL_COUNT; // the main climb's finale — bonus levels (11+) don't auto-continue past it
 
 // Lookahead scheduler
 const LOOKAHEAD_S        = 0.12;  // schedule 120ms ahead
@@ -147,6 +147,7 @@ function _buildTiles(chart) {
     const type = ChordEngine.CHORD_TYPES.find(t => t.name === ev.typeName);
     if (!type) continue;
     const pitchClasses = new Set(type.intervals.map(iv => (ev.rootPc + iv) % 12));
+    if (ev.bassPc != null) pitchClasses.add(ev.bassPc); // no-op for a real inversion — bass is already a chord tone
     const targetMs     = (ev.beat - 1) * beatMsVal;
     const tile = {
       id:           i,
@@ -155,6 +156,7 @@ function _buildTiles(chart) {
       rootPc:       ev.rootPc,
       typeName:     ev.typeName,
       typeSymbol:   type.symbol,
+      bassPc:       ev.bassPc ?? null,
       pitchClasses,
       hit:          false,
       missed:       false,
@@ -230,8 +232,8 @@ function _checkMisses(elapsed) {
     tile.missed = true;
     state.streak      = 0;
     state.multiplier  = 1;
-    state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, result: 'miss', points: 0 });
-    Mastery.record(tile.rootPc, tile.typeName, null, false);
+    state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, bassPc: tile.bassPc, result: 'miss', points: 0 });
+    Mastery.record(tile.rootPc, tile.typeName, null, false, tile.bassPc);
     LaneCanvas.flashMiss();
     UI.renderFallingHUD();
     _loseHeart();
@@ -258,9 +260,9 @@ function _checkHoldCompletions(elapsed) {
     _setMultiplier();
     state.falling.maxCombo = Math.max(state.falling.maxCombo, state.streak);
     _incRatingCount(rating);
-    state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, result: rating, points, hold: true, broken: tile.holdBroken });
+    state.falling.results.push({ rootPc: tile.rootPc, typeSymbol: tile.typeSymbol, bassPc: tile.bassPc, result: rating, points, hold: true, broken: tile.holdBroken });
     const holdClean = !tile.holdBroken && (rating === 'perfect' || rating === 'good');
-    Mastery.record(tile.rootPc, tile.typeName, null, holdClean);
+    Mastery.record(tile.rootPc, tile.typeName, null, holdClean, tile.bassPc);
 
     const label = tile.holdBroken ? rating.toUpperCase() : 'HOLD!';
     LaneCanvas.flashHit(tile._lastCenterX, tile._lastCenterY, tile.typeName, rating, label);
@@ -529,7 +531,10 @@ export const FallingChordsMode = {
       candidate._sloppy = true;
     }
 
-    if (!ChordEngine.isMatch(heldPCs, candidate.pitchClasses)) return;
+    const matchOpts = candidate.bassPc != null
+      ? { bassPc: candidate.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
+      : undefined;
+    if (!ChordEngine.isMatch(heldPCs, candidate.pitchClasses, matchOpts)) return;
 
     const rating = _ratingFor(adjElapsed, candidate);
     if (!rating) return;
@@ -555,9 +560,9 @@ export const FallingChordsMode = {
       state.chordsCompleted++;
       state.falling.maxCombo = Math.max(state.falling.maxCombo, state.streak);
       _incRatingCount(rating);
-      state.falling.results.push({ rootPc: candidate.rootPc, typeSymbol: candidate.typeSymbol, result: rating, points, sloppy });
+      state.falling.results.push({ rootPc: candidate.rootPc, typeSymbol: candidate.typeSymbol, bassPc: candidate.bassPc, result: rating, points, sloppy });
       const hitClean = !sloppy && (rating === 'perfect' || rating === 'good');
-      Mastery.record(candidate.rootPc, candidate.typeName, null, hitClean);
+      Mastery.record(candidate.rootPc, candidate.typeName, null, hitClean, candidate.bassPc);
 
       const label = sloppy ? rating.toUpperCase() + ' ~' : undefined;
       LaneCanvas.flashHit(candidate._lastCenterX, candidate._lastCenterY, candidate.typeName, rating, label);

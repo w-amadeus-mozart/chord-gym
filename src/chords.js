@@ -29,12 +29,14 @@ export const DIFFICULTY_POOLS = [
   { label: 'Level 4', desc: '+ Diminished & augmented',        typeIndices: [0,1,2,3]                 },
   { label: 'Level 5', desc: '+ Dominant, major & minor 7ths',  typeIndices: [0,1,2,3,4,5,6]           },
   { label: 'Level 6', desc: 'Everything',                      typeIndices: [0,1,2,3,4,5,6,7,8,9,10] },
+  { label: 'Level 7', desc: 'Everything + Slash chords',       typeIndices: [0,1,2,3,4,5,6,7,8,9,10], includeSlash: true },
 ];
 
 // Build full chord list for a difficulty level
 export function buildPool(diffIndex) {
   if (IS_DEMO) return buildCustomPool(DEMO_CHORDS, ['Major']);
-  const types = DIFFICULTY_POOLS[diffIndex].typeIndices.map(i => CHORD_TYPES[i]);
+  const level = DIFFICULTY_POOLS[diffIndex];
+  const types = level.typeIndices.map(i => CHORD_TYPES[i]);
   const pool = [];
   for (const root of ROOTS) {
     for (const type of types) {
@@ -42,6 +44,9 @@ export function buildPool(diffIndex) {
       const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
       pool.push({ root, rootPc, type, symbol: root + type.symbol, pitchClasses });
     }
+  }
+  if (level.includeSlash) {
+    pool.push(...buildSlashPool(ROOTS.map((_, pc) => pc), ['Major', 'Minor']));
   }
   return pool;
 }

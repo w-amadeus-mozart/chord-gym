@@ -101,11 +101,15 @@ function calcWindow(chordsSurvived, variant) {
   return Math.max(floor, WINDOW_START - (N - 1) * WINDOW_DECAY);
 }
 
-// Build a pool of all chords for every type in tiers 0..tierIndex (by name, not index).
+// Build a pool of all chords for every type in tiers 0..tierIndex (by name, not index),
+// plus slash inversions once a tier with addSlash is reached — they're inversions of
+// already-unlocked Major/Minor, not a new CHORD_TYPES entry, so they layer on separately.
 function buildActivePool(tierIndex) {
   const typeNames = new Set();
+  let slashUnlocked = false;
   for (let i = 0; i <= tierIndex; i++) {
     UNLOCK_LADDER[i].add.forEach(n => typeNames.add(n));
+    if (UNLOCK_LADDER[i].addSlash) slashUnlocked = true;
   }
   const types = ChordEngine.CHORD_TYPES.filter(ct => typeNames.has(ct.name));
   const pool = [];
@@ -115,6 +119,9 @@ function buildActivePool(tierIndex) {
       const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
       pool.push({ root, rootPc, type, symbol: root + type.symbol, pitchClasses });
     }
+  }
+  if (slashUnlocked) {
+    pool.push(...ChordEngine.buildSlashPool(ChordEngine.ROOTS.map((_, i) => i), ['Major', 'Minor']));
   }
   return pool;
 }
@@ -222,7 +229,7 @@ export const SurvivalMode = {
 
     const now = performance.now();
     if (now >= state.survival.windowDeadline) {
-      SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol });
+      SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol, bassPc: state.currentChord.bassPc ?? null });
       return;
     }
 
@@ -250,7 +257,7 @@ export const SurvivalMode = {
     // Exact expiry check — a match arriving after the deadline never counts
     const now = performance.now();
     if (now >= state.survival.windowDeadline) {
-      SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol });
+      SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol, bassPc: state.currentChord.bassPc ?? null });
       return;
     }
 
@@ -265,6 +272,7 @@ export const SurvivalMode = {
             type: 'wrongNote',
             rootPc: state.currentChord.rootPc,
             typeSymbol: state.currentChord.type.symbol,
+            bassPc: state.currentChord.bassPc ?? null,
             wrongPc: pc,
           });
           return;
@@ -281,10 +289,13 @@ export const SurvivalMode = {
 
     UI.renderNoteIndicators(held, target);
 
-    if (ChordEngine.isMatch(heldPCs, target)) {
+    const matchOpts = state.currentChord.bassPc != null
+      ? { bassPc: state.currentChord.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
+      : undefined;
+    if (ChordEngine.isMatch(heldPCs, target, matchOpts)) {
       // Re-check at exact moment of match
       if (performance.now() >= state.survival.windowDeadline) {
-        SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol });
+        SurvivalMode.end({ type: 'expiry', rootPc: state.currentChord.rootPc, typeSymbol: state.currentChord.type.symbol, bassPc: state.currentChord.bassPc ?? null });
         return;
       }
       SurvivalMode.onChordMatched();
@@ -323,12 +334,13 @@ export const SurvivalMode = {
     state.attempts.push({
       rootPc: state.currentChord.rootPc,
       typeSymbol: state.currentChord.type.symbol,
+      bassPc: state.currentChord.bassPc ?? null,
       responseMs,
       clean,
       points,
       windowSec: state.survival.windowSec,
     });
-    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean);
+    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, responseMs, clean, state.currentChord.bassPc);
 
     UI.flashMatch(points);
     GameAudio.playSuccessChime(state.currentChord.pitchClasses);
@@ -346,11 +358,12 @@ export const SurvivalMode = {
       // Rebuild pool to include newly unlocked types
       state.survival.activePool = buildActivePool(nextTierIdx);
 
-      // Track new chords for the 60% weighting window (5 chords)
+      // Track new chords for the 60% weighting window (5 chords) — a slash-unlock tier's
+      // "new" content is the slash inversions themselves (bassPc set), not a new type name.
       const newTypeNames = new Set(tier.add);
-      state.survival.recentlyUnlocked = state.survival.activePool.filter(
-        c => newTypeNames.has(c.type.name)
-      );
+      state.survival.recentlyUnlocked = tier.addSlash
+        ? state.survival.activePool.filter(c => c.bassPc != null)
+        : state.survival.activePool.filter(c => newTypeNames.has(c.type.name));
       state.survival.chordsSinceUnlock = 0;
 
       // Badge on the attempt that triggered the unlock
@@ -407,7 +420,7 @@ export const SurvivalMode = {
     state.timerInterval = null;
     _clearDeathTimers();
     state.survival.deathReason = deathReason;
-    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, null, false);
+    Mastery.record(state.currentChord.rootPc, state.currentChord.type.name, null, false, state.currentChord.bassPc);
     state.screen = 'dying';
 
     const arena   = document.getElementById('chord-arena');

@@ -179,6 +179,35 @@ console.log('\n[4] isMatch: lowest held pitch class must equal the bass for a sl
   );
 }
 
+console.log('\n[5] Slash chords reach the game modes: Sprint Level 7, Survival tier, Falling Level 11');
+{
+  // Sprint: Level 7 ("Everything + Slash chords") = full 132-chord pool + 48 slash inversions.
+  const level7 = ChordEngine.DIFFICULTY_POOLS[6];
+  assertEqual(level7.label, 'Level 7', 'DIFFICULTY_POOLS[6] is Level 7');
+  assert(level7.includeSlash === true, 'Level 7 is flagged includeSlash');
+  const pool7 = ChordEngine.buildPool(6);
+  assertEqual(pool7.length, 132 + 48, 'Level 7 pool = 132 base chords + 48 slash inversions');
+  assert(pool7.some(c => c.bassPc != null), 'Level 7 pool actually contains slash-chord objects');
+  assert(pool7.filter(c => c.bassPc == null).length === 132, 'Level 7 pool still has all 132 plain chords');
+
+  // Survival: the ladder's final tier unlocks slash chords via a flag, not a CHORD_TYPES name.
+  const { UNLOCK_LADDER } = await import('../src/unlockLadder.js');
+  const lastTier = UNLOCK_LADDER[UNLOCK_LADDER.length - 1];
+  assert(lastTier.addSlash === true, 'the final Survival unlock tier is flagged addSlash');
+  assert(typeof lastTier.at === 'number' && typeof lastTier.hint === 'string' && typeof lastTier.reached === 'string',
+    'the slash tier has the same shape (at/hint/reached/label) as every other tier — required by ui.js\'s generic rendering');
+
+  // Falling: Level 11 is bonus content past STORY_LEVEL_COUNT, and compiles with slash events.
+  const { FALLING_LEVELS, compileLevel, STORY_LEVEL_COUNT } = await import('../src/fallingLevels.js');
+  assertEqual(STORY_LEVEL_COUNT, 10, 'the main climb is still 10 levels — Level 11 is bonus content, not a story extension');
+  const level11Def = FALLING_LEVELS.find(l => l.level === 11);
+  assert(level11Def && level11Def.includeSlash === true, 'Level 11 exists and is flagged includeSlash');
+  const chart11 = compileLevel(11);
+  assert(chart11.events.some(ev => ev.bassPc != null), 'Level 11 actually generates slash-chord events (bassPc set)');
+  assert(chart11.events.every(ev => ev.bassPc == null || [3, 4, 7].includes(((ev.bassPc - ev.rootPc) % 12 + 12) % 12)),
+    'every slash event in Level 11 is a real inversion (3rd or 5th interval from its root)');
+}
+
 if (failures) {
   console.error(`\n${failures} check(s) FAILED.`);
   process.exit(1);

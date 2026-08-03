@@ -214,7 +214,7 @@ export const LaneCanvas = {
       _ctx.font          = 'bold 18px "Segoe UI", system-ui, sans-serif';
       _ctx.textAlign     = 'center';
       _ctx.textBaseline  = 'middle';
-      _ctx.fillText(formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle()), tileLeft + tileW / 2, tileTop + TILE_H / 2);
+      _ctx.fillText(formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle(), tile.bassPc), tileLeft + tileW / 2, tileTop + TILE_H / 2);
       _ctx.restore();
     }
 

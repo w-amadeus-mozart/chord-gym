@@ -12,6 +12,13 @@ const ALL_ROOTS = Array.from({ length: 12 }, (_, i) => i);
 const NEW_TYPE_WEIGHT_SLOTS = 4;   // first N generated events of a level
 const NEW_TYPE_WEIGHT_PROB  = 0.6; // same shape as Survival's pickSurvivalChord
 
+// The original main climb (Level 1 → 10, "Everything · The Final Set") — this is what
+// "full clear" means for the achievement badge and the victory screen. Anything past
+// this is bonus content (Level 11: slash chords) unlocked via a full clear rather than
+// sequential climbing, so it doesn't blunt the Level 10 climax with an unannounced
+// Level 11 immediately after it.
+export const STORY_LEVEL_COUNT = 10;
+
 // Cumulative pools built explicitly so each level row is unambiguous.
 const L1 = ['Major'];
 const L4 = ['Major', 'Minor'];
@@ -36,6 +43,7 @@ export const FALLING_LEVELS = [
   { level: 8,  typeNames: L8,        bpm: 105, placement: 'beat1and3', bars: 12, roots: 'all12',     poolLabel: '+ Maj7/Min7' },
   { level: 9,  typeNames: L9,        bpm: 110, placement: 'beat1and3', bars: 12, roots: 'all12',     poolLabel: '+ m7b5/Dim7' },
   { level: 10, typeNames: L9,        bpm: 115, placement: 'beat1and3', bars: 16, roots: 'all12',     poolLabel: 'Everything · The Final Set' },
+  { level: 11, typeNames: L9,        bpm: 110, placement: 'beat1and3', bars: 12, roots: 'all12',     poolLabel: '+ Slash chords', includeSlash: true },
 ];
 
 // Types newly introduced at this level vs. the previous one — drives the weighting below.
@@ -63,9 +71,16 @@ export function pickFallingChord(pool, newPool, slotIndex, lastSymbol) {
 export function compileLevel(level) {
   const def = FALLING_LEVELS[level - 1];
   const rootPcs = def.roots === 'friendly' ? FRIENDLY_ROOTS : ALL_ROOTS;
-  const pool = ChordEngine.buildCustomPool(rootPcs, def.typeNames);
-  const newTypeNames = newTypesForLevel(level - 1);
-  const newPool = pool.filter(c => newTypeNames.includes(c.type.name));
+  const basePool = ChordEngine.buildCustomPool(rootPcs, def.typeNames);
+  // Slash inversions (Major/Minor only — see chords.js's slashChordsFor) are layered on
+  // top of the base pool for levels that opt in, rather than folded into typeNames —
+  // they're inversions of already-unlocked qualities, not a new CHORD_TYPES entry.
+  const slashPool = def.includeSlash ? ChordEngine.buildSlashPool(rootPcs, ['Major', 'Minor']) : [];
+  const pool = [...basePool, ...slashPool];
+  // "New" content to weight toward: the slash inversions themselves for a slash level
+  // (type-name diffing wouldn't catch them — Major/Minor aren't new types), otherwise
+  // the usual newly-introduced-quality diff against the previous level.
+  const newPool = def.includeSlash ? slashPool : pool.filter(c => newTypesForLevel(level - 1).includes(c.type.name));
 
   const offsets = def.placement === 'beat1' ? [1] : [1, 3];
   const events = [];
@@ -73,7 +88,7 @@ export function compileLevel(level) {
   for (let bar = 0; bar < def.bars; bar++) {
     for (const off of offsets) {
       const chord = pickFallingChord(pool, newPool, slot, lastSymbol);
-      events.push({ beat: bar * 4 + off, rootPc: chord.rootPc, typeName: chord.type.name });
+      events.push({ beat: bar * 4 + off, rootPc: chord.rootPc, typeName: chord.type.name, bassPc: chord.bassPc ?? null });
       lastSymbol = chord.symbol;
       slot++;
     }

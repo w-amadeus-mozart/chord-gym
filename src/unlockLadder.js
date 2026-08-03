@@ -10,4 +10,5 @@ export const UNLOCK_LADDER = [
   { at: 40, add: ['Dominant 7th'],                      label: 'Dominant 7ths unlocked',       reached: 'Dom 7ths',     hint: 'Dom7'     },
   { at: 50, add: ['Major 7th', 'Minor 7th'],            label: 'Major & minor 7ths unlocked',  reached: 'All 7ths',     hint: 'Maj7'     },
   { at: 65, add: ['Half-dim (m7b5)', 'Diminished 7th'], label: 'Half-dim & dim7 unlocked',    reached: 'Everything',   hint: 'Half-dim' },
+  { at: 80, add: [], addSlash: true,                    label: 'Slash chords unlocked',        reached: 'Slash chords', hint: 'Slash'    },
 ];
