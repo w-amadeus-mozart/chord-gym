@@ -654,12 +654,22 @@ export const UI = {
           <div class="preset-card-sub">${weakReady ? '8 weakest chords' : `Keep playing — found ${weakQualified.length}/8`}</div>
         </button>`;
 
+    const slashCard = IS_DEMO
+      ? `<button class="preset-card locked" data-preset="slash">
+          <div class="preset-card-title">Slash chords</div>
+          <div class="preset-card-sub">🔒 Full version</div>
+        </button>`
+      : `<button class="preset-card${draft.presetId === 'slash' ? ' selected' : ''}" data-preset="slash">
+          <div class="preset-card-title">Slash chords</div>
+          <div class="preset-card-sub">48 chords</div>
+        </button>`;
+
     const customCard = `<button class="preset-card preset-card-custom" data-preset="custom">
       <div class="preset-card-title">Custom…</div>
       <div class="preset-card-sub">Full control</div>
     </button>`;
 
-    document.getElementById('preset-grid').innerHTML = presetCards + weakCard + customCard;
+    document.getElementById('preset-grid').innerHTML = presetCards + slashCard + weakCard + customCard;
 
     document.getElementById('preset-order-grid').innerHTML = ORDER_OPTIONS.map(([val, label]) =>
       `<button class="practice-choice-btn${draft.order === val ? ' selected' : ''}" data-order="${val}">${label}</button>`

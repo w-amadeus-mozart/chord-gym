@@ -36,11 +36,60 @@ export function formatRoot(pc, style, { compact = false } = {}) {
   return compact ? ROOTS_FLAT[pc] : ROOTS[pc]; // 'both'
 }
 
+// Idiomatic slash-chord spelling for 'both' (auto) mode. A bare root's spelling is a
+// matter of taste (that's what the sharp/flat toggle is for), but a chord TONE's
+// spelling is not — the major 3rd above B is D#, never Eb (Eb would be a diminished
+// 4th, a different interval that happens to share a pitch class). A blanket
+// flats-fallback got this wrong for every sharp-leaning root (reported: "B/Eb" should
+// be "B/D#"). This is a small, fixed table (12 roots × Major/Minor) rather than a
+// general letter-arithmetic engine, since triad inversions are all this app generates
+// today (see chords.js's slashChordsFor) — each entry is the standard, single-accidental
+// spelling used in real chord charts (e.g. Db major/C# minor, not C# major/Db minor,
+// since those avoid an awkward double-sharp 3rd).
+const SLASH_SPELLING = {
+  Major: {
+    0:  { root: 'C',  third: 'E',  fifth: 'G'  },
+    1:  { root: 'Db', third: 'F',  fifth: 'Ab' },
+    2:  { root: 'D',  third: 'F#', fifth: 'A'  },
+    3:  { root: 'Eb', third: 'G',  fifth: 'Bb' },
+    4:  { root: 'E',  third: 'G#', fifth: 'B'  },
+    5:  { root: 'F',  third: 'A',  fifth: 'C'  },
+    6:  { root: 'F#', third: 'A#', fifth: 'C#' },
+    7:  { root: 'G',  third: 'B',  fifth: 'D'  },
+    8:  { root: 'Ab', third: 'C',  fifth: 'Eb' },
+    9:  { root: 'A',  third: 'C#', fifth: 'E'  },
+    10: { root: 'Bb', third: 'D',  fifth: 'F'  },
+    11: { root: 'B',  third: 'D#', fifth: 'F#' },
+  },
+  Minor: {
+    0:  { root: 'C',  third: 'Eb', fifth: 'G'  },
+    1:  { root: 'C#', third: 'E',  fifth: 'G#' },
+    2:  { root: 'D',  third: 'F',  fifth: 'A'  },
+    3:  { root: 'Eb', third: 'Gb', fifth: 'Bb' },
+    4:  { root: 'E',  third: 'G',  fifth: 'B'  },
+    5:  { root: 'F',  third: 'Ab', fifth: 'C'  },
+    6:  { root: 'F#', third: 'A',  fifth: 'C#' },
+    7:  { root: 'G',  third: 'Bb', fifth: 'D'  },
+    8:  { root: 'G#', third: 'B',  fifth: 'D#' },
+    9:  { root: 'A',  third: 'C',  fifth: 'E'  },
+    10: { root: 'Bb', third: 'Db', fifth: 'F'  },
+    11: { root: 'B',  third: 'D',  fifth: 'F#' },
+  },
+};
+
 // Slash-chord symbol — the slash is structurally reserved, so root and bass are ALWAYS
-// spelled in the same single style, never the dual "X#/Yb" form. 'both' mode has no
-// sane dual spelling for a slash bass (that's the "A#/Bb/B" bug), so it falls back to
-// flats — the more common convention in lead-sheet/worship chord charts.
+// spelled in the same single style, never the dual "X#/Yb" form. 'both' mode uses the
+// idiomatic table above; explicit Sharps/Flats mode is a forced global override (both
+// tokens spelled that direction) since that's what the toggle is for.
 export function formatSlash(rootPc, typeSymbol, bassPc, style = _style) {
+  if (style === 'both') {
+    const quality = typeSymbol === 'm' ? 'Minor' : typeSymbol === '' ? 'Major' : null;
+    const entry = quality && SLASH_SPELLING[quality][rootPc];
+    const diff = ((bassPc - rootPc) % 12 + 12) % 12;
+    if (entry && (diff === 3 || diff === 4 || diff === 7)) {
+      return entry.root + typeSymbol + '/' + (diff === 7 ? entry.fifth : entry.third);
+    }
+  }
   const effectiveStyle = style === 'both' ? 'flat' : style;
   const root = formatRoot(rootPc, effectiveStyle);
   const bass = formatRoot(bassPc, effectiveStyle);

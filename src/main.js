@@ -382,6 +382,12 @@ document.getElementById('practice-setup').addEventListener('click', e => {
 
     if (id === 'weakSpots') {
       draft.what = 'weakSpots';
+    } else if (id === 'slash') {
+      draft.mode = 'slash';
+      draft.what = 'slash';
+      draft.slashQualities = ['Major', 'Minor'];
+      draft.slashInversions = ['1st inversion', '2nd inversion'];
+      draft.slashWhere = 'all12';
     } else {
       const preset = PRESETS.find(p => p.id === id);
       if (!preset) return;

@@ -91,16 +91,31 @@ console.log('\n[2] buildSlashPool: respects the inversion filter, matches slashC
   assertEqual(allRoots.length, 48, 'buildSlashPool across all 12 roots, both qualities, both inversions = 48');
 }
 
-console.log('\n[3] formatSlash / formatSymbol: no dual spelling, consistent within a symbol, both-mode flat fallback');
+console.log('\n[3] formatSlash / formatSymbol: no dual spelling, consistent within a symbol, both-mode idiomatic spelling');
 {
   // The exact regression case from the bug report: Bb major, 1st inversion (bass=D, pc 2).
   // Formatted in 'both' mode, root pc 10 naively dual-spells as "A#/Bb"; concatenating a
   // dual-spelled bass on top used to produce "A#/Bb/B"-shaped garbage.
   assertEqual(formatSlash(10, '', 2, 'both'), 'Bb/D', "'both' mode slash chord falls back to flats: Bb/D, not a dual spelling");
 
-  // The literal reported bug: root pc 10 (A#/Bb), bass pc 11 (B) — 'both' mode.
+  // The literal reported bug: root pc 10 (A#/Bb), bass pc 11 (B) — 'both' mode. (bassPc=11
+  // isn't a real chord tone of Bb major — this is a synthetic string-formatting probe, not
+  // a generated inversion, so it exercises the flat-fallback path rather than the table.)
   assertEqual(formatSlash(10, '', 11, 'both'), 'Bb/B', 'regression: must render "Bb/B", never "A#/Bb/B"');
   assertEqual(formatSymbol(10, '', 'both', 11), 'Bb/B', 'formatSymbol must delegate to formatSlash and produce the same fix');
+
+  // Live bug report: B major's 1st inversion must be "B/D#", never "B/Eb" — a blanket
+  // flats-fallback got the LETTER wrong (Eb is a diminished 4th above B, not a major 3rd),
+  // even though D#/Eb are the same pitch class. 'both' mode must use the correct chord-tone
+  // spelling, not just avoid dual spelling.
+  assertEqual(formatSlash(11, '', 3, 'both'), 'B/D#', "regression: B major 1st inversion must be 'B/D#', not 'B/Eb'");
+  assertEqual(formatSlash(11, '', 6, 'both'), 'B/F#', "B major 2nd inversion must be 'B/F#'");
+  assertEqual(formatSlash(6, '', 10, 'both'), "F#/A#", "F# major 1st inversion must be 'F#/A#' (not 'Gb/Bb')");
+  assertEqual(formatSlash(3, '', 7, 'both'), 'Eb/G', "Eb major 1st inversion must be 'Eb/G'");
+  assertEqual(formatSlash(10, '', 2, 'both'), 'Bb/D', "Bb major 1st inversion must be 'Bb/D'");
+  assertEqual(formatSlash(1, 'm', 4, 'both'), 'C#m/E', "C# minor 1st inversion must be 'C#m/E' (not 'Dbm/Fb')");
+  assertEqual(formatSlash(10, 'm', 1, 'both'), 'Bbm/Db', "Bb minor 1st inversion must be 'Bbm/Db'");
+  assertEqual(formatSlash(8, 'm', 11, 'both'), 'G#m/B', "G# minor 1st inversion must be 'G#m/B' (not 'Abm/Cb')");
 
   // Sharp mode: both root and bass spelled sharp.
   assertEqual(formatSlash(6, '', 10, 'sharp'), 'F#/A#', "sharp mode: both root and bass sharp");
