@@ -66,26 +66,46 @@ export function buildCustomPool(rootPcs, typeNames) {
   return pool;
 }
 
-// Build all slash-chord variants for a root set and selected qualities.
-// Each slash chord is represented as a standard root-quality chord with an
-// alternate bass pitch class, so the matching engine can treat C/Bb as the
-// full pitch-class set {C, E, G, Bb} rather than just the C-major triad.
-export function buildSlashPool(rootPcs, typeNames) {
+// Real (music-theory-valid) slash-chord inversions for one root+quality: the bass
+// must be a chord tone, never the root itself. Scoped to major/minor triads for
+// now — 7th-chord inversions (3rd inversion, bass = 7th) are a later tier; this
+// function just returns [] for any other quality so callers don't need to guard.
+const INVERSION_LABELS = ['1st inversion', '2nd inversion', '3rd inversion'];
+
+export function slashChordsFor(rootPc, typeName) {
+  if (typeName !== 'Major' && typeName !== 'Minor') return [];
+  const type = CHORD_TYPES.find(t => t.name === typeName);
+  if (!type) return [];
+  // intervals[0] is always the root (0) — every other interval is a valid inversion bass.
+  return type.intervals.slice(1).map((iv, i) => ({
+    rootPc,
+    typeName,
+    bassPc: (rootPc + iv) % 12,
+    inversionLabel: INVERSION_LABELS[i],
+  }));
+}
+
+// Build the pool of real slash-chord inversions for a root set, quality set, and
+// inversion filter (subset of '1st inversion'/'2nd inversion' — defaults to both).
+// Only major/minor triads are in scope — see slashChordsFor.
+export function buildSlashPool(rootPcs, typeNames, inversionLabels = ['1st inversion', '2nd inversion']) {
   const types = CHORD_TYPES.filter(t => typeNames.includes(t.name));
   const pool = [];
   for (const rootPc of rootPcs) {
     for (const type of types) {
-      for (const bassPc of ROOTS.map((_, pc) => pc).filter(pc => pc !== rootPc)) {
+      for (const inv of slashChordsFor(rootPc, type.name)) {
+        if (!inversionLabels.includes(inv.inversionLabel)) continue;
         const root = ROOTS[rootPc];
-        const bass = ROOTS[bassPc];
+        const bass = ROOTS[inv.bassPc];
         const pitchClasses = new Set(type.intervals.map(iv => (rootPc + iv) % 12));
-        pitchClasses.add(bassPc);
+        pitchClasses.add(inv.bassPc);
         pool.push({
           root,
           rootPc,
           bass,
-          bassPc,
+          bassPc: inv.bassPc,
           type,
+          inversionLabel: inv.inversionLabel,
           symbol: root + type.symbol + '/' + bass,
           pitchClasses,
         });
@@ -122,12 +142,15 @@ export function pickChord(pool, lastSymbol) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-// Match: held pitch-class set must exactly equal target pitch-class set
-export function isMatch(heldPitchClasses, targetPitchClasses) {
+// Match: held pitch-class set must exactly equal target pitch-class set. For a slash
+// chord (opts.bassPc set), the held notes' LOWEST pitch class must also equal the bass —
+// otherwise an inversion and root position (same pitch-class set) would be indistinguishable.
+export function isMatch(heldPitchClasses, targetPitchClasses, opts = {}) {
   if (heldPitchClasses.size !== targetPitchClasses.size) return false;
   for (const pc of heldPitchClasses) {
     if (!targetPitchClasses.has(pc)) return false;
   }
+  if (opts.bassPc != null && opts.lowestPc !== opts.bassPc) return false;
   return true;
 }
 
@@ -136,6 +159,13 @@ export function toPitchClasses(noteSet) {
   const pcs = new Set();
   for (const n of noteSet) pcs.add(n % 12);
   return pcs;
+}
+
+// Pitch class of the lowest-sounding held MIDI note — null if nothing is held.
+// Used to enforce slash-chord bass matching (see isMatch).
+export function lowestPitchClass(noteSet) {
+  if (!noteSet.size) return null;
+  return Math.min(...noteSet) % 12;
 }
 
 // Pick a concrete MIDI voicing for a chord's root pitch class + intervals, preferring
@@ -167,6 +197,6 @@ export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 
 // Convenience object — keeps call sites identical to the original IIFE style
 export const ChordEngine = {
   ROOTS, CHORD_TYPES, DIFFICULTY_POOLS,
-  buildPool, buildCustomPool, buildSlashPool, chordForCell, pickChord, isMatch, toPitchClasses,
-  voiceNearMiddleC,
+  buildPool, buildCustomPool, buildSlashPool, slashChordsFor, chordForCell, pickChord,
+  isMatch, toPitchClasses, lowestPitchClass, voiceNearMiddleC,
 };

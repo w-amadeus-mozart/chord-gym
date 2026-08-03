@@ -370,6 +370,7 @@ document.getElementById('practice-setup').addEventListener('click', e => {
     if (id === 'custom') {
       // Weak spots has no Custom-screen representation — normalize before entering.
       if (draft.what === 'weakSpots') {
+        draft.mode = 'standard';
         draft.what = 'byQuality';
         if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
         draft.where = draft.where || 'all12';
@@ -408,8 +409,27 @@ document.getElementById('btn-back-from-practice-setup').addEventListener('click'
 document.getElementById('practice-custom').addEventListener('click', e => {
   const draft = state.practice.setupDraft;
 
-  if (e.target.closest('[data-locked-quality], [data-locked-scope], [data-locked-root]')) {
+  if (e.target.closest('[data-locked-quality], [data-locked-scope], [data-locked-root], [data-locked-custom-mode]')) {
     UI.openUpgradePanel();
+    return;
+  }
+
+  const modeBtn = e.target.closest('[data-custom-mode]');
+  if (modeBtn) {
+    const val = modeBtn.dataset.customMode;
+    draft.mode = val;
+    if (val === 'standard') {
+      if (draft.what !== 'byQuality' && draft.what !== 'rootFamily') {
+        draft.what = 'byQuality';
+        draft.where = draft.where || 'group1';
+      }
+    } else if (val === 'slash') {
+      draft.what = 'slash';
+    } else if (val === 'cells') {
+      draft.what = 'cells';
+      draft.cells = draft.cells || [];
+    }
+    UI.renderPracticeCustom();
     return;
   }
 
@@ -418,18 +438,33 @@ document.getElementById('practice-custom').addEventListener('click', e => {
     const val = scopeBtn.dataset.scope;
     if (val === 'singleRoot') {
       draft.what = 'rootFamily';
-    } else if (val === 'slashFamily') {
-      draft.what = 'slashFamily';
-    } else if (val === 'slashChords') {
-      draft.what = 'slash';
-      draft.where = 'all12';
-    } else if (val === 'exactChords') {
-      draft.what = 'cells';
-      draft.cells = draft.cells || [];
     } else {
       draft.what = 'byQuality';
       draft.where = val;
     }
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const slashQualityBtn = e.target.closest('[data-slash-quality]');
+  if (slashQualityBtn) {
+    const val = slashQualityBtn.dataset.slashQuality;
+    draft.slashQualities = val === 'both' ? ['Major', 'Minor'] : [val];
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const slashInversionBtn = e.target.closest('[data-slash-inversion]');
+  if (slashInversionBtn) {
+    const val = slashInversionBtn.dataset.slashInversion;
+    draft.slashInversions = val === 'both' ? ['1st inversion', '2nd inversion'] : [val];
+    UI.renderPracticeCustom();
+    return;
+  }
+
+  const slashScopeBtn = e.target.closest('[data-slash-scope]');
+  if (slashScopeBtn) {
+    draft.slashWhere = slashScopeBtn.dataset.slashScope;
     UI.renderPracticeCustom();
     return;
   }
@@ -448,13 +483,14 @@ document.getElementById('practice-custom').addEventListener('click', e => {
 
   const cellBtn = e.target.closest('[data-cell]');
   if (cellBtn) {
-    const [rootPcStr, typeName] = cellBtn.dataset.cell.split('|');
+    const [rootPcStr, typeName, bassPcStr] = cellBtn.dataset.cell.split('|');
     const rootPc = parseInt(rootPcStr, 10);
-    const idx = draft.cells.findIndex(c => c.rootPc === rootPc && c.typeName === typeName);
+    const bassPc = bassPcStr != null ? parseInt(bassPcStr, 10) : null;
+    const idx = draft.cells.findIndex(c => c.rootPc === rootPc && c.typeName === typeName && (c.bassPc ?? null) === bassPc);
     if (idx >= 0) {
       draft.cells.splice(idx, 1);
     } else {
-      draft.cells.push({ rootPc, typeName });
+      draft.cells.push({ rootPc, typeName, bassPc });
     }
     draft.what = 'cells';
     UI.renderPracticeCustom();
@@ -464,9 +500,15 @@ document.getElementById('practice-custom').addEventListener('click', e => {
   const selectAllBtn = e.target.closest('#btn-cells-select-all');
   if (selectAllBtn) {
     draft.what = 'cells';
-    draft.cells = ChordEngine.CHORD_TYPES.flatMap(type =>
-      ChordEngine.ROOTS.map((_, rootPc) => ({ rootPc, typeName: type.name }))
+    const baseCells = ChordEngine.CHORD_TYPES.flatMap(type =>
+      ChordEngine.ROOTS.map((_, rootPc) => ({ rootPc, typeName: type.name, bassPc: null }))
     );
+    const slashCells = ['Major', 'Minor'].flatMap(typeName =>
+      ChordEngine.ROOTS.flatMap((_, rootPc) =>
+        ChordEngine.slashChordsFor(rootPc, typeName).map(({ bassPc }) => ({ rootPc, typeName, bassPc }))
+      )
+    );
+    draft.cells = [...baseCells, ...slashCells];
     UI.renderPracticeCustom();
     return;
   }

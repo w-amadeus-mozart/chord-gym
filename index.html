@@ -196,15 +196,6 @@
     <div class="preset-grid" id="preset-grid"></div>
   </div>
 
-  <div class="practice-setup-section" id="practice-cells-section" style="display:none">
-    <h4 class="practice-setup-label">Exact chords</h4>
-    <div class="practice-cells-actions">
-      <button class="practice-choice-btn" id="btn-cells-select-all" type="button">Select all</button>
-      <button class="practice-choice-btn" id="btn-cells-clear" type="button">Clear</button>
-    </div>
-    <div class="exact-cells-grid" id="exact-cells-grid"></div>
-  </div>
-
   <div class="practice-setup-section">
     <h4 class="practice-setup-label">In what order?</h4>
     <div class="practice-choice-grid" id="preset-order-grid"></div>
@@ -225,9 +216,20 @@
     <p class="song-select-sub">Full control — pick exactly what you want to drill.</p>
   </div>
 
+  <div class="practice-setup-section">
+    <h4 class="practice-setup-label">Mode</h4>
+    <div class="custom-mode-selector" id="custom-mode-selector"></div>
+  </div>
+
+  <!-- STANDARD mode ── quality checkboxes are also reused by Exact picks as a filter -->
   <div class="practice-setup-section" id="practice-quality-section">
     <h4 class="practice-setup-label">Quality</h4>
     <div class="quality-checkbox-grid" id="quality-checkbox-grid"></div>
+    <div class="quality-shortcuts">
+      <button class="quality-shortcut" type="button" data-quick-quality="Major">Major only</button>
+      <button class="quality-shortcut" type="button" data-quick-quality="Minor">Minor only</button>
+      <button class="quality-shortcut" type="button" data-quick-quality="all">All qualities</button>
+    </div>
   </div>
 
   <div class="practice-setup-section" id="practice-scope-section">
@@ -240,6 +242,33 @@
         Shuffle order
       </label>
     </div>
+  </div>
+
+  <!-- SLASH CHORDS mode -->
+  <div class="practice-setup-section" id="practice-slash-section" style="display:none">
+    <h4 class="practice-setup-label">Quality</h4>
+    <div class="practice-choice-grid" id="slash-quality-grid"></div>
+
+    <h4 class="practice-setup-label">Inversion</h4>
+    <div class="practice-choice-grid" id="slash-inversion-grid"></div>
+
+    <h4 class="practice-setup-label">Root scope</h4>
+    <div class="practice-choice-grid" id="slash-scope-grid"></div>
+    <div class="root-family-panel" id="slash-root-family-panel" style="display:none">
+      <div class="root-picker-grid" id="slash-root-picker-grid"></div>
+    </div>
+
+    <p class="slash-count-line" id="slash-count-line"></p>
+  </div>
+
+  <!-- EXACT PICKS mode -->
+  <div class="practice-setup-section" id="practice-cells-section" style="display:none">
+    <h4 class="practice-setup-label">Pick chords</h4>
+    <div class="practice-cells-actions">
+      <button class="practice-choice-btn" id="btn-cells-select-all" type="button">Select all</button>
+      <button class="practice-choice-btn" id="btn-cells-clear" type="button">Clear</button>
+    </div>
+    <div class="exact-cells-grid" id="exact-cells-grid"></div>
   </div>
 
   <div class="cells-panel" id="cells-panel" style="display:none">

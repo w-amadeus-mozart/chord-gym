@@ -76,15 +76,19 @@ export const state = {
     streakUnhinted: 0,
     sessionResults: [],    // { rootPc, typeName, typeSymbol, responseMs, clean, hinted }
     setupDraft: {
-      what: 'byQuality',           // 'byQuality' | 'rootFamily' | 'weakSpots' | 'cells'
+      mode: 'standard',             // Custom screen top-level tab: 'standard' | 'slash' | 'cells'
+      what: 'byQuality',            // resolved pool kind: 'byQuality' | 'rootFamily' | 'weakSpots' | 'cells' | 'slash'
       qualities: [],                // chord type names selected — populated at init from CHORD_TYPES
-      rootFamilyRoot: 0,            // pitch class 0-11
+      rootFamilyRoot: 0,            // pitch class 0-11 — shared by Standard's & Slash's "Single root family" scope
       rootFamilyShuffle: false,
-      where: 'group1',              // 'group1'..'group5' | 'sharp' | 'flat' | 'all12'
+      where: 'group1',              // 'group1'..'group5' | 'sharp' | 'flat' | 'all12' — Standard mode's root scope
       order: 'random',              // 'random' | 'chromatic' | 'fifths' | 'fourths'
-      cells: [],                    // exact chord selection for custom practice: [{ rootPc, typeName }]
+      cells: [],                    // exact chord selection: [{ rootPc, typeName, bassPc? }]
       cellsLabel: null,             // optional label to describe an explicit cell list
       presetId: null,               // preset card id ('major'|...|'weakSpots'|'custom') or null if never configured
+      slashQualities: ['Major', 'Minor'],   // subset of ['Major', 'Minor'] — Slash mode's quality toggle
+      slashInversions: ['1st inversion', '2nd inversion'], // subset — Slash mode's inversion toggle
+      slashWhere: 'all12',          // same value-space as `where`, plus 'singleRoot' — Slash mode's root scope
     },
   },
 };

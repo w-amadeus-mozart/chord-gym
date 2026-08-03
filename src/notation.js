@@ -36,9 +36,20 @@ export function formatRoot(pc, style, { compact = false } = {}) {
   return compact ? ROOTS_FLAT[pc] : ROOTS[pc]; // 'both'
 }
 
-// Convenience: full chord symbol (root + quality, optionally slash bass).
+// Slash-chord symbol — the slash is structurally reserved, so root and bass are ALWAYS
+// spelled in the same single style, never the dual "X#/Yb" form. 'both' mode has no
+// sane dual spelling for a slash bass (that's the "A#/Bb/B" bug), so it falls back to
+// flats — the more common convention in lead-sheet/worship chord charts.
+export function formatSlash(rootPc, typeSymbol, bassPc, style = _style) {
+  const effectiveStyle = style === 'both' ? 'flat' : style;
+  const root = formatRoot(rootPc, effectiveStyle);
+  const bass = formatRoot(bassPc, effectiveStyle);
+  return root + typeSymbol + '/' + bass;
+}
+
+// Convenience: full chord symbol (root + quality, optionally slash bass) — the one
+// call site every surface should use, so bassPc always gets slash-safe spelling.
 export function formatSymbol(rootPc, typeSymbol, style = _style, bassPc = null) {
-  const root = formatRoot(rootPc, style);
-  const bass = bassPc != null && bassPc !== rootPc ? '/' + formatRoot(bassPc, style) : '';
-  return root + typeSymbol + bass;
+  if (bassPc != null && bassPc !== rootPc) return formatSlash(rootPc, typeSymbol, bassPc, style);
+  return formatRoot(rootPc, style) + typeSymbol;
 }

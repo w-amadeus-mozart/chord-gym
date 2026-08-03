@@ -138,9 +138,11 @@ export function allCells() {
   });
 }
 
-// totalCells is supplied by the caller (this module doesn't know the chord registry size).
+// totalCells is supplied by the caller (this module doesn't know the chord registry size)
+// and describes the base root×quality grid only — slash cells (bassPc set) are excluded
+// here so "attempted" stays bounded by "total" even for a player who drills slash chords.
 export function coverage(totalCells) {
-  return { attempted: allCells().length, total: totalCells };
+  return { attempted: allCells().filter(c => c.bassPc == null).length, total: totalCells };
 }
 
 // Mean score over cells with enough attempts to be meaningful; null if none qualify yet.

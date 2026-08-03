@@ -11,8 +11,8 @@ import { UNLOCK_LADDER } from './unlockLadder.js';
 import { FALLING_LEVELS } from './fallingLevels.js';
 import { Achievements } from './achievements.js';
 import { Mastery } from './mastery.js';
-import { PRESETS, describeConfig } from './modes/practice.js';
-import { formatRoot, formatSymbol, getEnharmonicStyle } from './notation.js';
+import { PRESETS, describeConfig, ROOT_GROUPS } from './modes/practice.js';
+import { formatRoot, formatSymbol, formatSlash, getEnharmonicStyle } from './notation.js';
 import { IS_DEMO, DEMO_CHORDS, UPGRADE_URL } from './edition.js';
 
 // Locked-quality chips shown on the demo Sprint end screen — curated display labels,
@@ -69,6 +69,20 @@ const ORDER_OPTIONS = [
   ['chromatic', 'Chromatic'],
   ['fifths', 'Circle of fifths'],
   ['fourths', 'Circle of fourths'],
+];
+
+// Root-scope option set — shared by Standard's and Slash's root-scope selectors.
+// Root-related choices only; Slash/Exact picks are their own top-level Mode tabs now.
+const SCOPE_OPTIONS = [
+  ['group1', 'Group 1 · All white'],
+  ['group2', 'Group 2 · Middle black'],
+  ['group3', 'Group 3 · Outer black'],
+  ['group4', 'Group 4 · Oddballs'],
+  ['group5', 'Group 5 · On the blacks'],
+  ['sharp', 'Sharp keys'],
+  ['flat', 'Flat keys'],
+  ['all12', 'All 12 roots'],
+  ['singleRoot', 'Single root family'],
 ];
 
 // True only immediately after a fresh navigation into the Practice landing
@@ -669,59 +683,75 @@ export const UI = {
     }
   },
 
+  // Root-scope option set shared by Standard's and Slash's root-scope selectors —
+  // purely root-related choices; Slash/Exact picks live one level up as Mode tabs now.
   // Custom screen — full control, one level deeper than the preset landing screen.
+  // Top-level Mode tabs (Standard / Slash chords / Exact picks) gate which panel of
+  // controls renders; Order + Start stay shared at the bottom.
   renderPracticeCustom() {
     const draft = state.practice.setupDraft;
+    if (!draft.mode) draft.mode = 'standard';
     if (!draft.qualities.length) draft.qualities = ChordEngine.CHORD_TYPES.map(t => t.name);
-    const isCells = draft.what === 'cells';
+    if (!draft.slashQualities || !draft.slashQualities.length) draft.slashQualities = ['Major', 'Minor'];
+    if (!draft.slashInversions || !draft.slashInversions.length) draft.slashInversions = ['1st inversion', '2nd inversion'];
+    if (!draft.slashWhere) draft.slashWhere = 'all12';
+
+    const mode = draft.mode;
+    const isStandard = mode === 'standard';
+    const isSlash = mode === 'slash';
+    const isCells = mode === 'cells';
     const visibleQualityNames = draft.qualities.length
       ? draft.qualities
       : ChordEngine.CHORD_TYPES.map(t => t.name);
 
-    // Quality checkboxes — shared by byQuality/rootFamily and also used as a compact
-    // display filter while building an exact chord list.
-    document.getElementById('practice-quality-section').style.display = '';
-    document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t => {
-      if (IS_DEMO && t.name !== 'Major') {
-        return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
+    // Mode tabs
+    document.getElementById('custom-mode-selector').innerHTML = [
+      ['standard', 'Standard', 'Quality × root scope'],
+      ['slash', 'Slash chords', 'Inversions with a bass note'],
+      ['cells', 'Exact picks', 'Hand-pick specific chords'],
+    ].map(([val, title, desc]) => {
+      if (IS_DEMO && val !== 'standard') {
+        return `<button class="custom-mode-btn locked" data-locked-custom-mode="${val}">
+          <div class="custom-mode-btn-title">🔒 ${title}</div>
+          <div class="custom-mode-btn-desc">Full version</div>
+        </button>`;
       }
-      return `<label class="quality-checkbox">
-        <input type="checkbox" data-quality="${t.name}"${visibleQualityNames.includes(t.name) ? ' checked' : ''}>
-        ${t.name}
-      </label>`;
+      return `<button class="custom-mode-btn${mode === val ? ' selected' : ''}" data-custom-mode="${val}">
+        <div class="custom-mode-btn-title">${title}</div>
+        <div class="custom-mode-btn-desc">${desc}</div>
+      </button>`;
     }).join('');
 
-    // Root scope — shape groups / sharp / flat / all12 / single-root family / exact chords
-    document.getElementById('practice-scope-section').style.display = isCells ? 'none' : '';
-    if (!isCells) {
-      const SCOPE_OPTIONS = [
-        ['group1', 'Group 1 · All white'],
-        ['group2', 'Group 2 · Middle black'],
-        ['group3', 'Group 3 · Outer black'],
-        ['group4', 'Group 4 · Oddballs'],
-        ['group5', 'Group 5 · On the blacks'],
-        ['sharp', 'Sharp keys'],
-        ['flat', 'Flat keys'],
-        ['all12', 'All 12 roots'],
-        ['singleRoot', 'Single root family'],
-        ['slashChords', 'Slash chords'],
-        ['slashFamily', 'Single slash family'],
-        ['exactChords', 'Exact chords'],
-      ];
-      const isSingleRoot = draft.what === 'rootFamily' || draft.what === 'slashFamily';
+    // Quality checkboxes — Standard's quality picker, reused by Exact picks as a filter.
+    document.getElementById('practice-quality-section').style.display = (isStandard || isCells) ? '' : 'none';
+    if (isStandard || isCells) {
+      document.getElementById('quality-checkbox-grid').innerHTML = ChordEngine.CHORD_TYPES.map(t => {
+        if (IS_DEMO && t.name !== 'Major') {
+          return `<div class="quality-checkbox locked" data-locked-quality="${t.name}">🔒 ${t.name}</div>`;
+        }
+        return `<label class="quality-checkbox">
+          <input type="checkbox" data-quality="${t.name}"${visibleQualityNames.includes(t.name) ? ' checked' : ''}>
+          ${t.name}
+        </label>`;
+      }).join('');
+      document.querySelectorAll('[data-quick-quality]').forEach(btn => {
+        const quick = btn.dataset.quickQuality;
+        const active = quick === 'all'
+          ? visibleQualityNames.length === ChordEngine.CHORD_TYPES.length
+          : visibleQualityNames.length === 1 && visibleQualityNames[0] === quick;
+        btn.classList.toggle('selected', active);
+      });
+    }
+
+    // Standard root scope — shape groups / sharp / flat / all12 / single-root family
+    document.getElementById('practice-scope-section').style.display = isStandard ? '' : 'none';
+    if (isStandard) {
+      const isSingleRoot = draft.what === 'rootFamily';
       document.getElementById('practice-scope-grid').innerHTML = SCOPE_OPTIONS.map(([val, label]) => {
         if (IS_DEMO && !DEMO_UNLOCKED_SCOPES.has(val)) {
           return `<button class="practice-choice-btn locked" data-locked-scope="${val}">🔒 ${label}</button>`;
         }
-        const selected = val === 'singleRoot'
-          ? draft.what === 'rootFamily'
-          : val === 'slashFamily'
-            ? draft.what === 'slashFamily'
-            : val === 'slashChords'
-              ? draft.what === 'slash'
-              : val === 'exactChords'
-                ? draft.what === 'cells'
-                : (!isSingleRoot && draft.where === val);
+        const selected = val === 'singleRoot' ? isSingleRoot : (!isSingleRoot && draft.where === val);
         return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-scope="${val}">${label}</button>`;
       }).join('');
 
@@ -738,17 +768,62 @@ export const UI = {
       }
     }
 
-    // Exact-chord picker — a friendly explicit cell selector for custom practice.
+    // Slash chords panel — quality/inversion toggles + a reused root-scope selector.
+    document.getElementById('practice-slash-section').style.display = isSlash ? '' : 'none';
+    if (isSlash) {
+      const SLASH_QUALITY_OPTIONS = [['Major', 'Major'], ['Minor', 'Minor'], ['both', 'Both']];
+      document.getElementById('slash-quality-grid').innerHTML = SLASH_QUALITY_OPTIONS.map(([val, label]) => {
+        const selected = val === 'both' ? draft.slashQualities.length === 2 : (draft.slashQualities.length === 1 && draft.slashQualities[0] === val);
+        return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-slash-quality="${val}">${label}</button>`;
+      }).join('');
+
+      const SLASH_INVERSION_OPTIONS = [['1st inversion', '1st'], ['2nd inversion', '2nd'], ['both', 'Both']];
+      document.getElementById('slash-inversion-grid').innerHTML = SLASH_INVERSION_OPTIONS.map(([val, label]) => {
+        const selected = val === 'both' ? draft.slashInversions.length === 2 : (draft.slashInversions.length === 1 && draft.slashInversions[0] === val);
+        return `<button class="practice-choice-btn${selected ? ' selected' : ''}" data-slash-inversion="${val}">${label}</button>`;
+      }).join('');
+
+      const isSlashSingleRoot = draft.slashWhere === 'singleRoot';
+      document.getElementById('slash-scope-grid').innerHTML = SCOPE_OPTIONS.map(([val, label]) =>
+        `<button class="practice-choice-btn${draft.slashWhere === val ? ' selected' : ''}" data-slash-scope="${val}">${label}</button>`
+      ).join('');
+
+      document.getElementById('slash-root-family-panel').style.display = isSlashSingleRoot ? '' : 'none';
+      if (isSlashSingleRoot) {
+        document.getElementById('slash-root-picker-grid').innerHTML = ChordEngine.ROOTS.map((_, i) =>
+          `<button class="practice-choice-btn${draft.rootFamilyRoot === i ? ' selected' : ''}" data-root="${i}">${formatRoot(i, getEnharmonicStyle())}</button>`
+        ).join('');
+      }
+
+      const slashRoots = isSlashSingleRoot ? [draft.rootFamilyRoot] : (ROOT_GROUPS[draft.slashWhere] || ROOT_GROUPS.all12);
+      const count = slashRoots.length * draft.slashQualities.length * draft.slashInversions.length;
+      document.getElementById('slash-count-line').textContent = `${count} chord${count !== 1 ? 's' : ''}`;
+    }
+
+    // Exact-chord picker — explicit cell selector, extended so slash inversions are
+    // pickable too (a flat list appended below the base root×quality grid).
     document.getElementById('practice-cells-section').style.display = isCells ? '' : 'none';
     if (isCells) {
       const visibleTypes = ChordEngine.CHORD_TYPES.filter(t => visibleQualityNames.includes(t.name));
       const cellsGrid = document.getElementById('exact-cells-grid');
-      cellsGrid.innerHTML = ChordEngine.ROOTS.flatMap((root, rootPc) =>
+      const baseButtons = ChordEngine.ROOTS.flatMap((root, rootPc) =>
         visibleTypes.map(type => {
-          const isSelected = (draft.cells || []).some(cell => cell.rootPc === rootPc && cell.typeName === type.name);
+          const isSelected = (draft.cells || []).some(cell => cell.rootPc === rootPc && cell.typeName === type.name && cell.bassPc == null);
           return `<button class="exact-cell-btn${isSelected ? ' selected' : ''}" data-cell="${rootPc}|${type.name}">${root} ${type.name}</button>`;
         })
-      ).join('');
+      );
+      const slashTypes = visibleTypes.filter(t => t.name === 'Major' || t.name === 'Minor');
+      const slashButtons = slashTypes.length ? ChordEngine.ROOTS.flatMap((_, rootPc) =>
+        slashTypes.flatMap(type =>
+          ChordEngine.slashChordsFor(rootPc, type.name).map(({ bassPc }) => {
+            const isSelected = (draft.cells || []).some(cell => cell.rootPc === rootPc && cell.typeName === type.name && cell.bassPc === bassPc);
+            const label = formatSlash(rootPc, type.symbol, bassPc, getEnharmonicStyle());
+            return `<button class="exact-cell-btn exact-cell-slash${isSelected ? ' selected' : ''}" data-cell="${rootPc}|${type.name}|${bassPc}">${label}</button>`;
+          })
+        )
+      ) : [];
+      cellsGrid.innerHTML = baseButtons.join('') +
+        (slashButtons.length ? `<div class="exact-cells-divider">Slash inversions</div>${slashButtons.join('')}` : '');
     }
 
     // Cells panel — deep-linked from Progress (single cell or an explicit recommendation list)
@@ -757,7 +832,7 @@ export const UI = {
     if (isCells) {
       const chips = (draft.cells || [])
         .map(c => {
-          const chord = ChordEngine.chordForCell(c.rootPc, c.typeName);
+          const chord = ChordEngine.chordForCell(c.rootPc, c.typeName, c.bassPc);
           return chord ? _symbolOf(chord) : null;
         })
         .filter(Boolean);
@@ -769,8 +844,9 @@ export const UI = {
         chips.map(s => `<span class="cell-chip">${s}</span>`).join('');
     }
 
-    // Order — doesn't apply to single-root-family (fixed pedagogical order) or cells
-    const showOrder = !isCells && draft.what !== 'rootFamily';
+    // Order — shared, shown for Standard's byQuality scope and Slash; single-root-family
+    // (fixed pedagogical order) and Exact picks (arbitrary hand-picked list) skip it.
+    const showOrder = (isStandard && draft.what !== 'rootFamily') || isSlash;
     document.getElementById('practice-order-section').style.display = showOrder ? '' : 'none';
     if (showOrder) {
       document.getElementById('practice-order-grid').innerHTML = ORDER_OPTIONS.map(([val, label]) =>
@@ -778,16 +854,8 @@ export const UI = {
       ).join('');
     }
 
-    document.querySelectorAll('[data-quick-quality]').forEach(btn => {
-      const quick = btn.dataset.quickQuality;
-      const active = quick === 'all'
-        ? visibleQualityNames.length === ChordEngine.CHORD_TYPES.length
-        : visibleQualityNames.length === 1 && visibleQualityNames[0] === quick;
-      btn.classList.toggle('selected', active);
-    });
-
     const startBtn = document.getElementById('btn-start-practice-custom');
-    const noQualities = !isCells && draft.qualities.length === 0;
+    const noQualities = isStandard && draft.qualities.length === 0;
     const cellsBlocked = isCells && (!draft.cells || draft.cells.length === 0);
     startBtn.disabled = noQualities || cellsBlocked;
   },
@@ -814,7 +882,7 @@ export const UI = {
     if (summary.slowest.length) {
       wsEl.style.display = 'block';
       wsEl.innerHTML = 'Slowest this session: ' + summary.slowest
-        .map(s => `<span>${formatSymbol(s.rootPc, s.typeSymbol)}</span> (${(s.responseMs / 1000).toFixed(1)}s)`)
+        .map(s => `<span>${formatSymbol(s.rootPc, s.typeSymbol, undefined, s.bassPc)}</span> (${(s.responseMs / 1000).toFixed(1)}s)`)
         .join(', ');
     } else {
       wsEl.style.display = 'none';
@@ -825,7 +893,7 @@ export const UI = {
       deltaEl.style.display = 'block';
       deltaEl.innerHTML = '<h3>Mastery changes</h3>' + summary.deltas.map(d =>
         `<div class="mastery-delta-row${d.after >= d.before ? ' mastery-delta-up' : ' mastery-delta-down'}">
-          <span>${formatSymbol(d.rootPc, d.typeSymbol)}</span><span>${d.before} → ${d.after}</span>
+          <span>${formatSymbol(d.rootPc, d.typeSymbol, undefined, d.bassPc)}</span><span>${d.before} → ${d.after}</span>
         </div>`
       ).join('');
     } else {

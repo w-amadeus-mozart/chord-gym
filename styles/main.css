@@ -1035,6 +1035,17 @@ body {
   font-size: 13px; color: var(--text); cursor: pointer;
 }
 .quality-checkbox input { accent-color: var(--accent); cursor: pointer; }
+.quality-shortcuts {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+}
+.quality-shortcut {
+  padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: rgba(34,36,44,0.8); border: 1px solid var(--glass-border);
+  color: var(--text-dim); cursor: pointer;
+}
+.quality-shortcut.selected {
+  border-color: var(--accent); background: rgba(223,163,62,0.15); color: var(--accent);
+}
 
 .root-family-panel { display: flex; flex-direction: column; gap: 12px; }
 .root-picker-grid { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1053,6 +1064,37 @@ body {
   border-color: var(--accent); background: rgba(223,163,62,0.15); color: var(--accent);
 }
 .exact-cell-btn:hover:not(.selected) { border-color: rgba(223,163,62,0.35); color: var(--text); }
+.exact-cell-slash { font-style: italic; }
+.exact-cells-divider {
+  grid-column: 1 / -1; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--glass-border);
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px;
+}
+
+/* ── Custom Practice: top-level Mode tabs ── */
+.custom-mode-selector { display: flex; gap: 10px; width: 100%; }
+.custom-mode-btn {
+  flex: 1; min-width: 0; padding: 14px 14px; border-radius: 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  color: var(--text); cursor: pointer; text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, background 0.2s, opacity 0.2s;
+}
+.custom-mode-btn:hover:not(.selected):not(.locked) {
+  border-color: rgba(223,163,62,0.5);
+  box-shadow: 0 0 24px rgba(223,163,62,0.18), inset 0 1px 0 rgba(255,255,255,0.07);
+  transform: translateY(-2px);
+}
+.custom-mode-btn.selected {
+  border-color: var(--accent);
+  background: rgba(223,163,62,0.13);
+  box-shadow: 0 0 32px rgba(223,163,62,0.28), inset 0 1px 0 rgba(255,255,255,0.09);
+}
+.custom-mode-btn.locked { opacity: 0.5; cursor: pointer; }
+.custom-mode-btn-title { font-size: 14px; font-weight: 800; color: var(--accent); margin-bottom: 2px; }
+.custom-mode-btn-desc { font-size: 11px; color: var(--text-dim); }
+
+/* ── Custom Practice: Slash chords panel ── */
+.slash-count-line { font-size: 12px; font-weight: 700; color: var(--accent); margin: 0; }
 .shuffle-toggle-label {
   display: flex; align-items: center; gap: 6px;
   font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer;

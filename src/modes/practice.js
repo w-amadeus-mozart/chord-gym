@@ -67,18 +67,21 @@ const ORDER_LABELS = { random: 'Random', chromatic: 'Chromatic', fifths: 'Circle
 export function describeConfig(config) {
   if (config.what === 'weakSpots') return 'Weak spots';
   if (config.what === 'cells') {
-    return config.cellsLabel || `Custom · ${config.cells.length} chord${config.cells.length !== 1 ? 's' : ''}`;
+    return config.cellsLabel || `Exact picks · ${config.cells.length} chord${config.cells.length !== 1 ? 's' : ''}`;
   }
   if (config.what === 'rootFamily') {
     return `Root family · ${formatRoot(config.rootFamilyRoot, getEnharmonicStyle())}` +
       (config.rootFamilyShuffle ? ' · Shuffle' : '');
   }
-  if (config.what === 'slashFamily') {
-    return `Slash family · ${formatRoot(config.rootFamilyRoot, getEnharmonicStyle())}` +
-      (config.rootFamilyShuffle ? ' · Shuffle' : '');
-  }
   if (config.what === 'slash') {
-    return `Slash chords · ${ROOT_GROUPS[config.where]?.length || 12} roots`;
+    const roots = config.slashWhere === 'singleRoot'
+      ? [config.rootFamilyRoot]
+      : (ROOT_GROUPS[config.slashWhere] || ROOT_GROUPS.all12);
+    const qualities = config.slashQualities?.length ? config.slashQualities : ['Major', 'Minor'];
+    const qLabel = qualities.length === 2 ? 'Major+Minor' : qualities[0];
+    const inversions = config.slashInversions?.length ? config.slashInversions : ['1st inversion', '2nd inversion'];
+    const invSuffix = inversions.length === 1 ? ` · ${inversions[0].replace(' inversion', '')} only` : '';
+    return `Slash chords · ${qLabel}${invSuffix} · ${roots.length} root${roots.length !== 1 ? 's' : ''}`;
   }
   const orderLabel = ORDER_LABELS[config.order] || config.order;
   const preset = PRESETS.find(p => p.id === config.presetId);
@@ -88,7 +91,7 @@ export function describeConfig(config) {
     sharp: 'Sharp keys', flat: 'Flat keys', all12: 'All 12 roots',
   };
   const n = config.qualities.length;
-  return `Custom · ${n} ${n === 1 ? 'quality' : 'qualities'} · ${whereLabels[config.where] || config.where} · ${orderLabel}`;
+  return `Standard · ${n} ${n === 1 ? 'quality' : 'qualities'} · ${whereLabels[config.where] || config.where} · ${orderLabel}`;
 }
 
 // Match an explicit root-pc list back to one of the named "where" groups above,
@@ -109,6 +112,7 @@ function _whereNameForRoots(roots) {
 export function applyPrefillToDraft(prefill) {
   const draft = state.practice.setupDraft;
   if (prefill.pool === 'rootFamily') {
+    draft.mode = 'standard';
     draft.what = 'rootFamily';
     draft.rootFamilyRoot = prefill.roots[0];
     draft.rootFamilyShuffle = false;
@@ -116,10 +120,12 @@ export function applyPrefillToDraft(prefill) {
       ? prefill.qualities
       : ChordEngine.CHORD_TYPES.map(t => t.name);
   } else if (prefill.pool === 'cells') {
+    draft.mode = 'cells';
     draft.what = 'cells';
     draft.cells = prefill.cells || [];
     draft.cellsLabel = prefill.label || null;
   } else {
+    draft.mode = 'standard';
     draft.what = 'byQuality';
     draft.qualities = prefill.qualities && prefill.qualities.length
       ? prefill.qualities
@@ -198,7 +204,7 @@ function _pickNext(lastSymbol) {
   if (_config.what === 'weakSpots' || _config.what === 'cells') {
     return ChordEngine.pickChord(_pool, lastSymbol);
   }
-  if (_config.what === 'rootFamily' || _config.what === 'slashFamily') {
+  if (_config.what === 'rootFamily') {
     if (_config.rootFamilyShuffle) return ChordEngine.pickChord(_rootFamilyPool, lastSymbol);
     const chord = _rootFamilyPool[_rootFamilyIdx % _rootFamilyPool.length];
     _rootFamilyIdx++;
@@ -292,16 +298,23 @@ export const PracticeMode = {
         .map(name => built.find(c => c.type.name === name))
         .filter(Boolean);
       _pool = _rootFamilyPool;
-    } else if (_config.what === 'slashFamily') {
-      _rootFamilyPool = ChordEngine.buildSlashPool([_config.rootFamilyRoot], _config.qualities);
-      _pool = _rootFamilyPool;
     } else if (_config.what === 'slash') {
-      let roots = ROOT_GROUPS[_config.where] || ROOT_GROUPS.all12;
+      let roots = _config.slashWhere === 'singleRoot'
+        ? [_config.rootFamilyRoot]
+        : (ROOT_GROUPS[_config.slashWhere] || ROOT_GROUPS.all12);
       if (IS_DEMO) {
         const demoRoots = roots.filter(pc => DEMO_CHORDS.includes(pc));
         roots = demoRoots.length ? demoRoots : DEMO_CHORDS;
       }
-      _pool = ChordEngine.buildSlashPool(roots, _config.qualities);
+      const slashQualities = _config.slashQualities?.length ? _config.slashQualities : ['Major', 'Minor'];
+      const slashInversions = _config.slashInversions?.length ? _config.slashInversions : ['1st inversion', '2nd inversion'];
+      _pool = ChordEngine.buildSlashPool(roots, slashQualities, slashInversions);
+      if (_config.order === 'fifths' || _config.order === 'fourths') {
+        const fullCircle = _config.order === 'fifths' ? CIRCLE_FIFTHS : CIRCLE_FOURTHS;
+        _circle = fullCircle.filter(pc => roots.includes(pc));
+      } else if (_config.order === 'chromatic') {
+        _chromaticSequence = ChordEngine.buildSlashPool([...roots].sort((a, b) => a - b), slashQualities, slashInversions);
+      }
     } else {
       let roots = ROOT_GROUPS[_config.where] || ROOT_GROUPS.all12;
       if (IS_DEMO) {
@@ -379,7 +392,10 @@ export const PracticeMode = {
 
     UI.renderPracticeNoteIndicators(held, _currentChord, _hintLevel);
 
-    if (ChordEngine.isMatch(heldPCs, target)) _onMatch();
+    const matchOpts = _currentChord.bassPc != null
+      ? { bassPc: _currentChord.bassPc, lowestPc: ChordEngine.lowestPitchClass(held) }
+      : undefined;
+    if (ChordEngine.isMatch(heldPCs, target, matchOpts)) _onMatch();
   },
 
   useHint() {
