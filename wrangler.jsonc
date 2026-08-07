@@ -1,5 +1,5 @@
 {
-  "name": "chord-gym-demo",
+  "name": "chord-gym",
   "compatibility_date": "2026-07-06",
   "assets": {
     "directory": "./dist-demo"
