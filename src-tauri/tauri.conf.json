@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ChordGym",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "identifier": "app.chordgym.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -19,7 +19,7 @@
         "minHeight": 700,
         "resizable": true,
         "fullscreen": false,
-        "backgroundColor": "#0D0F14"
+        "backgroundColor": "#101827"
       }
     ],
     "security": {
