@@ -43,6 +43,7 @@ export const PRACTICE_QUALITY_ORDER = [
 // key-scope narrowing is a Custom concern. "My weak spots" isn't listed here
 // since it needs qualifying-data gating, handled separately by the UI layer.
 export const PRESETS = [
+  { id: 'triads',       label: 'Triads',        qualities: ['Major', 'Minor', 'Diminished', 'Augmented'] },
   { id: 'major',        label: 'Major',         qualities: ['Major'] },
   { id: 'minor',        label: 'Minor',         qualities: ['Minor'] },
   { id: 'diminished',   label: 'Diminished',    qualities: ['Diminished'] },
@@ -119,6 +120,7 @@ function _whereNameForRoots(roots) {
 // are inherently custom configurations, so they always land on Custom, prefilled.
 export function applyPrefillToDraft(prefill) {
   const draft = state.practice.setupDraft;
+  delete draft.songChart;
   if (prefill.pool === 'rootFamily') {
     draft.mode = 'standard';
     draft.what = 'rootFamily';
@@ -187,6 +189,9 @@ let _autoHintEnabled    = false;
 let _autoHintTimer      = null;
 let _beforeScores       = new Map(); // "rootPc|typeName" -> score snapshot at session start
 let _touchedCells       = new Set();
+let _upcoming = [];
+let _sequenceIdx = 0;
+let _step = 0;
 
 function _clearAutoHintTimer() {
   if (_autoHintTimer) { clearTimeout(_autoHintTimer); _autoHintTimer = null; }
@@ -201,14 +206,15 @@ function _revealHint(level) {
 
 function _armAutoHint() {
   _clearAutoHintTimer();
-  if (!_autoHintEnabled) return;
+  if (!_autoHintEnabled || state.manualPaused || state.confirmingExit || document.hidden) return;
   _autoHintTimer = setTimeout(() => {
-    if (_hintLevel < 1) _revealHint(1);
+    if (_hintLevel < 1 && !state.manualPaused && !state.confirmingExit && !document.hidden) _revealHint(1);
   }, AUTO_HINT_DELAY_MS);
 }
 
 // Advance to the next chord per the resolved order strategy.
 function _pickNext(lastSymbol) {
+  if (_config.order === 'sequence') return _pool[_sequenceIdx++ % _pool.length];
   if (_config.what === 'weakSpots' || _config.what === 'cells') {
     return ChordEngine.pickChord(_pool, lastSymbol);
   }
@@ -237,8 +243,15 @@ function _showNextChord() {
   document.getElementById('root-position-hint').style.display = _currentChord.type.requiresRootPosition ? '' : 'none';
   document.getElementById('hint-notice').style.display = 'none';
   UI.renderPracticeHUD();
+  UI.renderPracticeSequence(_upcoming, _config, _step);
   _armAutoHint();
 }
+
+document.addEventListener('pianorangechange', () => {
+  if (state.activeMode === 'practice' && _currentChord && !_waitingForRelease) {
+    UI.renderPracticeNoteIndicators(MidiInput.getHeld(), _currentChord, _hintLevel);
+  }
+});
 
 function _onMatch() {
   _clearAutoHintTimer();
@@ -265,8 +278,9 @@ function _onMatch() {
   UI.flashMatch();
   GameAudio.playSuccessChime(_currentChord.pitchClasses);
 
-  const prevSymbol = _currentChord.symbol;
-  _currentChord = _pickNext(prevSymbol);
+  _currentChord = _upcoming.shift();
+  _upcoming.push(_pickNext(_upcoming.at(-1)?.symbol || _currentChord.symbol));
+  _step++;
   _attemptStart = performance.now();
   _waitingForRelease = true;
   _attemptDirty = false;
@@ -278,6 +292,11 @@ function _onMatch() {
 export const PracticeMode = {
   start(config) {
     _clearAutoHintTimer();
+    state.manualPaused = false;
+    state.pausedAt = 0;
+    _upcoming = [];
+    _sequenceIdx = 0;
+    _step = 0;
     state.mode = 'practice';
     state.activeMode = 'practice';
     state.screen = 'game';
@@ -340,6 +359,12 @@ export const PracticeMode = {
       }
     }
 
+    if (!_pool.length) {
+      state.activeMode = 'none';
+      state.screen = 'home';
+      showScreen('home');
+      return;
+    }
     _beforeScores = new Map();
     for (const c of _pool) {
       const key = c.rootPc + '|' + c.type.name + (c.bassPc != null ? '|' + c.bassPc : '');
@@ -358,6 +383,7 @@ export const PracticeMode = {
     try { _autoHintEnabled = document.getElementById('auto-hint-toggle').checked; } catch (_) { _autoHintEnabled = false; }
 
     _currentChord = _pickNext(null);
+    for (let i = 0; i < 3; i++) _upcoming.push(_pickNext(_upcoming.at(-1)?.symbol || _currentChord.symbol));
     _attemptStart = performance.now();
 
     // Reset residual visuals from a prior Sprint/Survival run
@@ -405,7 +431,7 @@ export const PracticeMode = {
   },
 
   useHint() {
-    if (state.screen !== 'game' || state.activeMode !== 'practice') return;
+    if (state.screen !== 'game' || state.activeMode !== 'practice' || state.manualPaused || state.confirmingExit) return;
     if (_hintLevel >= 2) return;
     _revealHint(_hintLevel + 1);
     _clearAutoHintTimer();
@@ -421,8 +447,15 @@ export const PracticeMode = {
   handleVisibilityShift(deltaMs) {
     if (state.screen !== 'game' || state.activeMode !== 'practice') return;
     if (!_waitingForRelease) _attemptStart += deltaMs;
-    if (_autoHintTimer) _armAutoHint(); // restart the 5s window fresh rather than tracking precise remaining time
+    if (_waitingForRelease && MidiInput.allReleased()) {
+      _waitingForRelease = false;
+      _attemptDirty = false;
+      UI.renderPracticeNoteIndicators(new Set(), _currentChord, _hintLevel);
+    }
+    _armAutoHint();
   },
+
+  pause() { _clearAutoHintTimer(); },
 
   end() {
     PracticeMode.teardown();
@@ -452,7 +485,7 @@ export const PracticeMode = {
       reps, accuracy, avgResponseMs, bestStreak, slowest, deltas,
       sessionResults: results,
       configLabel: describeConfig(_config),
-      origin: _config.origin,
+      origin: _config.songChart ? 'songs' : _config.origin,
     });
     showScreen('results');
   },

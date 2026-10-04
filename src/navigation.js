@@ -66,6 +66,8 @@ function _commit(screenId) {
     state.resultsOwner = 'none';
   }
   state.screen = screenId;
+  state.manualPaused = false;
+  state.pausedAt = 0;
   showScreen(screenId);
 }
 
@@ -76,13 +78,14 @@ function _commit(screenId) {
 // (main.js) and each mode's own tick/render guards go inert while it's up. Practice has
 // no clock to protect — input-ignoring alone is enough for it.
 
-function _pauseClock() {
+export function pauseClock() {
   if (state.pausedAt) return; // a tab-hide pause is already in effect — don't overwrite its start time
   state.pausedAt = Date.now();
   if (state.activeMode === 'falling') GameAudio.suspendAudio();
+  if (state.activeMode === 'practice') PracticeMode.pause();
 }
 
-function _resumeClock() {
+export function resumeClock() {
   if (!state.pausedAt) return;
   const delta = Date.now() - state.pausedAt;
   state.timerStart += delta;
@@ -91,13 +94,15 @@ function _resumeClock() {
     state.survival.windowDeadline += delta;
   } else if (state.activeMode === 'falling') {
     GameAudio.resumeAudio();
+  } else if (state.activeMode === 'practice') {
+    PracticeMode.handleVisibilityShift(delta);
   }
   state.pausedAt = 0;
 }
 
 function _openExitConfirm() {
   state.confirmingExit = true;
-  _pauseClock();
+  pauseClock();
   document.getElementById('exit-confirm-context').textContent = EXIT_CONTEXT[state.activeMode] || '';
   document.getElementById('exit-confirm-overlay').style.display = '';
   document.getElementById('btn-keep-playing').focus();
@@ -106,8 +111,8 @@ function _openExitConfirm() {
 function _closeExitConfirm(keepPlaying) {
   state.confirmingExit = false;
   document.getElementById('exit-confirm-overlay').style.display = 'none';
-  if (keepPlaying) _resumeClock();
-  else state.pausedAt = 0; // ending anyway — the mode's teardown() owns cleanup from here
+  if (keepPlaying && !state.manualPaused) resumeClock();
+  else if (!keepPlaying) state.pausedAt = 0;
   _pendingTarget = null;
 }
 

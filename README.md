@@ -4,9 +4,11 @@
 
 Train your chords. Practice, test, and track your piano chord mastery with your MIDI keyboard.
 
-A browser-based MIDI chord trainer. A chord symbol appears on screen — play those notes on your MIDI keyboard before the clock runs out (or, in Practice, at your own pace). Supports 11 chord types across 6 difficulty levels, with streak multipliers, speed bonuses, a mastery-tracking Progress dashboard, and a per-round stats breakdown. The **Sprint** game mode keeps its name — it's one mode among several (Sprint, Survival, Falling Chords) inside ChordGym. Originally built as a single HTML file; this repo is the Vite-structured version.
+A piano chord trainer with 36 chord types, a touch piano, computer-key input and MIDI support. Practice at your own pace, exercise specific chords, or take on Sprint, Survival and Falling Chords challenges. Originally built as a single HTML file; this repo is the Vite-structured version.
 
-ChordGym is three pillars: **Practice** (untimed drills with hints), **Test** (Sprint / Survival / Falling Chords), and **Progress** (a mastery heatmap with recommendations).
+The navy and mint interface has three main destinations: **Workout** (resume, quick workouts, custom drills and challenges), **Songs** (your chord charts), and **Progress** (mastery and recommendations). Sessions put the current chord, optional hints, upcoming changes and piano first, with a focus view and pause control.
+
+Songs supports small **4/4** charts: paste `Dm7 - - - | G7 - - - | Cmaj7 - Am7 -`, then select a beat to edit its chord. Empty beats hold the preceding chord; two chords without hold markers land on beats 1 and 3. Timing preview clicks every beat and accents chord changes. Practice waits for each chord, advances in chart order and loops. Charts save locally on the current device; timed song performance, other meters and iReal file import are future work.
 
 ![screenshot placeholder](docs/screenshot.png)
 
@@ -22,7 +24,7 @@ Guided lessons are planned as a separate companion app.
 
 - **Browser:** Chrome or Edge (Web MIDI API). Firefox does not support Web MIDI.
 - **MIDI keyboard:** plug in before clicking "Connect MIDI." Hot-plugging works.
-- **No keyboard?** Use the on-screen 2-octave piano or the computer-key mapping (A–K = white keys, W/E/T/Y/U = black keys).
+- **No keyboard?** Use the touch piano or computer-key mapping (A–K = white keys, W/E/T/Y/U = black keys). The default view spans four octaves on desktop/tablet and two on phones; shift octaves without changing MIDI recognition. Optional larger spans remain in Settings.
 - Web MIDI requires **HTTPS or localhost** — it will not work over plain `http://`.
 
 ---

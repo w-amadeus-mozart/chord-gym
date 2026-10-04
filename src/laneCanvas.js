@@ -121,7 +121,7 @@ export const LaneCanvas = {
 
     // ── Background ──────────────────────────────────────────────────────────
     _ctx.clearRect(0, 0, w, h);
-    _ctx.fillStyle = '#1a1c22';
+    _ctx.fillStyle = '#152034';
     _ctx.fillRect(0, 0, w, h);
 
     // Subtle moving beat-grid lines
@@ -140,7 +140,7 @@ export const LaneCanvas = {
     _ctx.lineWidth = 1;
     for (const pc of [0, 4, 8]) {
       const x = (pc + 0.5) * colW;
-      _ctx.strokeStyle = 'rgba(223,163,62,0.10)';
+      _ctx.strokeStyle = 'rgba(120,222,196,0.10)';
       _ctx.beginPath();
       _ctx.moveTo(x, 0);
       _ctx.lineTo(x, h);
@@ -217,7 +217,7 @@ export const LaneCanvas = {
         _ctx.strokeStyle = color;
         _ctx.lineWidth   = msUntilTarget < 400 && !_reducedMotion ? 2.5 : 2;
         _ctx.stroke();
-        _ctx.fillStyle   = '#F2EFE8';
+        _ctx.fillStyle   = '#edf3fc';
       }
 
       const label = formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle(), tile.bassPc);
@@ -239,12 +239,12 @@ export const LaneCanvas = {
     }
     const grad = _ctx.createLinearGradient(0, 0, w, 0);
     grad.addColorStop(0,    'transparent');
-    grad.addColorStop(0.08, '#DFA33E');
-    grad.addColorStop(0.92, '#DFA33E');
+    grad.addColorStop(0.08, '#78dec4');
+    grad.addColorStop(0.92, '#78dec4');
     grad.addColorStop(1,    'transparent');
     _ctx.strokeStyle = grad;
     _ctx.lineWidth   = 3;
-    _ctx.shadowColor = '#DFA33E';
+    _ctx.shadowColor = '#78dec4';
     _ctx.shadowBlur  = hitLineShadow;
     _ctx.beginPath();
     _ctx.moveTo(0, hitZoneY);
@@ -265,11 +265,11 @@ export const LaneCanvas = {
         _ctx.globalAlpha  = alpha;
         _ctx.translate(w / 2, hitZoneY - 36);
         _ctx.scale(scale, scale);
-        _ctx.fillStyle    = '#DFA33E';
+        _ctx.fillStyle    = '#78dec4';
         _ctx.font         = 'bold 56px "Segoe UI", system-ui, sans-serif';
         _ctx.textAlign    = 'center';
         _ctx.textBaseline = 'middle';
-        _ctx.shadowColor  = '#DFA33E';
+        _ctx.shadowColor  = '#78dec4';
         _ctx.shadowBlur   = 22;
         _ctx.fillText(String(num), 0, 0);
         _ctx.restore();
@@ -320,9 +320,9 @@ export const LaneCanvas = {
       const alpha = (1 - t) * 0.7;
       _ctx.save();
       _ctx.globalAlpha = alpha;
-      _ctx.strokeStyle = '#DFA33E';
+      _ctx.strokeStyle = '#78dec4';
       _ctx.lineWidth   = 2.5;
-      _ctx.shadowColor = '#DFA33E';
+      _ctx.shadowColor = '#78dec4';
       _ctx.shadowBlur  = 10;
       _ctx.beginPath();
       _ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
@@ -334,7 +334,7 @@ export const LaneCanvas = {
     if (_failedPct !== null) {
       _ctx.save();
       _ctx.globalAlpha = 0.55;
-      _ctx.fillStyle   = '#111318';
+      _ctx.fillStyle   = '#101827';
       _ctx.fillRect(0, 0, w, h);
       _ctx.globalAlpha = 1;
       _ctx.fillStyle   = '#f87171';
@@ -423,7 +423,7 @@ function _drawHoldHead(tile, tileLeft, tileW, centerY, color) {
   _ctx.shadowColor = color;
   _ctx.shadowBlur  = tile.holdBroken ? 0 : 14;
   _ctx.stroke();
-  _ctx.fillStyle   = '#F2EFE8';
+  _ctx.fillStyle   = '#edf3fc';
   const holdLabel = formatSymbol(tile.rootPc, tile.typeSymbol, getEnharmonicStyle());
   _ctx.font        = _tileFont(holdLabel);
   _ctx.textAlign   = 'center';

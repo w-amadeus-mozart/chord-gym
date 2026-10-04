@@ -2,14 +2,16 @@
 // Nothing stateful lives here; this file only connects things.
 
 import '../styles/main.css';
+import '../styles/workout.css';
 
 import { state } from './state.js';
 import { ChordEngine } from './chords.js';
 import { MidiInput } from './midi.js';
 import { GameAudio } from './audio.js';
 import { UI } from './ui.js';
-import { navigateTo } from './navigation.js';
-import { buildPiano, KEY_MAP, setKeyboardSize, setIdleLabelMode, getIdleLabelMode, refreshKeyLabels } from './piano.js';
+import { navigateTo, pauseClock, resumeClock } from './navigation.js';
+import { Songs } from './songs.js';
+import { buildPiano, KEY_MAP, setKeyboardSize, shiftOctave, setIdleLabelMode, getIdleLabelMode, refreshKeyLabels } from './piano.js';
 import { setEnharmonicStyle } from './notation.js';
 import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode } from './modes/survival.js';
@@ -93,7 +95,8 @@ function updateMidiStatus() {
   dot.className = connected ? 'status-dot connected' : 'status-dot';
   name.textContent = connected
     ? devices.join(', ')
-    : 'No MIDI device — use on-screen keyboard or A–K / W E T Y U keys';
+    : 'Touch piano ready';
+  name.title = connected ? devices.join(', ') : 'Connect a MIDI keyboard, use the touch piano, or play with A–K and W E T Y U.';
   connectBtn.classList.toggle('connected', connected);
   if (connected) connectBtn.textContent = 'Connected';
 }
@@ -131,7 +134,7 @@ MidiInput.on((type) => {
       DEATH_MODES[state.activeMode]?.skipDeath();
       return;
     }
-    if (state.screen === 'game' && !state.confirmingExit) {
+    if (state.screen === 'game' && !state.confirmingExit && !state.manualPaused && !document.hidden) {
       // Keyed off activeMode (which mode's loop is actually running), not `mode` (which
       // stays around for menu-selection/results-screen purposes after a mode ends) — so an
       // idle screen can never get mis-dispatched to a stale mode's onNotesChanged. Gated on
@@ -181,6 +184,8 @@ function _wireKbSizeControl(id) {
 }
 _wireKbSizeControl('kb-size-control');
 _wireKbSizeControl('settings-kb-size-control');
+document.getElementById('kb-octave-down').addEventListener('click', () => shiftOctave(-1));
+document.getElementById('kb-octave-up').addEventListener('click', () => shiftOctave(1));
 
 // ── Note names toggle — Settings checkbox + the in-session "ABC" button share
 // this one setting; piano.js's _syncChrome() keeps both controls' visual state
@@ -225,22 +230,30 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 });
 
 // ── Computer keyboard → piano ────────────────────────────
-const pressedKeys = new Set();
+const pressedKeys = new Map();
 document.addEventListener('keydown', e => {
   if (e.repeat) return;
+  if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if (state.screen !== 'game' && state.screen !== 'dying') return;
+  if (state.manualPaused || state.confirmingExit) return;
   if (state.screen === 'dying') { DEATH_MODES[state.activeMode]?.skipDeath(); return; }
   const key = e.key.toLowerCase();
   if (KEY_MAP[key] !== undefined && !pressedKeys.has(key)) {
-    pressedKeys.add(key);
+    pressedKeys.set(key, KEY_MAP[key]);
     MidiInput.injectNoteOn(KEY_MAP[key]);
   }
 });
 document.addEventListener('keyup', e => {
   const key = e.key.toLowerCase();
-  if (KEY_MAP[key] !== undefined) {
+  if (pressedKeys.has(key)) {
+    const note = pressedKeys.get(key);
     pressedKeys.delete(key);
-    MidiInput.injectNoteOff(KEY_MAP[key]);
+    MidiInput.injectNoteOff(note);
   }
+});
+window.addEventListener('blur', () => {
+  for (const note of pressedKeys.values()) MidiInput.injectNoteOff(note);
+  pressedKeys.clear();
 });
 
 // ── Click anywhere during dying state skips to results ───
@@ -250,22 +263,11 @@ document.addEventListener('click', () => {
 
 // ── Page visibility — pause timer and response/window clock ─────
 document.addEventListener('visibilitychange', () => {
-  if (state.screen !== 'game' || state.confirmingExit) return; // exit-confirm dialog owns pause/resume while it's open
+  if (state.screen !== 'game' || state.confirmingExit || state.manualPaused) return;
   if (document.hidden) {
-    state.pausedAt = Date.now();
+    pauseClock();
   } else {
-    if (state.pausedAt) {
-      const delta = Date.now() - state.pausedAt;
-      state.timerStart += delta;
-      state.attemptStart += delta; // don't penalise response time for hidden time
-      if (state.activeMode === 'survival') {
-        // Shift windowDeadline forward by the same hidden duration
-        state.survival.windowDeadline += delta;
-      } else if (state.activeMode === 'practice') {
-        PracticeMode.handleVisibilityShift(delta);
-      }
-      state.pausedAt = 0;
-    }
+    resumeClock();
   }
 });
 
@@ -309,6 +311,7 @@ function _computeFocus() {
 }
 
 function renderHome() {
+  loadLastSessionIntoDraft();
   const focus = _computeFocus();
   _homeFocusStart = focus.start;
   UI.renderHome(focus);
@@ -320,11 +323,45 @@ function goHome() {
 }
 
 document.getElementById('home-focus-cta').addEventListener('click', () => _homeFocusStart && _homeFocusStart());
+document.getElementById('btn-resume-workout').addEventListener('click', () => {
+  if (!loadLastSessionIntoDraft()) {
+    Object.assign(state.practice.setupDraft, { what: 'byQuality', qualities: ['Major'], where: 'all12', order: 'random', presetId: 'major' });
+  }
+  if (IS_DEMO && state.practice.setupDraft.songChart) { UI.openUpgradePanel('Song practice is available in the full app.'); return; }
+  PracticeMode.start(state.practice.setupDraft);
+});
+document.getElementById('home-custom-workout').addEventListener('click', () => {
+  resetSongDraft();
+  navigateTo('practice-custom');
+  UI.renderPracticeCustom();
+});
+document.querySelectorAll('[data-home-preset]').forEach(button => button.addEventListener('click', () => {
+  const id = button.dataset.homePreset;
+  if (IS_DEMO && id !== 'major') { UI.openUpgradePanel(); return; }
+  const draft = state.practice.setupDraft;
+  if (id === 'slash') {
+    Object.assign(draft, { mode: 'slash', what: 'slash', slashQualities: ['Major', 'Minor'], slashInversions: ['1st inversion', '2nd inversion'], slashWhere: 'all12', order: 'random', presetId: 'slash' });
+  } else {
+    const preset = PRESETS.find(p => p.id === (id === 'major' && !IS_DEMO ? 'triads' : id));
+    Object.assign(draft, { mode: 'standard', what: 'byQuality', qualities: [...preset.qualities], where: 'all12', order: 'random', presetId: preset.id });
+  }
+  delete draft.songChart;
+  draft.origin = null;
+  PracticeMode.start(draft);
+}));
 
 function openPracticeSetup() {
+  resetSongDraft();
   state.practice.setupDraft.origin = null; // manual entry, not a Progress deep link
   navigateTo('practice-setup');
   UI.renderPracticeSetup(true);
+}
+
+function resetSongDraft() {
+  const draft = state.practice.setupDraft;
+  if (!draft.songChart) return;
+  delete draft.songChart;
+  Object.assign(draft, { what: 'byQuality', mode: 'standard', qualities: ['Major'], order: 'random', where: 'all12', presetId: 'major', cells: [], cellsLabel: null });
 }
 
 function openTest() {
@@ -352,7 +389,7 @@ document.getElementById('btn-back-from-progress').addEventListener('click', goHo
 document.getElementById('sidebar-nav').addEventListener('click', e => {
   const btn = e.target.closest('[data-nav]');
   if (!btn) return;
-  const dest = { home: goHome, practice: openPracticeSetup, test: openTest, progress: openProgress, settings: openSettings };
+  const dest = { home: goHome, songs: () => { navigateTo('songs'); Songs.render(); }, progress: openProgress };
   (dest[btn.dataset.nav] || goHome)();
 });
 
@@ -589,6 +626,22 @@ document.getElementById('btn-back-from-practice-custom').addEventListener('click
 document.getElementById('btn-hint').addEventListener('click', () => PracticeMode.useHint());
 document.getElementById('auto-hint-toggle').addEventListener('change', e => PracticeMode.setAutoHint(e.target.checked));
 document.getElementById('btn-end-practice').addEventListener('click', () => PracticeMode.end());
+document.getElementById('btn-session-end').addEventListener('click', () => {
+  if (state.activeMode === 'practice') PracticeMode.end();
+  else goHome();
+});
+document.getElementById('btn-pause-session').addEventListener('click', () => {
+  if (state.confirmingExit || state.activeMode === 'none') return;
+  state.manualPaused = !state.manualPaused;
+  if (state.manualPaused) pauseClock();
+  else resumeClock();
+  UI.renderPause();
+});
+document.getElementById('btn-focus').addEventListener('click', () => {
+  const enabled = document.body.classList.toggle('focus-mode');
+  document.getElementById('btn-focus').setAttribute('aria-pressed', String(enabled));
+  document.getElementById('btn-focus').textContent = enabled ? 'Exit focus' : 'Focus view';
+});
 
 // ── Level-select setup (backing toggle, calibration) ──────
 function openLevelSelect() {
@@ -645,7 +698,8 @@ document.getElementById('btn-change-level').addEventListener('click', () => {
   if (state.mode === 'falling') {
     openLevelSelect();
   } else if (state.mode === 'practice') {
-    openPracticeSetup();
+    if (state.practice.config?.songChart) { navigateTo('songs'); Songs.render(); }
+    else openPracticeSetup();
   } else {
     navigateTo('menu');
     UI.renderMenu();
@@ -770,6 +824,7 @@ document.getElementById('btn-fullclear-dismiss').addEventListener('click', () =>
 
 // ── Init ─────────────────────────────────────────────────
 buildPiano();
+Songs.init();
 Progress.init();
 loadLastSessionIntoDraft();
 if (!state.practice.setupDraft.qualities.length) {

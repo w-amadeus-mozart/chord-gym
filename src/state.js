@@ -4,8 +4,9 @@
 export const SPRINT_DURATION = 60; // seconds — change here for 30/90/120s variants
 
 export const state = {
-  screen: 'home',          // 'home' | 'menu' | 'practice-setup' | 'practice-custom' | 'level-select' | 'game' | 'results' | 'dying'
+  screen: 'home',          // home, songs, setups, challenges, game, results, progress, settings
   calibrating: false,     // true while timing calibration is running
+  manualPaused: false,    // explicit session pause, independent of tab visibility
   difficulty: 0,          // 0–5
   mode: 'sprint',         // 'sprint' | 'survival' | 'falling' | 'practice' — menu selection / results-screen context; NOT cleared on teardown
   activeMode: 'none',     // 'none' | 'sprint' | 'survival' | 'falling' | 'practice' — which mode's game loop is actually

@@ -75,7 +75,7 @@ async function main() {
     await page.click('#btn-connect-midi');
     await page.waitForSelector('.piano-wrap.sized', { state: 'attached', timeout: 5000 });
 
-    await page.click('.sidebar-nav-item[data-nav="test"]');
+    await page.click('#pillar-test');
     await page.click('[data-mode="sprint"]');
     await page.click('#btn-start');
     await page.waitForTimeout(200);

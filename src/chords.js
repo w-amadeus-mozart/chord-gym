@@ -259,24 +259,25 @@ export function lowestPitchClass(noteSet) {
 // octave. Used by Practice hint level 2 to highlight one specific voicing instead of every
 // instance of the target pitch classes.
 export function voiceNearMiddleC(rootPc, intervals, rangeStart = 48, rangeEnd = 71, bassPc = null) {
-  const maxIv = Math.max(...intervals);
-  const candidate = 60 + rootPc;      // 60..71
-  const alt = candidate - 12;         // 48..59
-  const candidateFits = candidate >= rangeStart && candidate + maxIv <= rangeEnd;
-  const altFits       = alt >= rangeStart && alt + maxIv <= rangeEnd;
-  let rootMidi;
-  if (candidateFits && altFits) {
-    rootMidi = (60 - alt) <= (candidate - 60) ? alt : candidate;
-  } else if (altFits) {
-    rootMidi = alt;
-  } else if (candidateFits) {
-    rootMidi = candidate;
-  } else {
-    rootMidi = (60 - alt) <= (candidate - 60) ? alt : candidate;
+  const candidates = [];
+  for (let rootMidi = rootPc; rootMidi <= rangeEnd; rootMidi += 12) {
+    if (rootMidi < rangeStart) continue;
+    const bassMidi = bassPc != null && bassPc !== rootPc
+      ? rootMidi - ((rootPc - bassPc + 12) % 12) : rootMidi;
+    if (bassMidi < rangeStart) continue;
+    const notes = intervals.map(iv => {
+      let note = rootMidi + iv;
+      while (note > rangeEnd) note -= 12;
+      return note;
+    });
+    if (notes.some(n => n < rangeStart || n < bassMidi)) continue;
+    if (bassMidi !== rootMidi) notes.push(bassMidi);
+    candidates.push({ rootMidi, notes });
   }
-  const notes = intervals.map(iv => rootMidi + iv);
-  if (bassPc != null && bassPc !== rootPc) notes.push(60 + bassPc);
-  return notes;
+  candidates.sort((a, b) => Math.abs(a.rootMidi - 60) - Math.abs(b.rootMidi - 60) || a.rootMidi - b.rootMidi);
+  const chosen = candidates[0];
+  if (!chosen) return [];
+  return chosen.notes;
 }
 
 // Convenience object — keeps call sites identical to the original IIFE style

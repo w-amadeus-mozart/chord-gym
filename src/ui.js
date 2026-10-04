@@ -11,7 +11,8 @@ import { UNLOCK_LADDER } from './unlockLadder.js';
 import { FALLING_LEVELS, STORY_LEVEL_COUNT } from './fallingLevels.js';
 import { Achievements } from './achievements.js';
 import { Mastery } from './mastery.js';
-import { PRESETS, describeConfig, ROOT_GROUPS } from './modes/practice.js';
+import { PRESETS, describeConfig, ROOT_GROUPS, hasLastSession } from './modes/practice.js';
+import { renderChart, escapeHtml } from './chart.js';
 import { formatRoot, formatSymbol, formatSlash, getEnharmonicStyle } from './notation.js';
 import { IS_DEMO, DEMO_CHORDS, UPGRADE_URL } from './edition.js';
 
@@ -116,10 +117,11 @@ let _expandedQualityGroups = null; // Custom screen
 // are shared by Practice and the Test games, so those resolve via state.mode.
 const NAV_MAP = {
   home: 'home',
-  'practice-setup': 'practice',
-  'practice-custom': 'practice',
-  menu: 'test',
-  'level-select': 'test',
+  'practice-setup': 'home',
+  'practice-custom': 'home',
+  menu: 'home',
+  'level-select': 'home',
+  songs: 'songs',
   progress: 'progress',
   settings: 'settings',
 };
@@ -127,22 +129,75 @@ const NAV_MAP = {
 function _syncSidebarNav(screenId) {
   let navId = NAV_MAP[screenId];
   if (!navId && (screenId === 'game' || screenId === 'results' || screenId === 'dying')) {
-    navId = state.mode === 'practice' ? 'practice' : 'test';
+    navId = state.mode === 'practice' && state.practice.config?.songChart ? 'songs' : 'home';
   }
   document.querySelectorAll('.sidebar-nav-item').forEach(b =>
     b.classList.toggle('selected', b.dataset.nav === navId));
 }
 
 export function showScreen(id) {
+  const previous = document.querySelector('.screen.active')?.id;
+  const playing = id === 'game' || id === 'dying';
+  document.body.classList.toggle('in-session', playing);
+  document.body.classList.toggle('song-session', playing && state.activeMode === 'practice' && Boolean(state.practice.config?.songChart));
+  if (!playing) { state.manualPaused = false; state.pausedAt = 0; }
+  UI.renderPause();
+  if (id === 'game') {
+    const practice = state.activeMode === 'practice';
+    document.getElementById('session-title').textContent = practice
+      ? (state.practice.config.songChart ? describeConfig(state.practice.config) : describeConfig(state.practice.config).split(' · ')[0] + ' workout')
+      : ({ sprint: 'Sprint challenge', survival: 'Survival challenge', falling: 'Falling chords' }[state.activeMode] || 'Workout');
+    document.getElementById('session-instruction').textContent = practice ? 'Play the chord. Release the keys to continue.' : 'Play the chord with your piano or MIDI keyboard.';
+    document.getElementById('session-footnote').textContent = practice ? 'At your pace · progress saved as you play' : 'Challenge in progress';
+    document.getElementById('upcoming-section').hidden = !practice;
+    document.getElementById('session-chart').hidden = !practice || !state.practice.config.songChart;
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  if (previous !== id) window.scrollTo(0, 0);
   _syncSidebarNav(id);
+  document.dispatchEvent(new CustomEvent('screenchange', { detail: id }));
 }
 
 export const UI = {
+  renderPause() {
+    const paused = state.manualPaused;
+    document.body.classList.toggle('is-paused', paused);
+    document.getElementById('session-paused').hidden = !paused;
+    document.getElementById('session-title').classList.toggle('paused-title', paused);
+    const button = document.getElementById('btn-pause-session');
+    button.textContent = paused ? '▶ Resume' : 'Ⅱ Pause';
+    button.setAttribute('aria-pressed', String(paused));
+    document.getElementById('btn-hint').disabled = paused;
+    document.getElementById('auto-hint-toggle').disabled = paused;
+  },
+
+  renderPracticeSequence(chords, config, step) {
+    document.getElementById('upcoming-chords').innerHTML = chords.map((chord, i) =>
+      `<div class="upcoming-chord" style="--symbol-length:${Math.max(1, _symbolOf(chord).length)}"><strong>${_symbolOf(chord)}</strong><small>${i ? 'Later' : 'Next'}</small></div>`).join('');
+    if (config.songChart) {
+      const events = config.songChart.bars.flatMap((bar, b) => bar.map((symbol, beat) => symbol ? b * 4 + beat : null).filter(n => n != null));
+      const active = events[step % events.length];
+      const viewport = document.getElementById('session-chart');
+      viewport.innerHTML = renderChart(config.songChart.bars, { active });
+      const current = viewport.querySelector('.chart-beat.current');
+      if (current) {
+        const bounds = viewport.getBoundingClientRect();
+        const beat = current.getBoundingClientRect();
+        if (beat.top < bounds.top + 16) viewport.scrollTop += beat.top - bounds.top - 16;
+        else if (beat.bottom > bounds.bottom - 8) viewport.scrollTop += beat.bottom - bounds.bottom + 8;
+      }
+      document.getElementById('session-footnote').textContent = `Bar ${Math.floor(active / 4) + 1} · beat ${active % 4 + 1} · loops at your pace`;
+    }
+  },
   // Dashboard — streak/reps-today stats plus the Today's Focus card text.
   // `focus` = { text, start } computed by main.js (recommendation, last
   // session, or starter suggestion — see Progress.getTodaysFocus()).
   renderHome(focus) {
+    const last = hasLastSession();
+    document.getElementById('workout-ready-label').textContent = last ? 'PICK UP WHERE YOU LEFT OFF' : 'A GOOD PLACE TO START';
+    document.getElementById('workout-ready-title').textContent = last ? describeConfig(state.practice.setupDraft) : 'Major chord workout';
+    document.getElementById('workout-ready-detail').textContent = 'No timer. Work through the chords at your own pace, with a hint when you need one.';
+    document.getElementById('btn-resume-workout').textContent = last ? 'Continue workout →' : 'Start workout →';
     const streak = Mastery.streakDays();
     document.getElementById('home-stat-streak').textContent = `${streak} day${streak === 1 ? '' : 's'}${streak >= 2 ? ' 🔥' : ''}`;
     document.getElementById('home-stat-reps').textContent = Mastery.todayReps();
@@ -314,7 +369,7 @@ export const UI = {
     let hintNotes = null;
     if (hintLevel >= 2) {
       const { start, end } = getVisibleRange();
-      hintNotes = new Set(ChordEngine.voiceNearMiddleC(chord.rootPc, chord.type.intervals, start, end));
+      hintNotes = new Set(ChordEngine.voiceNearMiddleC(chord.rootPc, chord.type.intervals, start, end, chord.bassPc));
     }
     setPianoTarget(targetPCs, hintNotes);
   },
@@ -940,7 +995,7 @@ export const UI = {
     const subEl = document.getElementById('results-subheader');
     subEl.style.display = 'block';
     subEl.innerHTML = `<span class="mode-tag">Practice</span>` +
-      (summary.configLabel ? `<div class="tier-reached">${summary.configLabel}</div>` : '');
+      (summary.configLabel ? `<div class="tier-reached">${escapeHtml(summary.configLabel)}</div>` : '');
 
     document.getElementById('stats-grid').innerHTML = [
       ['Reps',         summary.reps],
@@ -983,7 +1038,7 @@ export const UI = {
     </tr>`).join('');
 
     document.getElementById('btn-play-again').textContent = 'Again';
-    document.getElementById('btn-change-level').textContent = 'Change setup';
+    document.getElementById('btn-change-level').textContent = summary.origin === 'songs' ? 'Back to chart' : 'Change setup';
     document.getElementById('btn-results-home').style.display = 'inline-block';
     document.getElementById('btn-results-progress').style.display =
       summary.origin === 'progress' ? 'inline-block' : 'none';

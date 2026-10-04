@@ -118,9 +118,11 @@ async function main() {
     // against immediate navigation) keep working unchanged; when no mode is running the
     // dialog never appears and this is equivalent to the old bare click.
     async function navAway(navKey) {
-      await page.click(`.sidebar-nav-item[data-nav="${navKey}"]`);
+      const nested = navKey === 'practice' || navKey === 'test';
+      await page.click(`.sidebar-nav-item[data-nav="${nested ? 'home' : navKey}"]`);
       const dialogOpen = await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none').catch(() => false);
       if (dialogOpen) await page.click('#btn-end-session');
+      if (nested) await page.click(navKey === 'practice' ? '#pillar-practice' : '#pillar-test');
     }
 
     // Presses the current Survival target chord and robustly waits (poll, not a fixed
@@ -343,10 +345,9 @@ async function main() {
       ok(`${label}: ${count} active key(s)`);
     }
 
-    // A held note's gold highlight must persist for as long as it's physically held —
+    // A held note's mint highlight must persist for as long as it's physically held —
     // driven purely by the held-notes Set, never a timer — until the actual note-off
-    // event. Checks both the class and the computed accent glow (box-shadow carries the
-    // "223, 163, 62" accent rgb only on .active/.black-key.active) at 1s/2s/3s so a
+    // event. Checks both the class and the computed mint fill at 1s/2s/3s so a
     // regression that re-triggers a keyframe animation ending, or any other timer-driven
     // fade/re-render clobbering the highlight early, gets caught even if the classList
     // alone still looked right for one frame.
@@ -357,15 +358,15 @@ async function main() {
           const el = document.querySelector(`.white-key[data-note="${n}"], .black-key[data-note="${n}"]`);
           if (!el) return null;
           const cs = getComputedStyle(el);
-          return { classes: el.className, boxShadow: cs.boxShadow };
+          return { classes: el.className, background: cs.backgroundImage };
         }, note);
         assert(info, `${label}: key for note ${note} not found in DOM at t=${t}ms`);
         assert(info.classes.includes('active') && !info.classes.includes('wrong-active'),
           `${label}: active class should still persist at t=${t}ms while the key is physically held, got classes="${info.classes}"`);
-        assert(info.boxShadow.includes('223, 163, 62'),
-          `${label}: computed accent glow should still persist at t=${t}ms, got boxShadow="${info.boxShadow}"`);
+        assert(info.background.includes('104, 206, 182'),
+          `${label}: computed mint fill should still persist at t=${t}ms, got background="${info.background}"`);
       }
-      ok(`${label}: active class + computed glow persisted at 1s/2s/3s while held`);
+      ok(`${label}: active class + computed mint fill persisted at 1s/2s/3s while held`);
     }
 
     await navAway('home');
@@ -581,13 +582,21 @@ async function main() {
     }
     ok('window bar drains monotonically across frames: ' + samples.map(w => w.toFixed(1)).join(' → '));
 
-    // Color thresholds: ~2s elapsed (>50% of 8s remaining) -> green; wait to ~5s (25-50%) -> amber;
-    // wait to ~7s (<=25%) -> red, with the arena red-pulse active.
+    // Set real deadlines at each threshold band. Fixed sleeps accumulated enough
+    // browser/CI overhead to skip the amber band on a busy machine.
+    const remaining = async pct => page.evaluate(async p => {
+      const { state } = await import('/chord-gym/src/state.js');
+      state.survival.windowDeadline = performance.now() + state.survival.windowSec * 1000 * p / 100;
+    }, pct);
+    await remaining(80);
+    await page.waitForFunction(() => !document.getElementById('survival-window-bar').classList.contains('amber') && !document.getElementById('survival-window-bar').classList.contains('red'));
     assert((await barClass()).includes('survival-window-bar') && !(await barClass()).includes('amber') && !(await barClass()).includes('red'),
       `expected green (no color class) at ~2.4s elapsed, got "${await barClass()}"`);
-    await page.waitForTimeout(2600); // ~5.0s elapsed total
+    await remaining(40);
+    await page.waitForFunction(() => document.getElementById('survival-window-bar').classList.contains('amber'));
     assert((await barClass()).includes('amber'), `expected amber at ~5s elapsed (25-50% of 8s remaining), got "${await barClass()}"`);
-    await page.waitForTimeout(1800); // ~6.8s elapsed total
+    await remaining(20);
+    await page.waitForFunction(() => document.getElementById('survival-window-bar').classList.contains('red'));
     assert((await barClass()).includes('red'), `expected red at ~6.8s elapsed (<=25% of 8s remaining), got "${await barClass()}"`);
     assert(await arenaHasRed(), 'chord-arena should have the red-zone pulse class active');
     ok('window bar color flips at 50%/25% thresholds, with arena red-pulse');

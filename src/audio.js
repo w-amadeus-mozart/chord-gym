@@ -5,6 +5,7 @@ import { Sampler } from './sampler.js';
 
 let ctx  = null;
 let muted = false;
+let timelinePaused = false;
 
 // ── Graph nodes (lazy-inited on first AudioContext creation) ─────────────────
 let _pianoGain   = null;  // oscillator piano + sampler → here → destination
@@ -42,7 +43,7 @@ function _initGraph(c) {
 
 function getCtx() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended' && !timelinePaused) ctx.resume();
   _initGraph(ctx);
   return ctx;
 }
@@ -287,11 +288,11 @@ function getCtxTime() {
   return ctx ? ctx.currentTime : performance.now() / 1000;
 }
 
-function suspendAudio() { if (ctx) ctx.suspend().catch(() => {}); }
-function resumeAudio()  { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); }
+function suspendAudio() { timelinePaused = true; if (ctx) ctx.suspend().catch(() => {}); }
+function resumeAudio()  { timelinePaused = false; if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); }
 
-function scheduleClick(audioTime, isAccent) {
-  if (muted || _backingLevel === 'off') return;
+function scheduleClick(audioTime, isAccent, independent = false) {
+  if (muted || (!independent && _backingLevel === 'off')) return;
   const c = getCtx();
   const osc  = c.createOscillator();
   const gain = c.createGain();
@@ -327,6 +328,7 @@ function scheduleBassNote(audioTime, rootPc, beatS = 0.5) {
 }
 
 export const GameAudio = {
+  init: getCtx,
   loadSampler,
   isSamplerLoaded: () => Sampler.isLoaded(),
   getLiveAudition,

@@ -14,6 +14,7 @@
     "test:falling-levels": "node scripts/regression-falling-levels.mjs",
     "test:slash-chords": "node scripts/regression-slash-chords.mjs",
     "test:extended-chords": "node scripts/regression-extended-chords.mjs",
+    "test:overhaul": "node scripts/regression-overhaul.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

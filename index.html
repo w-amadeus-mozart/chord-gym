@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#111318">
+  <meta name="theme-color" content="#101827">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="ChordGym">
@@ -71,12 +71,10 @@
       <span class="sidebar-word">Chord<b>Gym</b></span>
       <span class="demo-pill">DEMO</span>
     </div>
-    <nav class="sidebar-nav" id="sidebar-nav">
-      <button class="sidebar-nav-item selected" data-nav="home"><span class="snav-icon">⌂</span><span class="snav-label">Dashboard</span></button>
-      <button class="sidebar-nav-item" data-nav="practice"><span class="snav-icon">◎</span><span class="snav-label">Practice</span></button>
-      <button class="sidebar-nav-item" data-nav="test"><span class="snav-icon">⚡</span><span class="snav-label">Test</span></button>
-      <button class="sidebar-nav-item" data-nav="progress"><span class="snav-icon">▤</span><span class="snav-label">Progress</span></button>
-      <button class="sidebar-nav-item" data-nav="settings"><span class="snav-icon">⚙</span><span class="snav-label">Settings</span></button>
+    <nav class="sidebar-nav" id="sidebar-nav" aria-label="Main navigation">
+      <button class="sidebar-nav-item selected" data-nav="home"><span class="snav-label">Workout</span></button>
+      <button class="sidebar-nav-item" data-nav="songs"><span class="snav-label">Songs</span></button>
+      <button class="sidebar-nav-item" data-nav="progress"><span class="snav-label">Progress</span></button>
     </nav>
   </aside>
 
@@ -93,7 +91,7 @@
       <div class="topbar-actions">
         <button id="btn-connect-midi">Connect MIDI</button>
         <button class="topbar-icon-btn" id="mute-btn" title="Toggle sound">🔊</button>
-        <button class="topbar-icon-btn" id="settings-btn" title="Settings">⚙</button>
+        <button class="topbar-icon-btn" id="settings-btn" title="Settings" aria-label="Settings">⚙</button>
       </div>
     </div>
 
@@ -105,8 +103,9 @@
     <div class="dash-main">
       <div class="dash-hero">
         <div class="dash-hero-text">
-          <h1 class="dash-title">Train your chords<span class="dash-title-dot">.</span></h1>
-          <p class="dash-tagline">Find your weak spots. Prove your speed.</p>
+          <p class="eyebrow">YOUR PRACTICE SPACE</p>
+          <h1 class="dash-title">Ready for a workout?</h1>
+          <p class="dash-tagline">Pick up where you left off, or work on something new.</p>
           <p class="dash-demo-line">Demo version — <span id="dash-demo-count"></span> <a id="dash-demo-cta" href="#" target="_blank" rel="noopener">Get the full app</a></p>
         </div>
         <div class="dash-hero-art" aria-hidden="true">
@@ -125,24 +124,41 @@
         </div>
       </div>
 
+      <div class="workout-ready">
+        <div class="workout-ready-copy">
+          <p class="eyebrow" id="workout-ready-label">START HERE</p>
+          <h2 id="workout-ready-title">Major chord warm-up</h2>
+          <p id="workout-ready-detail">All 12 roots · random order · your pace</p>
+        </div>
+        <button class="btn-primary" id="btn-resume-workout">Start workout <span aria-hidden="true">→</span></button>
+      </div>
+      <div class="quick-workouts">
+        <div class="section-heading"><h2>Quick workouts</h2><button class="text-button" id="pillar-practice">All chord types <span aria-hidden="true">→</span></button></div>
+        <div class="quick-workout-grid">
+          <button class="quick-workout" data-home-preset="major"><span class="quick-symbol">C</span><strong>Triads</strong><span>Start with the foundations</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
+          <button class="quick-workout" data-home-preset="sevenths"><span class="quick-symbol">Cmaj7</span><strong>Sevenths</strong><span>Major, minor & dominant</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
+          <button class="quick-workout" data-home-preset="extensions"><span class="quick-symbol">C9</span><strong>Extensions</strong><span>Reach into richer harmony</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
+          <button class="quick-workout" data-home-preset="slash"><span class="quick-symbol">C/E</span><strong>Slash chords</strong><span>Get comfortable with inversions</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
+        </div>
+      </div>
       <div class="pillar-grid" id="pillar-grid">
         <div class="pillar-card">
           <div class="pillar-card-icon pillar-icon-practice">◎</div>
-          <div class="pillar-card-title">Practice</div>
-          <div class="pillar-card-desc">Untimed drills, your pace</div>
-          <button class="pillar-cta" id="pillar-practice">Start</button>
+          <div class="pillar-card-title">Make it your own</div>
+          <div class="pillar-card-desc">Choose the exact chords you want to work on.</div>
+          <button class="pillar-cta" id="home-custom-workout">Build a workout →</button>
         </div>
         <div class="pillar-card">
           <div class="pillar-card-icon pillar-icon-test">⚡</div>
-          <div class="pillar-card-title">Test</div>
-          <div class="pillar-card-desc">Sprint, Survival, Falling Chords</div>
-          <button class="pillar-cta" id="pillar-test">Start</button>
+          <div class="pillar-card-title">Try a challenge</div>
+          <div class="pillar-card-desc">Put your recall and rhythm to the test.</div>
+          <button class="pillar-cta" id="pillar-test">Explore challenges →</button>
         </div>
         <div class="pillar-card">
           <div class="pillar-card-icon pillar-icon-progress">▤</div>
           <div class="pillar-card-title">Progress</div>
           <div class="pillar-card-desc">Your mastery heatmap</div>
-          <button class="pillar-cta" id="pillar-progress">Explore</button>
+          <button class="pillar-cta" id="pillar-progress">See your progress →</button>
         </div>
       </div>
 
@@ -164,9 +180,9 @@
       <div class="dash-badge" id="dash-fullclear-badge" style="display:none"></div>
 
       <div class="focus-card">
-        <h4>Today's Focus</h4>
+        <h4>Work on these next</h4>
         <p class="focus-card-text" id="home-focus-text">—</p>
-        <button class="btn-primary focus-cta" id="home-focus-cta">▶ Start Practice</button>
+        <button class="text-button focus-cta" id="home-focus-cta">Practice your focus →</button>
       </div>
     </div>
   </div>
@@ -177,7 +193,7 @@
   <div class="cell-modal welcome-modal">
     <img src="/chordgym-mark.svg" alt="" class="welcome-mark">
     <h3>Welcome to ChordGym</h3>
-    <p>Connect your MIDI keyboard and warm up in Practice — the Progress map fills in as you play.</p>
+    <p>Connect your MIDI keyboard, or use the touch piano. Start with a quick workout — your progress builds as you play.</p>
     <div class="welcome-btns">
       <button class="btn-primary" id="btn-welcome-go">Let's go</button>
     </div>
@@ -185,10 +201,27 @@
 </div>
 
 <!-- ══════════ PRACTICE SCREEN (preset landing) ══════════ -->
+<div id="songs" class="screen">
+  <div class="section-heading songs-heading"><div class="song-select-header"><p class="eyebrow">YOUR SONGS, YOUR WORKOUT</p><h1 class="song-select-title">Practice the changes</h1><p class="song-select-sub">Bring in the chords you're working on. Give each change a beat, then take it to the piano.</p></div><button id="btn-song-new" class="btn-secondary">New chart</button></div>
+  <div class="songs-layout">
+    <div class="song-workspace">
+      <div class="song-title-row"><label>Song title<input id="song-title" type="text" maxlength="100" value="Sevenths study" placeholder="My band song"></label><label class="song-tempo">Tempo<input id="song-bpm" type="number" min="30" max="240" value="70" aria-label="Tempo in beats per minute"></label><span class="time-signature">4/4</span></div>
+      <details class="chart-import" open><summary>Paste or type a chord chart</summary><label for="song-chart-text" class="settings-help">Separate bars with |. Use - to hold a beat. Two chords without holds land on beats 1 and 3.</label><textarea id="song-chart-text" rows="3" spellcheck="false" placeholder="Dm7 - - - | G7 - - - | Cmaj7 - Am7 -"></textarea><button id="btn-song-build" class="btn-secondary">Update chart</button></details>
+      <div class="section-heading chart-heading"><h2>Chord chart</h2><span class="settings-help">Select a beat to edit</span></div>
+      <div id="song-chart"></div>
+      <form id="song-beat-editor" class="song-beat-editor" hidden><label><span id="song-beat-label"></span><input id="song-beat-chord" type="text" placeholder="Chord, or blank to hold" autocomplete="off" spellcheck="false"></label><button class="btn-secondary" type="submit">Apply</button><span class="settings-help">Leave blank to hold the previous chord.</span></form>
+      <button id="btn-song-add-bar" class="text-button">+ Add bar</button>
+      <div class="song-actions"><button id="btn-song-practice" class="btn-primary">Practice changes →</button><button id="btn-song-preview" class="btn-secondary" aria-pressed="false">Hear timing</button><button id="btn-song-save" class="btn-secondary">Save chart</button></div>
+      <p id="song-status" class="song-status" role="status" aria-live="polite">Dots mark the beats. Empty beats hold the previous chord. Practice waits for you and loops through the changes.</p>
+    </div>
+    <aside class="song-library-panel"><p class="eyebrow">ON THIS DEVICE</p><h2>Saved charts</h2><div id="song-library"></div><p class="settings-help">Charts stay in this browser or desktop app. Timing preview plays the clicks; practice lets you play each change at your pace.</p></aside>
+  </div>
+</div>
+
 <div id="practice-setup" class="screen">
   <div class="song-select-header">
-    <h2 class="song-select-title">Practice</h2>
-    <p class="song-select-sub">Untimed drills — work at your own pace, use hints freely.</p>
+    <h2 class="song-select-title">Choose your workout</h2>
+    <p class="song-select-sub">Choose a chord family and an order. Take your time; hints are always nearby.</p>
   </div>
 
   <div class="practice-setup-section">
@@ -204,7 +237,7 @@
   <div class="practice-start-block">
     <p class="practice-last-session" id="practice-last-session" style="display:none"></p>
     <p class="practice-start-nudge" id="practice-start-nudge" style="display:none">Pick a chord type to get started</p>
-    <button id="btn-start-practice" class="btn-primary">▶ START PRACTICE</button>
+    <button id="btn-start-practice" class="btn-primary">Start workout →</button>
   </div>
   <button class="btn-secondary" id="btn-back-from-practice-setup">← Back to Home</button>
 </div>
@@ -212,7 +245,7 @@
 <!-- ══════════ CUSTOM PRACTICE SCREEN ══════════ -->
 <div id="practice-custom" class="screen">
   <div class="song-select-header">
-    <h2 class="song-select-title">Custom Practice</h2>
+    <h2 class="song-select-title">Build a workout</h2>
     <p class="song-select-sub">Full control — pick exactly what you want to drill.</p>
   </div>
 
@@ -283,18 +316,14 @@
     <div class="practice-choice-grid" id="practice-order-grid"></div>
   </div>
 
-  <button id="btn-start-practice-custom" class="btn-primary">▶ START PRACTICE</button>
+  <button id="btn-start-practice-custom" class="btn-primary">Start workout →</button>
   <button class="btn-secondary" id="btn-back-from-practice-custom">← Back</button>
 </div>
 
 <!-- ══════════ MENU SCREEN (Test pillar) ══════════ -->
 <div id="menu" class="screen">
   <button class="btn-secondary" id="btn-back-from-menu">← Back to Home</button>
-  <div class="brand-lockup compact">
-    <img src="/chordgym-mark.svg" alt="" class="brand-mark">
-    <span class="brand-word">Chord<b>Gym</b></span>
-  </div>
-  <p class="tagline">Play the chord. Beat the clock. Train your ears.</p>
+  <div class="song-select-header"><h2 class="song-select-title">Challenge yourself</h2><p class="song-select-sub">Build speed, stay accurate, or find your rhythm.</p></div>
 
   <!-- Mode selector — appears above the difficulty grid -->
   <div class="mode-selector" id="mode-selector">
@@ -376,6 +405,10 @@
 
 <!-- ══════════ GAME SCREEN ══════════ -->
 <div id="game" class="screen">
+  <div class="session-heading">
+    <div><p class="eyebrow" id="session-kind">WORKOUT</p><h2 id="session-title">Chord workout</h2></div>
+    <div class="session-heading-actions"><button class="text-button" id="btn-focus" aria-pressed="false">Focus view</button><button class="btn-secondary" id="btn-session-end">End session</button></div>
+  </div>
   <div class="session-grid">
     <div class="session-main">
       <div class="hud">
@@ -427,18 +460,22 @@
         <div id="chord-display">—</div>
         <div class="root-position-hint" id="root-position-hint" style="display:none">Root position</div>
         <div class="note-indicators" id="note-indicators"></div>
-        <div class="arena-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p class="session-instruction" id="session-instruction">Play the chord when you're ready.</p>
+        <div class="session-paused" id="session-paused" hidden><strong>Paused</strong><span>Take a breath. Your workout will wait.</span></div>
         <div id="death-overlay"></div>
       </div>
 
+      <div class="upcoming-section" id="upcoming-section" hidden><span class="upcoming-label">Upcoming</span><div class="upcoming-chords" id="upcoming-chords"></div></div>
+      <div class="session-chart" id="session-chart" hidden></div>
+
       <div class="keyboard-section">
         <div class="keyboard-section-header">
-          <h4 id="keyboard-caption">On-screen keyboard (A–K = white keys, W/E/T/Y/U = black keys)</h4>
+          <h4 id="keyboard-caption">Touch the piano, or use A–K and W E T Y U</h4>
           <button class="kb-size-btn kb-abc-toggle" id="kb-abc-toggle" style="display:none" title="Show note names on keys">ABC</button>
           <div class="kb-size-control" id="kb-size-control" style="display:none">
-            <button class="kb-size-btn" data-kb-size="61">61</button>
-            <button class="kb-size-btn" data-kb-size="73">73</button>
-            <button class="kb-size-btn" data-kb-size="88">88</button>
+            <button class="kb-size-btn" id="kb-octave-down" aria-label="Shift piano down one octave">− octave</button>
+            <span id="kb-span-label">4 octaves</span>
+            <button class="kb-size-btn" id="kb-octave-up" aria-label="Shift piano up one octave">+ octave</button>
           </div>
         </div>
         <div class="kb-range-chip" id="kb-range-chip" style="display:none"></div>
@@ -454,15 +491,17 @@
          arena as a horizontal row below ~1200px; see .session-rail media query) -->
     <div class="session-rail" id="practice-controls" style="display:none">
       <div class="session-rail-summary" id="practice-session-summary"></div>
-      <button class="song-opt-secondary" id="btn-hint">💡 Hint</button>
+      <span class="session-method">◎ <span>At your pace</span></span>
+      <button class="song-opt-secondary" id="btn-hint">Show hint</button>
       <label class="auto-hint-label">
         <input type="checkbox" id="auto-hint-toggle">
         Auto-hint after 5s
       </label>
-      <span class="hint-notice" id="hint-notice" style="display:none">Hinted reps don't count toward mastery</span>
-      <button class="btn-secondary" id="btn-end-practice">End Session</button>
+      <span class="hint-notice" id="hint-notice" style="display:none">Hint used · this rep is assisted</span>
+      <button class="btn-secondary" id="btn-end-practice">Finish workout</button>
     </div>
   </div>
+  <div class="session-footer"><span id="session-footnote">Focus on clean, relaxed changes.</span><button class="btn-primary" id="btn-pause-session" aria-pressed="false">Ⅱ Pause</button></div>
 </div>
 
 <!-- ══════════ RESULTS SCREEN ══════════ -->
@@ -537,8 +576,8 @@
       <div class="progress-empty-box">
         <p>Play anything — Practice or the games — and your map starts filling in.</p>
         <div class="progress-empty-btns">
-          <button class="btn-primary" id="progress-empty-practice">Go to Practice</button>
-          <button class="btn-secondary" id="progress-empty-test">Go to Test</button>
+          <button class="btn-primary" id="progress-empty-practice">Choose a workout</button>
+          <button class="btn-secondary" id="progress-empty-test">Try a challenge</button>
         </div>
       </div>
     </div>
@@ -581,13 +620,17 @@
   <div class="settings-panel">
     <h4>Keyboard</h4>
     <div class="settings-kb-row">
-      <span class="mixer-label" style="width:auto">Display size</span>
+      <span class="mixer-label" style="width:auto">Visible piano</span>
       <div class="kb-size-control" id="settings-kb-size-control">
+        <button class="kb-size-btn" data-kb-size="0">Auto · 4 / 2 octaves</button>
+        <button class="kb-size-btn" data-kb-size="48">4 octaves</button>
+        <button class="kb-size-btn" data-kb-size="24">2 octaves</button>
         <button class="kb-size-btn" data-kb-size="61">61</button>
         <button class="kb-size-btn" data-kb-size="73">73</button>
         <button class="kb-size-btn" data-kb-size="88">88</button>
       </div>
     </div>
+    <p class="settings-help">Auto shows four octaves on desktop and tablet, two on phones. MIDI notes outside the view still count.</p>
     <div class="mixer-row mixer-row-toggle">
       <label class="mixer-label mixer-toggle-label" for="note-names-toggle">
         <input type="checkbox" id="note-names-toggle">

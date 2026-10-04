@@ -52,6 +52,7 @@ let _resizeObs          = null;
 
 // Scheduler
 let _schedulerTimer     = null;
+let _levelAdvanceAt = 0;
 let _nextClickBeat      = 0;   // next integer beat index to schedule a metronome click for
 let _nextBassEventIdx   = 0;   // next chart event index to schedule a bass note for
 
@@ -91,7 +92,7 @@ function _maybeSaveProgress() {
 
 // ── Page-visibility pause (suspend/resume AudioContext) ───────────────────────
 function _onVisibilityChange() {
-  if (state.screen !== 'game' || state.activeMode !== 'falling' || state.confirmingExit) return; // exit-confirm dialog owns suspend/resume while it's open
+  if (state.screen !== 'game' || state.activeMode !== 'falling' || state.confirmingExit || state.manualPaused) return;
   if (document.hidden) {
     GameAudio.suspendAudio();
   } else {
@@ -101,7 +102,7 @@ function _onVisibilityChange() {
 
 // ── Lookahead scheduler ──────────────────────────────────────────────────────
 function _schedulerTick() {
-  if (!_chart) return;
+  if (!_chart || state.manualPaused || state.confirmingExit || document.hidden) return;
   const now          = GameAudio.getCtxTime();
   const until        = now + LOOKAHEAD_S;
   const beatsPerBar  = _chart.beatsPerBar || 4;
@@ -353,6 +354,7 @@ function _startLocalTimeline(chart, preRollBeats) {
   _preRollBeats = preRollBeats;
   _tiles = _buildTiles(_chart);
   _endQueued = false;
+  _levelAdvanceAt = 0;
   state.falling.levelMissCount = 0;
   LaneCanvas.setBeatMs(_beatMs());
   document.getElementById('timer-bar').style.width = '0%'; // per-level progress bar
@@ -395,6 +397,10 @@ function _advanceLevel() {
 // ── rAF loop ─────────────────────────────────────────────────────────────────
 function _animate() {
   if (state.screen !== 'game' || state.activeMode !== 'falling') return;
+  if (state.manualPaused || state.confirmingExit || document.hidden) {
+    _rafId = requestAnimationFrame(_animate);
+    return;
+  }
 
   const elapsed = _elapsed();
 
@@ -409,10 +415,14 @@ function _animate() {
       const lastTarget = _tiles[_tiles.length - 1].targetMs;
       if (allSettled && elapsed > lastTarget + MISS_AFTER_MS + 600) {
         _endQueued = true;
-        setTimeout(_advanceLevel, 600);
+        _levelAdvanceAt = elapsed + 600;
       }
     }
 
+    if (_endQueued && elapsed >= _levelAdvanceAt) {
+      _advanceLevel();
+      if (state.activeMode !== 'falling') return;
+    }
     // Progress bar (per-level)
     const songDurationMs = (_chart.totalBeats - 1) * _beatMs();
     const progress       = Math.min(1, Math.max(0, elapsed / songDurationMs));

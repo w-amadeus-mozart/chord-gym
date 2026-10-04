@@ -42,7 +42,7 @@ export const SprintMode = {
   },
 
   onTick() {
-    if (document.hidden || state.activeMode !== 'sprint' || state.confirmingExit) return; // timer is paused via visibilitychange in main.js or the exit-confirm dialog
+    if (document.hidden || state.activeMode !== 'sprint' || state.confirmingExit || state.manualPaused) return;
     const elapsed = (Date.now() - state.timerStart) / 1000;
     state.timeLeft = Math.max(0, SPRINT_DURATION - elapsed);
     UI.renderTimer();
