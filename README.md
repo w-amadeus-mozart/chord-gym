@@ -6,9 +6,9 @@ Train your chords. Practice, test, and track your piano chord mastery with your 
 
 A piano chord trainer with 36 chord types, a touch piano, computer-key input and MIDI support. Practice at your own pace, exercise specific chords, or take on Sprint, Survival and Falling Chords challenges. Originally built as a single HTML file; this repo is the Vite-structured version.
 
-The navy and mint interface has three main destinations: **Workout** (resume, quick workouts, custom drills and challenges), **Songs** (your chord charts), and **Progress** (mastery and recommendations). Sessions put the current chord, optional hints, upcoming changes and piano first, with a focus view and pause control.
+The navy and mint interface launches with a brief logo fade into three large buttons: **Workout**, **Songs**, and **Progress**. Workout opens **Simple chords**, **Advanced chords**, and **Custom / Choose**, with resume and challenges available underneath. Sessions put the current chord, optional hints and piano first, with a focus view and pause control.
 
-Songs supports small **4/4** charts: paste `Dm7 - - - | G7 - - - | Cmaj7 - Am7 -`, then select a beat to edit its chord. Empty beats hold the preceding chord; two chords without hold markers land on beats 1 and 3. Timing preview clicks every beat and accents chord changes. Practice waits for each chord, advances in chart order and loops. Charts save locally on the current device; timed song performance, other meters and iReal file import are future work.
+Songs supports **2/4, 3/4, 4/4 and 6/8** charts: paste `Dm7 - - - | G7 - - - | Cmaj7 - Am7 -` in 4/4, then select a beat to edit its chord. Empty beats hold the preceding chord; changes without hold markers spread across the bar. Practice advances with the metronome, loops the chart and optionally starts with a **4–3–2–1** count-in. Tempo (30–240 BPM), click on/off and pause are available during practice. In 6/8, BPM counts dotted-quarter pulses, with six eighth-note clicks grouped into two pulses per bar. Changing meter rebars existing slots without discarding changes. Charts and timing settings save locally; older charts default to 4/4. Exact timing grades and iReal file import remain future work.
 
 ![screenshot placeholder](docs/screenshot.png)
 

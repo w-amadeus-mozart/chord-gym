@@ -304,6 +304,13 @@ function scheduleClick(audioTime, isAccent, independent = false) {
   gain.gain.linearRampToValueAtTime(vol, audioTime + 0.002);
   gain.gain.exponentialRampToValueAtTime(0.001, audioTime + 0.03);
   osc.start(audioTime); osc.stop(audioTime + 0.035);
+  // A transport can cancel look-ahead clicks immediately on pause or exit.
+  return () => {
+    gain.gain.cancelScheduledValues(c.currentTime);
+    gain.gain.setValueAtTime(0, c.currentTime);
+    try { osc.stop(); } catch (_) {}
+    osc.disconnect(); gain.disconnect();
+  };
 }
 
 // beatS: beat duration in seconds (used for sampler noteOff at 80% of beat)

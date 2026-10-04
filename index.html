@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChordGym — Piano Chord Trainer</title>
   <meta name="description" content="Train your chords. Practice, test, and track your piano chord mastery with your MIDI keyboard.">
-
   <link rel="icon" type="image/svg+xml" href="/chordgym-icon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
@@ -22,6 +21,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 </head>
 <body>
+<div class="launch-splash" id="launch-splash" aria-hidden="true"><div class="launch-lockup"><img src="/chordgym-mark.svg" alt=""><span>Chord<b>Gym</b></span></div></div>
 
 <!-- ══════════ LICENSE GATE (desktop only) ══════════
      Shown before the rest of the app on a fresh desktop install. Fixed + top z-index so
@@ -68,11 +68,11 @@
   <aside class="sidebar">
     <div class="sidebar-lockup">
       <img src="/chordgym-mark.svg" alt="" class="sidebar-mark">
-      <span class="sidebar-word">Chord<b>Gym</b></span>
+      <button class="sidebar-word brand-home" id="brand-home" aria-label="Main menu">Chord<b>Gym</b></button>
       <span class="demo-pill">DEMO</span>
     </div>
     <nav class="sidebar-nav" id="sidebar-nav" aria-label="Main navigation">
-      <button class="sidebar-nav-item selected" data-nav="home"><span class="snav-label">Workout</span></button>
+      <button class="sidebar-nav-item selected" data-nav="workout"><span class="snav-label">Workout</span></button>
       <button class="sidebar-nav-item" data-nav="songs"><span class="snav-label">Songs</span></button>
       <button class="sidebar-nav-item" data-nav="progress"><span class="snav-label">Progress</span></button>
     </nav>
@@ -97,124 +97,64 @@
 
     <div class="app-content">
 
-<!-- ══════════ HOME SCREEN ══════════ -->
-<div id="home" class="screen active">
-  <div class="dash-grid">
-    <div class="dash-main">
-      <div class="dash-hero">
-        <div class="dash-hero-text">
-          <p class="eyebrow">YOUR PRACTICE SPACE</p>
-          <h1 class="dash-title">Ready for a workout?</h1>
-          <p class="dash-tagline">Pick up where you left off, or work on something new.</p>
-          <p class="dash-demo-line">Demo version — <span id="dash-demo-count"></span> <a id="dash-demo-cta" href="#" target="_blank" rel="noopener">Get the full app</a></p>
-        </div>
-        <div class="dash-hero-art" aria-hidden="true">
-          <div class="dash-hero-bars">
-            <span class="dash-hero-bar" style="--h:56%"></span>
-            <span class="dash-hero-bar" style="--h:100%"></span>
-            <span class="dash-hero-bar" style="--h:74%"></span>
-          </div>
-          <div class="dash-hero-keys">
-            <span class="dash-hero-key"></span>
-            <span class="dash-hero-key"></span>
-            <span class="dash-hero-key"></span>
-            <span class="dash-hero-key"></span>
-            <span class="dash-hero-key"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="workout-ready">
-        <div class="workout-ready-copy">
-          <p class="eyebrow" id="workout-ready-label">START HERE</p>
-          <h2 id="workout-ready-title">Major chord warm-up</h2>
-          <p id="workout-ready-detail">All 12 roots · random order · your pace</p>
-        </div>
-        <button class="btn-primary" id="btn-resume-workout">Start workout <span aria-hidden="true">→</span></button>
-      </div>
-      <div class="quick-workouts">
-        <div class="section-heading"><h2>Quick workouts</h2><button class="text-button" id="pillar-practice">All chord types <span aria-hidden="true">→</span></button></div>
-        <div class="quick-workout-grid">
-          <button class="quick-workout" data-home-preset="major"><span class="quick-symbol">C</span><strong>Triads</strong><span>Start with the foundations</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
-          <button class="quick-workout" data-home-preset="sevenths"><span class="quick-symbol">Cmaj7</span><strong>Sevenths</strong><span>Major, minor & dominant</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
-          <button class="quick-workout" data-home-preset="extensions"><span class="quick-symbol">C9</span><strong>Extensions</strong><span>Reach into richer harmony</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
-          <button class="quick-workout" data-home-preset="slash"><span class="quick-symbol">C/E</span><strong>Slash chords</strong><span>Get comfortable with inversions</span><span class="quick-arrow" aria-hidden="true">↗</span></button>
-        </div>
-      </div>
-      <div class="pillar-grid" id="pillar-grid">
-        <div class="pillar-card">
-          <div class="pillar-card-icon pillar-icon-practice">◎</div>
-          <div class="pillar-card-title">Make it your own</div>
-          <div class="pillar-card-desc">Choose the exact chords you want to work on.</div>
-          <button class="pillar-cta" id="home-custom-workout">Build a workout →</button>
-        </div>
-        <div class="pillar-card">
-          <div class="pillar-card-icon pillar-icon-test">⚡</div>
-          <div class="pillar-card-title">Try a challenge</div>
-          <div class="pillar-card-desc">Put your recall and rhythm to the test.</div>
-          <button class="pillar-cta" id="pillar-test">Explore challenges →</button>
-        </div>
-        <div class="pillar-card">
-          <div class="pillar-card-icon pillar-icon-progress">▤</div>
-          <div class="pillar-card-title">Progress</div>
-          <div class="pillar-card-desc">Your mastery heatmap</div>
-          <button class="pillar-cta" id="pillar-progress">See your progress →</button>
-        </div>
-      </div>
-
-      <p class="menu-attribution">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0)</p>
-    </div>
-
-    <div class="dash-side">
-      <div class="dash-stats">
-        <div class="stat-card">
-          <div class="sc-label">Streak</div>
-          <div class="sc-val" id="home-stat-streak">0 days</div>
-        </div>
-        <div class="stat-card">
-          <div class="sc-label">Reps today</div>
-          <div class="sc-val" id="home-stat-reps">0</div>
-        </div>
-      </div>
-
-      <div class="dash-badge" id="dash-fullclear-badge" style="display:none"></div>
-
-      <div class="focus-card">
-        <h4>Work on these next</h4>
-        <p class="focus-card-text" id="home-focus-text">—</p>
-        <button class="text-button focus-cta" id="home-focus-cta">Practice your focus →</button>
-      </div>
-    </div>
+<!-- ══════════ BUTTON MENUS ══════════ -->
+<div id="home" class="screen active button-menu">
+  <div class="menu-brand"><img src="/chordgym-mark.svg" alt=""><h1>Chord<b>Gym</b></h1></div>
+  <div class="main-menu-buttons">
+    <button class="menu-tile" id="menu-workout"><span class="menu-glyph" aria-hidden="true">◎</span><strong>Workout</strong></button>
+    <button class="menu-tile" id="menu-songs"><span class="menu-glyph" aria-hidden="true">♫</span><strong>Songs</strong></button>
+    <button class="menu-tile" id="pillar-progress"><span class="menu-glyph" aria-hidden="true">▥</span><strong>Progress</strong></button>
   </div>
 </div>
-
-<!-- One-time first-run welcome overlay — shown over Home for a fresh profile only -->
-<div class="cell-modal-overlay" id="welcome-overlay" style="display:none">
-  <div class="cell-modal welcome-modal">
-    <img src="/chordgym-mark.svg" alt="" class="welcome-mark">
-    <h3>Welcome to ChordGym</h3>
-    <p>Connect your MIDI keyboard, or use the touch piano. Start with a quick workout — your progress builds as you play.</p>
-    <div class="welcome-btns">
-      <button class="btn-primary" id="btn-welcome-go">Let's go</button>
-    </div>
+<div id="workout" class="screen button-menu">
+  <button class="text-button menu-back" data-menu-back="home">← Menu</button>
+  <h1 class="menu-title">Workout</h1>
+  <div class="main-menu-buttons">
+    <button class="menu-tile" data-workout-menu="workout-simple"><span class="menu-chord" aria-hidden="true">C</span><strong>Simple chords</strong></button>
+    <button class="menu-tile" data-workout-menu="workout-advanced"><span class="menu-chord" aria-hidden="true">Cmaj9</span><strong>Advanced chords</strong></button>
+    <button class="menu-tile" id="home-custom-workout"><span class="menu-glyph" aria-hidden="true">⊞</span><strong>Custom / Choose</strong></button>
+  </div>
+  <div class="menu-secondary"><button id="btn-resume-workout" class="btn-secondary" hidden>Resume workout</button><button id="pillar-test" class="btn-secondary">Challenges</button></div>
+</div>
+<div id="workout-simple" class="screen button-menu">
+  <button class="text-button menu-back" data-menu-back="workout">← Workout</button>
+  <h1 class="menu-title">Simple chords</h1>
+  <div class="chord-menu-buttons">
+    <button class="menu-tile" data-home-preset="major"><span class="menu-chord">C</span><strong>Major</strong></button>
+    <button class="menu-tile" data-home-preset="minor"><span class="menu-chord">Cm</span><strong>Minor</strong></button>
+    <button class="menu-tile" data-home-preset="triads"><span class="menu-chord">C · Cm</span><strong>All triads</strong></button>
+    <button class="menu-tile" data-home-preset="sus"><span class="menu-chord">Csus4</span><strong>Suspended</strong></button>
+  </div>
+</div>
+<div id="workout-advanced" class="screen button-menu">
+  <button class="text-button menu-back" data-menu-back="workout">← Workout</button>
+  <h1 class="menu-title">Advanced chords</h1>
+  <div class="chord-menu-buttons">
+    <button class="menu-tile" data-home-preset="sevenths"><span class="menu-chord">Cmaj7</span><strong>Sevenths</strong></button>
+    <button class="menu-tile" data-home-preset="advanced7ths"><span class="menu-chord">Cø7</span><strong>Diminished sevenths</strong></button>
+    <button class="menu-tile" data-home-preset="sixths"><span class="menu-chord">C6</span><strong>Sixths / Adds</strong></button>
+    <button class="menu-tile" data-home-preset="extensions"><span class="menu-chord">Cmaj9</span><strong>Extensions</strong></button>
+    <button class="menu-tile" data-home-preset="altered"><span class="menu-chord">C7♭9</span><strong>Altered</strong></button>
+    <button class="menu-tile" data-home-preset="slash"><span class="menu-chord">C/E</span><strong>Slash chords</strong></button>
   </div>
 </div>
 
 <!-- ══════════ PRACTICE SCREEN (preset landing) ══════════ -->
 <div id="songs" class="screen">
-  <div class="section-heading songs-heading"><div class="song-select-header"><p class="eyebrow">YOUR SONGS, YOUR WORKOUT</p><h1 class="song-select-title">Practice the changes</h1><p class="song-select-sub">Bring in the chords you're working on. Give each change a beat, then take it to the piano.</p></div><button id="btn-song-new" class="btn-secondary">New chart</button></div>
+  <div class="section-heading songs-heading"><div class="song-select-header"><h1 class="song-select-title">Songs</h1></div><button id="btn-song-new" class="btn-secondary">New chart</button></div>
   <div class="songs-layout">
     <div class="song-workspace">
-      <div class="song-title-row"><label>Song title<input id="song-title" type="text" maxlength="100" value="Sevenths study" placeholder="My band song"></label><label class="song-tempo">Tempo<input id="song-bpm" type="number" min="30" max="240" value="70" aria-label="Tempo in beats per minute"></label><span class="time-signature">4/4</span></div>
-      <details class="chart-import" open><summary>Paste or type a chord chart</summary><label for="song-chart-text" class="settings-help">Separate bars with |. Use - to hold a beat. Two chords without holds land on beats 1 and 3.</label><textarea id="song-chart-text" rows="3" spellcheck="false" placeholder="Dm7 - - - | G7 - - - | Cmaj7 - Am7 -"></textarea><button id="btn-song-build" class="btn-secondary">Update chart</button></details>
+      <div class="song-title-row"><label>Song title<input id="song-title" type="text" maxlength="100" value="Sevenths study" placeholder="My band song"></label><label class="song-tempo"><span id="song-tempo-label">Tempo · BPM</span><input id="song-bpm" type="number" min="30" max="240" value="70" aria-label="Tempo in beats per minute"></label><label class="song-meter">Time signature<select id="song-meter" aria-label="Time signature"><option>2/4</option><option>3/4</option><option selected>4/4</option><option>6/8</option></select></label></div>
+      <details class="chart-import"><summary>Paste or type a chord chart</summary><label for="song-chart-text" class="settings-help" id="song-import-help">Separate bars with |. Use - to hold a beat.</label><textarea id="song-chart-text" rows="3" spellcheck="false" placeholder="Dm7 - - - | G7 - - - | Cmaj7 - Am7 -"></textarea><button id="btn-song-build" class="btn-secondary">Update chart</button></details>
       <div class="section-heading chart-heading"><h2>Chord chart</h2><span class="settings-help">Select a beat to edit</span></div>
       <div id="song-chart"></div>
       <form id="song-beat-editor" class="song-beat-editor" hidden><label><span id="song-beat-label"></span><input id="song-beat-chord" type="text" placeholder="Chord, or blank to hold" autocomplete="off" spellcheck="false"></label><button class="btn-secondary" type="submit">Apply</button><span class="settings-help">Leave blank to hold the previous chord.</span></form>
       <button id="btn-song-add-bar" class="text-button">+ Add bar</button>
-      <div class="song-actions"><button id="btn-song-practice" class="btn-primary">Practice changes →</button><button id="btn-song-preview" class="btn-secondary" aria-pressed="false">Hear timing</button><button id="btn-song-save" class="btn-secondary">Save chart</button></div>
-      <p id="song-status" class="song-status" role="status" aria-live="polite">Dots mark the beats. Empty beats hold the previous chord. Practice waits for you and loops through the changes.</p>
+      <div class="song-timing-options"><label><input type="checkbox" id="song-metronome" checked> Metronome</label><label><input type="checkbox" id="song-countin" checked> 4–3–2–1 count-in</label><span id="song-pulse-help">Quarter-note pulse</span></div>
+      <div class="song-actions"><button id="btn-song-practice" class="btn-primary">Start practice</button><button id="btn-song-preview" class="btn-secondary" aria-pressed="false">Hear timing</button><button id="btn-song-save" class="btn-secondary">Save chart</button></div>
+      <p id="song-status" class="song-status" role="status" aria-live="polite">Set your tempo, then play with the click.</p>
     </div>
-    <aside class="song-library-panel"><p class="eyebrow">ON THIS DEVICE</p><h2>Saved charts</h2><div id="song-library"></div><p class="settings-help">Charts stay in this browser or desktop app. Timing preview plays the clicks; practice lets you play each change at your pace.</p></aside>
+    <aside class="song-library-panel"><p class="eyebrow">ON THIS DEVICE</p><h2>Saved charts</h2><div id="song-library"></div><p class="settings-help">Saved on this device.</p></aside>
   </div>
 </div>
 
@@ -462,6 +402,7 @@
         <div class="note-indicators" id="note-indicators"></div>
         <p class="session-instruction" id="session-instruction">Play the chord when you're ready.</p>
         <div class="session-paused" id="session-paused" hidden><strong>Paused</strong><span>Take a breath. Your workout will wait.</span></div>
+        <div class="song-countin" id="song-countin-display" hidden><span>Get ready</span><strong id="song-countin-number">4</strong></div>
         <div id="death-overlay"></div>
       </div>
 
@@ -491,7 +432,8 @@
          arena as a horizontal row below ~1200px; see .session-rail media query) -->
     <div class="session-rail" id="practice-controls" style="display:none">
       <div class="session-rail-summary" id="practice-session-summary"></div>
-      <span class="session-method">◎ <span>At your pace</span></span>
+      <span class="session-method" id="session-method">◎ At your pace</span>
+      <div class="song-session-controls" id="song-session-controls" hidden><label>Tempo <input id="session-song-bpm" type="number" min="30" max="240" value="70" aria-label="Song practice tempo"></label><button class="btn-secondary" id="session-song-click" aria-pressed="true">Click on</button><span id="session-song-meter">4/4</span></div>
       <button class="song-opt-secondary" id="btn-hint">Show hint</button>
       <label class="auto-hint-label">
         <input type="checkbox" id="auto-hint-toggle">
@@ -546,7 +488,6 @@
   <button class="btn-secondary" id="btn-back-from-progress">← Back to Home</button>
   <div class="song-select-header">
     <h2 class="song-select-title">Progress</h2>
-    <p class="song-select-sub">Your mastery map — see what's solid and what's on the to-do list.</p>
   </div>
 
   <div class="progress-body" id="progress-body">
@@ -615,6 +556,7 @@
       </label>
     </div>
     <div class="mixer-status" id="sampler-status"></div>
+    <p class="settings-help">Piano samples: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm (CC BY 3.0).</p>
   </div>
 
   <div class="settings-panel">

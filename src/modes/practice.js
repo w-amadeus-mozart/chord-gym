@@ -13,6 +13,8 @@ import { Mastery } from '../mastery.js';
 import { formatRoot, formatSymbol, getEnharmonicStyle } from '../notation.js';
 import { setPianoTarget } from '../piano.js';
 import { IS_DEMO, DEMO_CHORDS } from '../edition.js';
+import { SongTransport, clampTempo } from '../songTransport.js';
+import { meter, validateBars } from '../chart.js';
 
 const AUTO_HINT_DELAY_MS = 5000;
 const LAST_SESSION_KEY = 'ct_practice_last_v1';
@@ -192,6 +194,32 @@ let _touchedCells       = new Set();
 let _upcoming = [];
 let _sequenceIdx = 0;
 let _step = 0;
+let _songTransport = null;
+let _songCounting = false;
+let _songMatched = false;
+let _songEvents = [];
+
+function _songBeat(event) {
+  if (state.activeMode !== 'practice' || state.manualPaused || state.confirmingExit || document.hidden) return;
+  const overlay = document.getElementById('song-countin-display');
+  _songCounting = event.phase === 'countin';
+  overlay.hidden = !_songCounting;
+  if (_songCounting) {
+    document.getElementById('song-countin-number').textContent = event.remaining;
+    return;
+  }
+  const step = _songEvents.indexOf(event.index);
+  if (step >= 0) {
+    _step = step;
+    _currentChord = _pool[step];
+    _upcoming = [1, 2, 3].map(offset => _pool[(step + offset) % _pool.length]);
+    _attemptStart = performance.now();
+    _attemptDirty = false; _hintLevel = 0; _songMatched = false;
+    UI.renderPracticeNoteIndicators(MidiInput.getHeld(), _currentChord, _hintLevel);
+    _showNextChord();
+  }
+  UI.renderSongBeat(_config, event.index);
+}
 
 function _clearAutoHintTimer() {
   if (_autoHintTimer) { clearTimeout(_autoHintTimer); _autoHintTimer = null; }
@@ -276,6 +304,11 @@ function _onMatch() {
   });
 
   UI.flashMatch();
+  if (_songTransport) {
+    _songMatched = true;
+    UI.renderPracticeHUD();
+    return; // The click, rather than a successful match, advances the song.
+  }
   GameAudio.playSuccessChime(_currentChord.pitchClasses);
 
   _currentChord = _upcoming.shift();
@@ -291,6 +324,10 @@ function _onMatch() {
 
 export const PracticeMode = {
   start(config) {
+    _songTransport?.stop(); _songTransport = null;
+    if (config.songChart) {
+      validateBars(config.songChart.bars, config.songChart.signature || '4/4');
+    }
     _clearAutoHintTimer();
     state.manualPaused = false;
     state.pausedAt = 0;
@@ -301,6 +338,7 @@ export const PracticeMode = {
     state.activeMode = 'practice';
     state.screen = 'game';
     _config = { ...config, qualities: config.qualities ? [...config.qualities] : [] };
+    if (config.songChart) _config.songChart = { ...structuredClone(config.songChart), bpm: clampTempo(config.songChart.bpm), signature: config.songChart.signature || '4/4' };
     state.practice.config = _config;
     _persistLastSession(_config);
     document.getElementById('practice-session-summary').textContent = describeConfig(_config);
@@ -380,6 +418,8 @@ export const PracticeMode = {
     _waitingForRelease = false;
     _attemptDirty = false;
     _hintLevel = 0;
+    _songMatched = false;
+    _songCounting = Boolean(_config.songChart && _config.songChart.countIn !== false);
     try { _autoHintEnabled = document.getElementById('auto-hint-toggle').checked; } catch (_) { _autoHintEnabled = false; }
 
     _currentChord = _pickNext(null);
@@ -397,14 +437,31 @@ export const PracticeMode = {
     document.getElementById('hud-item-mult').style.display = 'none';
     document.getElementById('practice-controls').style.display = 'flex';
     document.getElementById('nightmare-badge').style.display = 'none';
+    document.getElementById('session-chart').innerHTML = '';
+    document.getElementById('song-countin-display').hidden = !_songCounting;
+    document.getElementById('song-countin-number').textContent = '4';
+    document.getElementById('song-session-controls').hidden = !_config.songChart;
+    document.getElementById('session-method').hidden = Boolean(_config.songChart);
+    if (_config.songChart) {
+      const chart = _config.songChart;
+      const slots = meter(chart.signature).slots;
+      _songEvents = chart.bars.flatMap((bar, b) => bar.map((symbol, beat) => symbol ? b * slots + beat : null).filter(n => n != null));
+      document.getElementById('session-song-bpm').value = chart.bpm;
+      document.getElementById('session-song-meter').textContent = chart.signature === '6/8' ? '6/8 · dotted ♩' : chart.signature;
+      PracticeMode.setMetronome(chart.metronome !== false);
+    }
 
     showScreen('game');
     UI.renderPracticeNoteIndicators(new Set(), _currentChord, _hintLevel);
     _showNextChord();
+    if (_config.songChart) {
+      _songTransport = new SongTransport({ ..._config.songChart, onBeat: _songBeat });
+      _songTransport.start();
+    }
   },
 
   onNotesChanged() {
-    if (state.screen !== 'game' || state.activeMode !== 'practice') return;
+    if (state.screen !== 'game' || state.activeMode !== 'practice' || state.manualPaused || state.confirmingExit || document.hidden || _songCounting) return;
     const held = MidiInput.getHeld();
     const heldPCs = ChordEngine.toPitchClasses(held);
 
@@ -427,7 +484,7 @@ export const PracticeMode = {
 
     UI.renderPracticeNoteIndicators(held, _currentChord, _hintLevel);
 
-    if (ChordEngine.isMatch(heldPCs, target, ChordEngine.matchOptsFor(_currentChord, held))) _onMatch();
+    if ((!_songTransport || !_songMatched) && ChordEngine.isMatch(heldPCs, target, ChordEngine.matchOptsFor(_currentChord, held))) _onMatch();
   },
 
   useHint() {
@@ -453,9 +510,24 @@ export const PracticeMode = {
       UI.renderPracticeNoteIndicators(new Set(), _currentChord, _hintLevel);
     }
     _armAutoHint();
+    _songTransport?.resume();
   },
 
-  pause() { _clearAutoHintTimer(); },
+  pause() { _clearAutoHintTimer(); _songTransport?.pause(); },
+  setTempo(value) {
+    if (!_config?.songChart) return;
+    _config.songChart.bpm = clampTempo(value);
+    document.getElementById('session-song-bpm').value = _config.songChart.bpm;
+    _songTransport?.setTempo(value);
+  },
+  setMetronome(enabled) {
+    if (!_config?.songChart) return;
+    _config.songChart.metronome = enabled;
+    _songTransport?.setMetronome(enabled);
+    const button = document.getElementById('session-song-click');
+    button.textContent = enabled ? 'Click on' : 'Click off';
+    button.setAttribute('aria-pressed', String(enabled));
+  },
 
   end() {
     PracticeMode.teardown();
@@ -495,6 +567,11 @@ export const PracticeMode = {
   // HUD chrome practice.start() swapped out, or Sprint/Survival's next start() would
   // otherwise inherit a hidden timer bar and a visible practice rail.
   teardown() {
+    _songTransport?.stop(); _songTransport = null;
+    _songCounting = false;
+    document.getElementById('song-countin-display').hidden = true;
+    document.getElementById('song-session-controls').hidden = true;
+    document.getElementById('session-method').hidden = false;
     _clearAutoHintTimer();
     document.getElementById('practice-controls').style.display = 'none';
     document.getElementById('timer-bar-wrap').style.display = '';

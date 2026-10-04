@@ -139,7 +139,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .chart-import textarea { background: var(--bg); resize: vertical; line-height: 1.8; margin-bottom: 12px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
 .chart-heading { margin-bottom: 22px; }
 .chord-chart { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 26px 0; padding: 0 0 18px; }
-.chart-bar { position: relative; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-left: 2px solid #53647f; border-right: 1px solid #53647f; min-width: 0; }
+.chart-bar { position: relative; display: grid; grid-template-columns: repeat(var(--bar-slots,4),minmax(0,1fr)); border-left: 2px solid #53647f; border-right: 1px solid #53647f; min-width: 0; }
 .bar-number { position: absolute; top: -16px; left: 7px; font-size: 10px; color: var(--text-dim); }
 .chart-beat { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 9px; min-height: 85px; color: var(--ink); border: 0; border-radius: 5px; padding: 9px 2px; background: transparent; min-width: 0; }
 button.chart-beat { cursor: pointer; }

@@ -119,10 +119,16 @@ async function main() {
     // dialog never appears and this is equivalent to the old bare click.
     async function navAway(navKey) {
       const nested = navKey === 'practice' || navKey === 'test';
-      await page.click(`.sidebar-nav-item[data-nav="${nested ? 'home' : navKey}"]`);
+      if (navKey === 'home') await page.click('#brand-home');
+      else if (await page.locator('#home.active').count()) await page.click('#menu-workout');
+      else await page.click(`.sidebar-nav-item[data-nav="${nested ? 'workout' : navKey}"]`);
       const dialogOpen = await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none').catch(() => false);
       if (dialogOpen) await page.click('#btn-end-session');
-      if (nested) await page.click(navKey === 'practice' ? '#pillar-practice' : '#pillar-test');
+      if (navKey === 'practice') await page.evaluate(async () => {
+        (await import('/chord-gym/src/navigation.js')).navigateTo('practice-setup');
+        (await import('/chord-gym/src/ui.js')).UI.renderPracticeSetup(true);
+      });
+      else if (navKey === 'test') await page.click('#pillar-test');
     }
 
     // Presses the current Survival target chord and robustly waits (poll, not a fixed
@@ -651,7 +657,7 @@ async function main() {
     await page.click('#btn-start');
     await page.waitForTimeout(1000); // let the bar drain a bit so a freeze is detectable
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.click('#brand-home');
     await page.waitForTimeout(50);
     assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none'), 'dialog should appear navigating away mid-Survival');
     assert(await page.$eval('#game', el => el.classList.contains('active')), 'game screen must stay active while the dialog is up (navigation deferred)');
@@ -683,7 +689,7 @@ async function main() {
     await page.click('#btn-start');
     await page.waitForTimeout(200);
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.click('#brand-home');
     await page.waitForTimeout(50);
     assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none'), 'dialog should appear mid-Nightmare');
 
@@ -710,14 +716,14 @@ async function main() {
     await page.click('#btn-start');
     await page.waitForTimeout(200);
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.click('#brand-home');
     await page.waitForTimeout(50);
     await page.click('#exit-confirm-overlay', { position: { x: 5, y: 5 } }); // backdrop, not the card
     await page.waitForTimeout(50);
     assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'backdrop click should close the dialog');
     assert(await page.$eval('#game', el => el.classList.contains('active')), 'game should still be active after a backdrop click (session resumed, not ended)');
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.click('#brand-home');
     await page.waitForTimeout(50);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(50);
@@ -741,7 +747,7 @@ async function main() {
     assert(await page.$eval('#results', el => el.classList.contains('active')), 'sanity check: should be on results');
     await sendNoteOff([60 + wrongPc]);
 
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.click('#brand-home');
     await page.waitForTimeout(100);
     assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display === 'none'), 'no exit-confirm dialog should appear navigating away from results');
     assert(await page.$eval('#home', el => el.classList.contains('active')), 'navigating from results should go straight to home, no dialog');
@@ -808,7 +814,7 @@ async function main() {
     // in-run navigation (state.screen is still 'game' during the breather).
     console.log('[12d] navigate away mid-breather behaves like any other mid-run navigation');
     assert(await page.$eval('#game', el => el.classList.contains('active')), 'should still be on the game screen during the Level 3 breather');
-    await page.click('.sidebar-nav-item[data-nav="home"]');
+    await page.click('#brand-home');
     await page.waitForTimeout(50);
     assert(await page.$eval('#exit-confirm-overlay', el => getComputedStyle(el).display !== 'none'), 'exit-confirm dialog should appear when navigating away mid-breather');
     await page.click('#btn-end-session');

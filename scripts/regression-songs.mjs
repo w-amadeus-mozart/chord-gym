@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { createServer } from 'vite';
+import { parseChart, chartCells, validateBars, meter } from '../src/chart.js';
+
+for (const signature of ['2/4', '3/4', '4/4', '6/8']) {
+  const bars = parseChart('C G | Am F', signature);
+  assert.equal(bars[0].length, meter(signature).slots);
+  assert.equal(chartCells(bars, signature).length, 4);
+  assert.throws(() => parseChart('C - - - - - -', signature), /more than/);
+}
+assert.throws(() => validateBars([['C', '', '']], '4/4'), /four|4/);
+
+const server = await createServer({ configFile: false, root: process.cwd(), base: '/chord-gym/', server: { host: '127.0.0.1', port: 0 }, optimizeDeps: { noDiscovery: true } });
+await server.listen();
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  // Legacy charts must still open in 4/4 after adding meter support.
+  await page.addInitScript(() => localStorage.setItem('ct_songs_v1', JSON.stringify([{ id: 'legacy', title: 'Old chart', bpm: 120, bars: [['C', '', 'G', '']] }])));
+  await page.goto(server.resolvedUrls.local[0]);
+  await page.waitForSelector('#launch-splash', { state: 'detached' });
+  assert.equal(await page.locator('#home .main-menu-buttons > button').count(), 3);
+  await page.click('#menu-workout');
+  assert.equal(await page.locator('#workout .main-menu-buttons > button').count(), 3);
+  await page.click('[data-workout-menu="workout-simple"]');
+  await page.click('[data-home-preset="major"]');
+  assert.match(await page.locator('#session-title').textContent(), /Major/);
+  await page.click('#btn-session-end');
+  await page.click('#brand-home'); await page.click('#menu-songs');
+  await page.click('[data-song-id="legacy"]');
+  assert.equal(await page.locator('#song-meter').inputValue(), '4/4');
+  assert.equal(await page.locator('#song-chart .chart-beat').count(), 4);
+  await page.locator('.chart-import').evaluate(el => el.open = true);
+  await page.fill('#song-title', 'Waltz');
+  await page.selectOption('#song-meter', '3/4');
+  await page.fill('#song-chart-text', 'C - G | Am - F');
+  await page.click('#btn-song-build'); await page.click('#btn-song-save');
+  await page.click('#btn-song-new');
+  await page.click('.saved-song', { strict: false });
+  assert.equal(await page.locator('#song-meter').inputValue(), '3/4');
+  assert.equal(await page.locator('#song-chart .chart-beat').count(), 6);
+  await page.click('#song-chart [data-beat="5"]');
+  await page.fill('#song-beat-chord', 'Dm7'); await page.click('#song-beat-editor button');
+  assert.match(await page.locator('#song-beat-label').textContent(), /Bar 2 · beat 3/);
+  // Rebar from 3/4 to 2/4 without losing any change.
+  await page.selectOption('#song-meter', '2/4');
+  assert.equal(await page.locator('#song-chart .has-chord').count(), 4);
+  assert.equal(await page.locator('#song-chart .chart-bar').count(), 3);
+  await page.fill('#song-chart-text', 'C - | Dm -');
+  await page.fill('#song-bpm', '240');
+  await page.evaluate(async () => {
+    const { GameAudio } = await import('/chord-gym/src/audio.js');
+    const original = GameAudio.scheduleClick;
+    window.__clicks = [];
+    GameAudio.scheduleClick = (at, accent, independent) => {
+      const record = { at, accent, cancelled: false };
+      window.__clicks.push(record);
+      const cancel = original(at, accent, independent);
+      return () => { record.cancelled = true; cancel?.(); };
+    };
+  });
+  const notes = async (on, numbers) => page.evaluate(async ({ on, numbers }) => {
+    const { MidiInput } = await import('/chord-gym/src/midi.js');
+    numbers.forEach(n => on ? MidiInput.injectNoteOn(n) : MidiInput.injectNoteOff(n));
+  }, { on, numbers });
+  await page.click('#btn-song-practice');
+  await page.waitForFunction(() => !document.querySelector('#song-countin-display').hidden);
+  assert.equal(await page.locator('#song-countin-number').textContent(), '4');
+  await notes(true, [60, 64, 67]); await notes(false, [60, 64, 67]);
+  assert.equal(await page.locator('#hud-score').textContent(), '0', 'count-in cannot score');
+  await page.waitForFunction(() => document.querySelector('#song-countin-number').textContent === '3');
+  await page.click('#btn-pause-session');
+  const count = await page.locator('#song-countin-number').textContent();
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator('#song-countin-number').textContent(), count, 'count-in freezes');
+  await page.click('#btn-pause-session');
+  await page.waitForFunction(() => document.querySelector('#song-countin-display').hidden);
+  await page.waitForFunction(() => document.querySelector('#session-chart .current')?.dataset.chartBeat === '0');
+  await notes(true, [60, 64, 67]); await notes(false, [60, 64, 67]);
+  assert.equal(await page.locator('#chord-display').textContent(), 'C', 'matching a chord cannot advance it early');
+  assert.equal(await page.locator('#hud-score').textContent(), '1');
+  await notes(true, [60, 64, 67]); await notes(false, [60, 64, 67]);
+  assert.equal(await page.locator('#hud-score').textContent(), '1', 'one rep per scheduled change');
+  await page.waitForFunction(() => document.querySelector('#chord-display').textContent === 'Dm');
+  await page.click('#btn-pause-session');
+  const beat = await page.locator('#session-chart .current').getAttribute('data-chart-beat');
+  const clickCount = await page.evaluate(() => window.__clicks.length);
+  await notes(true, [62, 65, 69]); await notes(false, [62, 65, 69]);
+  await page.waitForTimeout(700);
+  assert.equal(await page.locator('#session-chart .current').getAttribute('data-chart-beat'), beat);
+  assert.equal(await page.evaluate(() => window.__clicks.length), clickCount, 'pause stops scheduling clicks');
+  await page.fill('#session-song-bpm', '120'); await page.locator('#session-song-bpm').blur();
+  await page.click('#brand-home'); await page.click('#btn-keep-playing');
+  assert.equal(await page.locator('#btn-pause-session').getAttribute('aria-pressed'), 'true');
+  await page.click('#btn-pause-session');
+  await page.waitForFunction(() => document.querySelector('#session-footnote').textContent.includes('120 BPM'));
+  await page.click('#session-song-click');
+  assert.equal(await page.locator('#session-song-click').getAttribute('aria-pressed'), 'false');
+  const mutedCount = await page.evaluate(() => window.__clicks.length);
+  await page.waitForTimeout(700);
+  assert.equal(await page.evaluate(() => window.__clicks.length), mutedCount);
+  await page.click('#brand-home'); await page.click('#btn-end-session');
+  const stoppedCount = await page.evaluate(() => window.__clicks.length);
+  await page.waitForTimeout(650);
+  assert.equal(await page.locator('#home.active').count(), 1);
+  assert.equal(await page.evaluate(() => window.__clicks.length), stoppedCount);
+  // 6/8 uses a dotted-quarter BPM and audible eighth-note subdivisions.
+  await page.click('#menu-songs');
+  await page.selectOption('#song-meter', '6/8');
+  await page.fill('#song-chart-text', 'C - - G - -');
+  await page.fill('#song-bpm', '120');
+  await page.uncheck('#song-countin');
+  await page.evaluate(() => { window.__clicks = []; });
+  await page.click('#btn-song-practice');
+  await page.waitForFunction(() => window.__clicks.length >= 6);
+  const clicks = await page.evaluate(() => window.__clicks.slice(0, 6));
+  assert.deepEqual(clicks.map(c => c.accent), [true, false, false, true, false, false]);
+  assert.ok(clicks.slice(1).every((c, i) => Math.abs(c.at - clicks[i].at - 1 / 6) < .001), '6/8 eighth-note spacing');
+  await page.click('#btn-pause-session');
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+  assert.equal(await page.locator('#btn-pause-session').getAttribute('aria-pressed'), 'true');
+  await page.click('#btn-session-end');
+  await page.click('#brand-home'); await page.click('#menu-songs');
+  await page.fill('#song-title', '<img src=x onerror="window.__unsafe=1">');
+  await page.click('#btn-song-save');
+  assert.equal(await page.locator('#song-library img').count(), 0);
+  await page.click('#btn-song-practice'); await page.click('#btn-session-end');
+  assert.equal(await page.locator('#results img').count(), 0);
+  assert.deepEqual(errors, []);
+  console.log('PASS: button menus, all meters, legacy chart migration, beat editing, save, count-in, audio cadence, timed progression, pause/tempo/click/exit, and safe titles.');
+} finally { await browser.close(); await server.close(); }

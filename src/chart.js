@@ -1,5 +1,17 @@
-// Small, explicit 4/4 charts. Empty beats hold the preceding chord.
+// Explicit beat slots. Empty beats hold the preceding chord.
 import { CHORD_TYPES } from './chords.js';
+
+export const TIME_SIGNATURES = {
+  '2/4': { slots: 2, subdivisions: 1, pulses: 2 },
+  '3/4': { slots: 3, subdivisions: 1, pulses: 3 },
+  '4/4': { slots: 4, subdivisions: 1, pulses: 4 },
+  '6/8': { slots: 6, subdivisions: 3, pulses: 2 },
+};
+export function meter(signature = '4/4') {
+  const value = TIME_SIGNATURES[signature];
+  if (!value) throw new Error('Choose 2/4, 3/4, 4/4 or 6/8.');
+  return value;
+}
 
 const ROOT_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const ALIASES = { min: 'm', min7: 'm7', '-': 'm', '-7': 'm7', M7: 'maj7', M9: 'maj9', M13: 'maj13', 'Δ7': 'maj7', 'Δ9': 'maj9', 'ø7': 'm7b5', 'ø': 'm7b5', '°': 'dim', '°7': 'dim7', '+': 'aug', sus: 'sus4' };
@@ -20,41 +32,44 @@ export function parseChord(value) {
   return { rootPc: rootPc(match[1], match[2]), typeName: type.name,
     ...(match[4] ? { bassPc: rootPc(match[4], match[5]) } : {}) };
 }
-export function validateBars(bars) {
+export function validateBars(bars, signature = '4/4') {
+  const slots = meter(signature).slots;
   if (!Array.isArray(bars) || !bars.length || bars.length > 64) throw new Error('Use between 1 and 64 bars.');
   if (!bars[0]?.[0]) throw new Error('Place a chord on beat 1 of the first bar.');
   for (const bar of bars) {
-    if (!Array.isArray(bar) || bar.length !== 4) throw new Error('Each bar needs four beat slots.');
+    if (!Array.isArray(bar) || bar.length !== slots) throw new Error(`Each ${signature} bar needs ${slots} beat slots.`);
     for (const symbol of bar) if (symbol) parseChord(symbol);
   }
   return bars;
 }
-export function parseChart(text) {
+export function parseChart(text, signature = '4/4') {
+  const slots = meter(signature).slots;
   const lines = String(text).trim().split(/\n/).map(s => s.trim()).filter(Boolean);
   const rawBars = lines.flatMap(line => line.includes('|') ? line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|') : [line]);
   const bars = rawBars.map((raw, i) => {
     const tokens = raw.trim().split(/\s+/).filter(Boolean);
-    if (tokens.length > 4) throw new Error(`Bar ${i + 1} has more than four beats. Separate bars with |.`);
-    const bar = ['', '', '', ''];
+    if (tokens.length > slots) throw new Error(`Bar ${i + 1} has more than ${slots} beats. Separate bars with |.`);
+    const bar = Array(slots).fill('');
     const explicit = tokens.some(s => s === '-' || s === '.' || s === '%');
     tokens.forEach((symbol, beat) => {
       if (['-', '.', '%'].includes(symbol)) return;
       parseChord(symbol);
-      bar[explicit ? beat : Math.floor(beat * 4 / tokens.length)] = symbol;
+      bar[explicit ? beat : Math.floor(beat * slots / tokens.length)] = symbol;
     });
     return bar;
   });
-  return validateBars(bars);
+  return validateBars(bars, signature);
 }
-export function chartCells(bars) {
-  validateBars(bars);
+export function chartCells(bars, signature = '4/4') {
+  validateBars(bars, signature);
   return bars.flatMap(bar => bar.filter(Boolean).map(parseChord));
 }
 export function chartText(bars) { return bars.map(bar => bar.map(s => s || '-').join(' ')).join(' | '); }
-export function renderChart(bars, { editable = false, active = -1 } = {}) {
-  return `<div class="chord-chart">${bars.map((bar, b) => `<div class="chart-bar"><span class="bar-number">${b + 1}</span>${bar.map((symbol, beat) => {
-    const index = b * 4 + beat;
+export function renderChart(bars, { editable = false, active = -1, signature = '4/4' } = {}) {
+  const { slots, subdivisions } = meter(signature);
+  return `<div class="chord-chart">${bars.map((bar, b) => `<div class="chart-bar" style="--bar-slots:${slots}"><span class="bar-number">${b + 1}</span>${bar.map((symbol, beat) => {
+    const index = b * slots + beat;
     const tag = editable ? 'button' : 'div';
-    return `<${tag} class="chart-beat${index === active ? ' current' : ''}${symbol ? ' has-chord' : ''}" ${editable ? `type="button" data-beat="${index}" aria-label="Bar ${b + 1}, beat ${beat + 1}: ${escapeHtml(symbol || 'hold')}. Edit chord"` : ''}><span class="beat-chord" style="font-size:clamp(7px,calc(145cqw / ${Math.max(1, symbol.length)}),15px)">${escapeHtml(symbol || '')}</span><span class="beat-dot" aria-hidden="true"></span><small>${beat + 1}</small></${tag}>`;
+    return `<${tag} class="chart-beat${index === active ? ' current' : ''}${symbol ? ' has-chord' : ''}${beat % subdivisions === 0 ? ' pulse' : ''}" data-chart-beat="${index}" ${editable ? `type="button" data-beat="${index}" aria-label="Bar ${b + 1}, beat ${beat + 1}: ${escapeHtml(symbol || 'hold')}. Edit chord"` : ''}><span class="beat-chord" style="font-size:clamp(7px,calc(145cqw / ${Math.max(1, symbol.length)}),15px)">${escapeHtml(symbol || '')}</span><span class="beat-dot" aria-hidden="true"></span><small>${beat + 1}</small></${tag}>`;
   }).join('')}</div>`).join('')}</div>`;
 }

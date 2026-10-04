@@ -3,6 +3,7 @@
 
 import '../styles/main.css';
 import '../styles/workout.css';
+import '../styles/menu.css';
 
 import { state } from './state.js';
 import { ChordEngine } from './chords.js';
@@ -16,7 +17,7 @@ import { setEnharmonicStyle } from './notation.js';
 import { SprintMode } from './modes/sprint.js';
 import { SurvivalMode } from './modes/survival.js';
 import { FallingChordsMode } from './modes/fallingChords.js';
-import { PracticeMode, PRESETS, loadLastSessionIntoDraft, describeConfig, hasLastSession } from './modes/practice.js';
+import { PracticeMode, PRESETS, loadLastSessionIntoDraft } from './modes/practice.js';
 import { Progress } from './progress.js';
 import { IS_DEMO, DEMO_CHORDS, UPGRADE_URL } from './edition.js';
 import { IS_DESKTOP } from './platform.js';
@@ -298,31 +299,19 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 });
 
 // ── Home pillar navigation ────────────────────────────────
-// Today's Focus — recommendation (Progress) > continue last session > starter
-// suggestion. Reuses each tier's existing deep-link/prefill machinery as-is.
-let _homeFocusStart = null;
-function _computeFocus() {
-  const fromProgress = Progress.getTodaysFocus();
-  if (fromProgress) return fromProgress;
-  if (hasLastSession()) {
-    return { text: `Continue: ${describeConfig(state.practice.setupDraft)}`, start: openPracticeSetup };
-  }
-  return { text: `Majors · Random — a good place to start.`, start: openPracticeSetup };
-}
-
 function renderHome() {
   loadLastSessionIntoDraft();
-  const focus = _computeFocus();
-  _homeFocusStart = focus.start;
-  UI.renderHome(focus);
+  UI.renderHome();
 }
+function goHome() { navigateTo('home'); renderHome(); }
+function openWorkout() { navigateTo('workout'); renderHome(); }
+function openSongs() { navigateTo('songs'); Songs.render(); }
+document.getElementById('menu-workout').addEventListener('click', openWorkout);
+document.getElementById('menu-songs').addEventListener('click', openSongs);
+document.getElementById('brand-home').addEventListener('click', goHome);
+document.querySelectorAll('[data-workout-menu]').forEach(button => button.addEventListener('click', () => navigateTo(button.dataset.workoutMenu)));
+document.querySelectorAll('[data-menu-back]').forEach(button => button.addEventListener('click', () => button.dataset.menuBack === 'home' ? goHome() : openWorkout()));
 
-function goHome() {
-  navigateTo('home');
-  renderHome();
-}
-
-document.getElementById('home-focus-cta').addEventListener('click', () => _homeFocusStart && _homeFocusStart());
 document.getElementById('btn-resume-workout').addEventListener('click', () => {
   if (!loadLastSessionIntoDraft()) {
     Object.assign(state.practice.setupDraft, { what: 'byQuality', qualities: ['Major'], where: 'all12', order: 'random', presetId: 'major' });
@@ -342,7 +331,7 @@ document.querySelectorAll('[data-home-preset]').forEach(button => button.addEven
   if (id === 'slash') {
     Object.assign(draft, { mode: 'slash', what: 'slash', slashQualities: ['Major', 'Minor'], slashInversions: ['1st inversion', '2nd inversion'], slashWhere: 'all12', order: 'random', presetId: 'slash' });
   } else {
-    const preset = PRESETS.find(p => p.id === (id === 'major' && !IS_DEMO ? 'triads' : id));
+    const preset = PRESETS.find(p => p.id === id);
     Object.assign(draft, { mode: 'standard', what: 'byQuality', qualities: [...preset.qualities], where: 'all12', order: 'random', presetId: preset.id });
   }
   delete draft.songChart;
@@ -378,7 +367,6 @@ function openSettings() {
   navigateTo('settings');
 }
 
-document.getElementById('pillar-practice').addEventListener('click', openPracticeSetup);
 document.getElementById('pillar-test').addEventListener('click', openTest);
 document.getElementById('pillar-progress').addEventListener('click', openProgress);
 
@@ -389,7 +377,7 @@ document.getElementById('btn-back-from-progress').addEventListener('click', goHo
 document.getElementById('sidebar-nav').addEventListener('click', e => {
   const btn = e.target.closest('[data-nav]');
   if (!btn) return;
-  const dest = { home: goHome, songs: () => { navigateTo('songs'); Songs.render(); }, progress: openProgress };
+  const dest = { workout: openWorkout, songs: openSongs, progress: openProgress };
   (dest[btn.dataset.nav] || goHome)();
 });
 
@@ -620,11 +608,13 @@ document.getElementById('btn-start-practice-custom').addEventListener('click', (
   PracticeMode.start(state.practice.setupDraft);
 });
 
-document.getElementById('btn-back-from-practice-custom').addEventListener('click', openPracticeSetup);
+document.getElementById('btn-back-from-practice-custom').addEventListener('click', openWorkout);
 
 // ── Practice session controls ──────────────────────────────
 document.getElementById('btn-hint').addEventListener('click', () => PracticeMode.useHint());
 document.getElementById('auto-hint-toggle').addEventListener('change', e => PracticeMode.setAutoHint(e.target.checked));
+document.getElementById('session-song-bpm').addEventListener('change', e => PracticeMode.setTempo(e.target.value));
+document.getElementById('session-song-click').addEventListener('click', e => PracticeMode.setMetronome(e.currentTarget.getAttribute('aria-pressed') !== 'true'));
 document.getElementById('btn-end-practice').addEventListener('click', () => PracticeMode.end());
 document.getElementById('btn-session-end').addEventListener('click', () => {
   if (state.activeMode === 'practice') PracticeMode.end();
@@ -804,19 +794,6 @@ _liveAuditionCb.addEventListener('change', () => {
   if (_liveAuditionCb.checked) maybeLoadSampler();
 });
 
-// ── First-run welcome overlay ─────────────────────────────
-const WELCOMED_KEY = 'ct_welcomed_v1';
-function shouldShowWelcome() {
-  try {
-    if (localStorage.getItem(WELCOMED_KEY)) return false;
-    return localStorage.getItem('ct_mastery_v1') == null; // existing players skip it
-  } catch (_) { return false; }
-}
-document.getElementById('btn-welcome-go').addEventListener('click', () => {
-  try { localStorage.setItem(WELCOMED_KEY, 'true'); } catch (_) {}
-  document.getElementById('welcome-overlay').style.display = 'none';
-});
-
 // ── Falling Chords full-clear celebration modal ───────────
 document.getElementById('btn-fullclear-dismiss').addEventListener('click', () => {
   document.getElementById('fullclear-modal-overlay').style.display = 'none';
@@ -832,9 +809,16 @@ if (!state.practice.setupDraft.qualities.length) {
 }
 UI.renderMenu();
 renderHome();
+document.body.classList.add('main-menu');
 updateMidiStatus();
 _syncCalibrationTitle();
-if (shouldShowWelcome()) document.getElementById('welcome-overlay').style.display = '';
+// Brief logo launch, followed by the three-button menu. Reduced motion skips the fade.
+const splash = document.getElementById('launch-splash');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+setTimeout(() => {
+  splash.classList.add('leaving');
+  setTimeout(() => splash.remove(), reducedMotion ? 0 : 400);
+}, reducedMotion ? 0 : 700);
 
 // ── Desktop-only chrome (Settings license panel) ──────────
 if (IS_DESKTOP) {
@@ -963,9 +947,6 @@ if (IS_DESKTOP) {
 if (IS_DEMO) {
   document.body.classList.add('is-demo');
   document.title = 'ChordGym Demo';
-  document.getElementById('dash-demo-cta').href = UPGRADE_URL;
-  const totalChords = ChordEngine.ROOTS.length * ChordEngine.CHORD_TYPES.length;
-  document.getElementById('dash-demo-count').textContent = `${DEMO_CHORDS.length} of ${totalChords} chords.`;
   document.querySelectorAll('.mode-btn[data-mode="survival"], .mode-btn[data-mode="falling"]').forEach(btn => {
     btn.classList.add('locked');
     btn.querySelector('.mode-btn-desc').textContent = DEMO_LOCK_TEASE[btn.dataset.mode];

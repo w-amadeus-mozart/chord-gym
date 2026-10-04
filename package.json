@@ -1,6 +1,6 @@
 {
   "name": "chord-gym",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Browser-based MIDI chord recognition game",
   "type": "module",
   "scripts": {
@@ -15,6 +15,7 @@
     "test:slash-chords": "node scripts/regression-slash-chords.mjs",
     "test:extended-chords": "node scripts/regression-extended-chords.mjs",
     "test:overhaul": "node scripts/regression-overhaul.mjs",
+    "test:songs": "node scripts/regression-songs.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
